@@ -47,13 +47,13 @@ class HybridScannerService:
             self._load_orats_universe()
         
         if self.use_orats:
-             print("[OK] ORATS API configured - Primary Source (History + Options)")
+             print("✅ ORATS API configured - Primary Source (History + Options)")
         else:
-             print("[WARNING] ORATS API NOT configured - Critical Error for Full Switch")
+             print("⚠️ ORATS API NOT configured - Critical Error for Full Switch")
 
     def _refresh_ticker_cache(self):
         """Load tickers from local JSON file (backend/data/tickers.json)"""
-        print("[LOADING] Ticker Cache...")
+        print("📥 Loading Ticker Cache...")
         
         # Path to local ticker file
         import json
@@ -72,10 +72,10 @@ class HybridScannerService:
                 age_days = (datetime.now() - last_updated).days
                 
                 if age_days > 90:
-                    print(f"[WARNING] Ticker list is {age_days} days old (>90 days)")
-                    print(f"[WARNING] Run 'python backend/scripts/refresh_tickers.py' to update")
+                    print(f"⚠️  Ticker list is {age_days} days old (>90 days)")
+                    print(f"⚠️  Run 'python backend/scripts/refresh_tickers.py' to update")
                 else:
-                    print(f"[OK] Ticker list age: {age_days} days (updated {last_updated.strftime('%Y-%m-%d')})")
+                    print(f"✅ Ticker list age: {age_days} days (updated {last_updated.strftime('%Y-%m-%d')})")
             
             tickers = data.get('tickers', [])
             
@@ -92,14 +92,14 @@ class HybridScannerService:
                 })
             
             HybridScannerService._ticker_cache = filtered
-            print(f"[OK] Loaded {len(filtered)} tickers from local cache")
+            print(f"✅ Loaded {len(filtered)} tickers from local cache")
             
         except FileNotFoundError:
-            print(f"[ERROR] Ticker file not found: {local_path}")
-            print(f"[WARNING] Run 'python backend/scripts/refresh_tickers.py' to create it")
+            print(f"❌ Ticker file not found: {local_path}")
+            print(f"⚠️  Run 'python backend/scripts/refresh_tickers.py' to create it")
             HybridScannerService._ticker_cache = []
         except Exception as e:
-            print(f"[ERROR] Error loading tickers: {e}")
+            print(f"❌ Error loading tickers: {e}")
             HybridScannerService._ticker_cache = []
 
     def get_cached_tickers(self):
@@ -630,7 +630,7 @@ class HybridScannerService:
         """
         mode_label = "LEAPS" if weeks_out is None else f"WEEKLY (+{weeks_out})"
         ind_label = f" | {industry}" if industry else ""
-        print(f"[SECTOR] Starting Scan: {sector}{ind_label} [{mode_label}] [Cap > {min_market_cap}, Vol > {min_volume}]")
+        print(f"🚀 Starting Sector Scan: {sector}{ind_label} [{mode_label}] [Cap > {min_market_cap}, Vol > {min_volume}]")
         
         # 1. Pre-filter (FMP)
         candidates = []
@@ -643,7 +643,7 @@ class HybridScannerService:
                 limit=limit 
             )
         except Exception as e:
-             print(f"[WARN] FMP Screener API Failed: {e}")
+             print(f"⚠️ FMP Screener API Failed: {e}")
              # Fallback logic omitted for brevity in this block update, assumed handled in full file if needed
              pass
 
@@ -660,10 +660,10 @@ class HybridScannerService:
             candidates = matches[:15]
             
         if not candidates:
-            print("[ERROR] No candidates found in sector screener")
+            print("❌ No candidates found in sector screener")
             return []
             
-        print(f"[FOUND] {len(candidates)} candidates. Starting deep scan...")
+        print(f"📋 Found {len(candidates)} candidates. Starting deep scan...")
         
         # [ORATS COVERAGE PRE-FILTER] Skip tickers not in ORATS universe
         tickers = [c['symbol'] for c in candidates]
@@ -715,7 +715,7 @@ class HybridScannerService:
         # Sort by Score
         all_opps.sort(key=lambda x: x.get('opportunity_score', 0), reverse=True)
         top_100 = all_opps[:100]
-        print(f"[FILTERED] Top {len(top_100)} Global Opportunities")
+        print(f"🎯 Filtered down to Top {len(top_100)} Global Opportunities")
 
         # Regroup
         grouped_results = {}
@@ -858,7 +858,7 @@ class HybridScannerService:
         target_friday = today + timedelta((3-today.weekday()) % 7) # This Friday
         target_friday += timedelta(weeks=weeks_out)
         target_friday_str = target_friday.strftime('%Y-%m-%d')
-        print(f"[TARGET] Expiry: {target_friday_str} (Friday)")
+        print(f"📅 Target Expiry: {target_friday_str} (Friday)")
         print(f"{'='*50}")
         
         try:
