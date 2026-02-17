@@ -858,7 +858,7 @@ class HybridScannerService:
         target_friday = today + timedelta((3-today.weekday()) % 7) # This Friday
         target_friday += timedelta(weeks=weeks_out)
         target_friday_str = target_friday.strftime('%Y-%m-%d')
-        print(f"📅 Target Expiry: {target_friday_str} (Friday)")
+        print(f"[TARGET] Expiry: {target_friday_str} (Friday)")
         print(f"{'='*50}")
         
         try:
