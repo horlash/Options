@@ -630,7 +630,7 @@ class HybridScannerService:
         """
         mode_label = "LEAPS" if weeks_out is None else f"WEEKLY (+{weeks_out})"
         ind_label = f" | {industry}" if industry else ""
-        print(f"🚀 Starting Sector Scan: {sector}{ind_label} [{mode_label}] [Cap > {min_market_cap}, Vol > {min_volume}]")
+        print(f"[SECTOR] Starting Scan: {sector}{ind_label} [{mode_label}] [Cap > {min_market_cap}, Vol > {min_volume}]")
         
         # 1. Pre-filter (FMP)
         candidates = []
@@ -643,7 +643,7 @@ class HybridScannerService:
                 limit=limit 
             )
         except Exception as e:
-             print(f"⚠️ FMP Screener API Failed: {e}")
+             print(f"[WARN] FMP Screener API Failed: {e}")
              # Fallback logic omitted for brevity in this block update, assumed handled in full file if needed
              pass
 
@@ -660,10 +660,10 @@ class HybridScannerService:
             candidates = matches[:15]
             
         if not candidates:
-            print("❌ No candidates found in sector screener")
+            print("[ERROR] No candidates found in sector screener")
             return []
             
-        print(f"📋 Found {len(candidates)} candidates. Starting deep scan...")
+        print(f"[FOUND] {len(candidates)} candidates. Starting deep scan...")
         
         # [ORATS COVERAGE PRE-FILTER] Skip tickers not in ORATS universe
         tickers = [c['symbol'] for c in candidates]
@@ -715,7 +715,7 @@ class HybridScannerService:
         # Sort by Score
         all_opps.sort(key=lambda x: x.get('opportunity_score', 0), reverse=True)
         top_100 = all_opps[:100]
-        print(f"🎯 Filtered down to Top {len(top_100)} Global Opportunities")
+        print(f"[FILTERED] Top {len(top_100)} Global Opportunities")
 
         # Regroup
         grouped_results = {}

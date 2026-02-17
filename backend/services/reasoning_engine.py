@@ -57,7 +57,7 @@ class ReasoningEngine:
                 
                 # [FIX] Auto-Switch Persona based on Timeframe
                 if days_left <= 1:
-                    print(f"⚡ 0DTE Detected ({days_left} days). Switching to SNIPER Persona.")
+                    print(f"[0DTE] Detected ({days_left} days). Switching to SNIPER Persona.")
                     strategy = "0DTE" # Force Sniper Persona
                     strat_context = "Ultra Short-Term (0DTE/1DTE) - SCALP/GAMMA FOCUS"
                 elif days_left <= 5:
@@ -69,7 +69,7 @@ class ReasoningEngine:
                 else:
                     strat_context = "Long-Term LEAP (3+ months)"
             except Exception as e:
-                print(f"⚠️ Date parsing error: {e}")
+                print(f"[WARNING] Date parsing error: {e}")
         
         # Parse optional specific trade details
         strike = data.get('strike')
@@ -157,7 +157,7 @@ class ReasoningEngine:
             )
             # Add squeeze alert if detected
             if t.get('bb_squeeze'):
-                tech_text += "\n⚠️ BOLLINGER SQUEEZE DETECTED — Volatility at 100-bar low. Explosive move imminent. Determine direction from news + RSI."
+                tech_text += "\n[WARNING] BOLLINGER SQUEEZE DETECTED — Volatility at 100-bar low. Explosive move imminent. Determine direction from news + RSI."
             
         gex_text = "No GEX data."
         if context and context.get('gex'):
@@ -215,7 +215,7 @@ class ReasoningEngine:
         current_year = datetime.datetime.now().year
         
         sim_note = (
-            "⚠️ **PROTOCOL: BLACK BOX MODE (YEAR 2026)** ⚠️\n"
+            "[PROTOCOL] **BLACK BOX MODE (YEAR 2026)**\n"
             "You are an Expert Trading Engine in a sealed environment.\n"
             "1. **RETAIN SKILLS**: Use your full knowledge of Options, Greeks, and Strategy Personas.\n"
             "2. **SUPPRESS INTERNAL DATA**: You have NO memory of 'current' market prices or news. Your internal data is obsolete (2025).\n"
@@ -253,7 +253,7 @@ class ReasoningEngine:
         score_high = min(100, base_score + 20)
         
         final_reminder = (
-            f"\n\n🛑 **FINAL REMINDER before you answer:**\n"
+            f"\n\n[REMINDER] **FINAL REMINDER before you answer:**\n"
             f"- The Stock Price is **${spot_price}**.\n"
             f"- Imagine it is **2026**.\n"
             f"- **BASE CONVICTION SCORE: {base_score}** (Calculated from Hard Data).\n"
