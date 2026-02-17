@@ -1,0 +1,117 @@
+/* Watchlist Dashboard Row (Flex Layout) */
+.watchlist-dashboard-row {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    align-items: stretch;
+    /* Ensure same height */
+}
+
+@media (max-width: 768px) {
+    .watchlist-dashboard-row {
+        flex-direction: column;
+    }
+
+    .watchlist-add-card {
+        flex: auto;
+        width: 100%;
+    }
+}
+
+.watchlist-add-card {
+    flex: 0 0 300px;
+    /* Fixed width like other cards */
+    display: flex;
+    flex-direction: column;
+}
+
+.watchlist-list-card {
+    flex: 1;
+    /* Take remaining width */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Watchlist Grid (Production) */
+.watchlist-grid {
+    display: grid;
+    /* Force 10 columns per row as requested */
+    grid-template-columns: repeat(10, 1fr);
+    /* Removed !important to allow override */
+    gap: 4px;
+    /* Reduced gap to fit 10 items better */
+    width: 100%;
+    /* Height auto to fit all items (up to 30) */
+    padding-right: 0;
+    flex: 1;
+}
+
+@media (max-width: 1024px) {
+    .watchlist-grid {
+        grid-template-columns: repeat(5, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .watchlist-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Watchlist Tag Items */
+.watchlist-tag {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    /* Slightly smaller radius */
+    padding: 6px 8px;
+    /* Reduced padding */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    min-width: 0;
+    /* Prevent flex item from overflowing */
+}
+
+.watchlist-tag:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--primary);
+    transform: translateY(-1px);
+}
+
+.watchlist-tag-symbol {
+    font-weight: 600;
+    font-size: 0.9rem;
+    /* Smaller font */
+    color: var(--primary-light);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.watchlist-tag-remove {
+    background: transparent;
+    border: none;
+    color: var(--danger);
+    font-size: 1rem;
+    /* Smaller icon */
+    cursor: pointer;
+    padding: 0 2px;
+    margin-left: 4px;
+    /* Reduced margin */
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.watchlist-tag-remove:hover {
+    opacity: 1;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 4px;
+}

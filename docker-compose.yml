@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  leap-scanner:
+    build: .
+    image: horlamy/options-scanner:1.0.1
+    container_name: leap_scanner_prod
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persist the SQLite database
+      - ./leap_scanner.db:/app/leap_scanner.db
+      # Persist cached data (like tickers.json)
+      - ./backend/data:/app/backend/data
+      # Optional: Mount logs if you add file logging
+      # - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=production
+      # Ensure python functionality works well in container
+      - PYTHONUNBUFFERED=1

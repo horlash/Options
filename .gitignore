@@ -1,0 +1,55 @@
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# === Virtual Environment ===
+.venv/
+venv/
+env/
+
+# === Secrets & Auth ===
+.env
+token.json
+*.token
+
+# === Database ===
+*.db
+*.sqlite3
+
+# === IDE / Editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OS Files ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Generated Test Output ===
+regression_results.json
+debug_output.txt
+
+# === Node (if any) ===
+node_modules/
+
+# === Docker runtime ===
+*.log
+
+# === Agent workspace ===
+.gemini/
+.agent/
+
+# === Binaries & Packages ===
+ngrok.exe
+*.exe.old
+*.whl
+temp_cleanup/

@@ -1,0 +1,32 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Application specific
+# We do NOT include the local database in the image, as we will mount it as a volume
+# leap_scanner.db
+# We do NOT include the local secrets in the image, strictly passed at runtime
+.env
+# Local virtual environment
+.venv
+
+# Documentation and temporary files
+docs/
+*.md
+tests/
+frontend_dist_backup/
+transcription.txt
+*.bat
+ngrok.exe

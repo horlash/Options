@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanner V2 (Test Environment)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 900: '#0f172a', 800: '#1e293b', 950: '#020617' },
+                        green: { 400: '#4ade80', 500: '#22c55e', 900: '#14532d' },
+                        red: { 400: '#f87171', 500: '#ef4444', 900: '#7f1d1d' }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .shiny-border {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .shiny-border::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        #verify-drawer {
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .drawer-open {
+            transform: translateX(0);
+        }
+
+        /* Utility for inputs */
+        .input-dark {
+            @apply bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-blue-500 font-mono transition;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-950 text-slate-50 h-screen flex flex-col md:flex-row overflow-hidden">
+
+    <!-- SIDEBAR (Desktop) -->
+    <aside class="hidden md:flex w-20 border-r border-slate-800 flex-col items-center py-6 bg-slate-900 z-20 shrink-0">
+        <div
+            class="mb-8 p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-500/20 text-xl cursor-pointer hover:scale-110 transition">
+            ⚡</div>
+        <nav class="space-y-6 flex flex-col items-center w-full">
+            <button
+                class="w-12 h-12 rounded-xl bg-slate-800 text-white shadow-inner flex items-center justify-center border border-blue-500/30">
+                <span class="text-xl">📊</span>
+            </button>
+            <button
+                class="w-12 h-12 rounded-xl bg-transparent text-slate-500 flex items-center justify-center hover:bg-slate-800 hover:text-white transition"
+                title="Watchlist" onclick="showToast('Watchlist feature coming soon', 'info')">
+                <span class="text-xl">⭐</span>
+            </button>
+            <button
+                class="w-12 h-12 rounded-xl bg-transparent text-slate-500 flex items-center justify-center hover:bg-slate-800 hover:text-white transition"
+                title="History" onclick="showToast('History feature coming soon', 'info')">
+                <span class="text-xl">🕒</span>
+            </button>
+        </nav>
+    </aside>
+
+    <!-- MOBILE TOP NAV -->
+    <div
+        class="md:hidden h-16 bg-slate-950 border-b border-slate-800 flex items-center justify-between px-4 z-20 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-blue-600 rounded-lg text-sm">⚡</div>
+            <div class="font-bold text-lg">Scanner V2</div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col min-w-0 relative">
+        <!-- CONTROLS HEADER -->
+        <div
+            class="px-4 md:px-6 py-4 border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10 shrink-0 space-y-3">
+
+            <!-- ROW 1: Tabs + Search + Key Filters -->
+            <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+
+                <!-- LEFT SIDE: Scan Options & Sector Button -->
+                <div class="flex flex-col gap-2 shrink-0">
+                    <!-- Row 1: Scan Mode Tabs -->
+                    <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800 shrink-0 whitespace-nowrap scrollbar-hide overflow-x-auto max-w-[90vw]"
+                        id="scan-mode-tabs">
+                        <button data-mode="weekly-0"
+                            class="mode-btn px-3 py-1.5 rounded-md bg-blue-600 text-white text-xs font-bold shadow-sm transition-all"
+                            onclick="setMode('weekly-0', this)">
+                            This Week <span class="opacity-60 font-normal ml-1" id="date-0">...</span>
+                        </button>
+                        <button data-mode="weekly-1"
+                            class="mode-btn px-3 py-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-medium transition"
+                            onclick="setMode('weekly-1', this)">
+                            Next Week <span class="opacity-60 font-normal ml-1" id="date-1">...</span>
+                        </button>
+                        <button data-mode="weekly-2"
+                            class="mode-btn px-3 py-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-medium transition"
+                            onclick="setMode('weekly-2', this)">
+                            2 Weeks <span class="opacity-60 font-normal ml-1" id="date-2">...</span>
+                        </button>
+                        <button data-mode="0dte"
+                            class="mode-btn px-3 py-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-medium transition"
+                            onclick="setMode('0dte', this)">
+                            0DTE ⚡
+                        </button>
+                    </div>
+
+                    <!-- Row 2: Sector Toggle & Tools -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button id="sector-toggle"
+                            class="px-3 py-1.5 rounded-md border border-slate-700 bg-slate-900 text-xs text-slate-400 hover:text-white hover:bg-slate-800 font-medium transition flex items-center gap-2"
+                            onclick="toggleSectorTools()">
+                            <span>🏭</span> Sector Scan
+                        </button>
+                        <!-- Sector Tools (Hidden by default) -->
+                        <div id="sector-tools" class="hidden flex flex-wrap items-center gap-2 animate-fade-in-down">
+                            <select id="sector-select" class="input-dark w-32 bg-slate-950 text-white border-slate-700">
+                                <option value="">Select Sector</option>
+                                <option value="Technology">Technology</option>
+                                <option value="Financial Services">Financial Services</option>
+                                <option value="Healthcare">Healthcare</option>
+                                <option value="Consumer Cyclical">Consumer Cyclical</option>
+                                <option value="Consumer Defensive">Consumer Defensive</option>
+                                <option value="Energy">Energy</option>
+                                <option value="Industrials">Industrials</option>
+                                <option value="Communication Services">Communication Services</option>
+                                <option value="Basic Materials">Basic Materials</option>
+                                <option value="Real Estate">Real Estate</option>
+                                <option value="Utilities">Utilities</option>
+                            </select>
+                            <select id="industry-select"
+                                class="input-dark w-32 bg-slate-950 text-white border-slate-700 hidden">
+                                <option value="">Any Subsector</option>
+                            </select>
+                            <select id="min-cap" class="input-dark w-24 bg-slate-950 text-white border-slate-700">
+                                <option value="0">Any Cap</option>
+                                <option value="200">Large (>200B)</option>
+                                <option value="50">Mid (>50B)</option>
+                                <option value="10">Small (>10B)</option>
+                            </select>
+                            <select id="min-vol" class="input-dark w-24 bg-slate-950 text-white border-slate-700">
+                                <option value="0">Any Vol</option>
+                                <option value="500000">High (>500k)</option>
+                                <option value="1000000">Very High (>1M)</option>
+                                <option value="5000000">Extreme (>5M)</option>
+                            </select>
+                            <button
+                                class="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-bold transition shadow"
+                                onclick="runSectorScan()">
+                                Scan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT SIDE: Search -->
+                <div class="relative w-48 shrink-0 flex gap-1 self-start">
+                    <div class="relative flex-1">
+                        <span
+                            class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-slate-500 text-xs">🔎</span>
+                        <input type="text" id="ticker-input" placeholder="Scan Ticker..."
+                            class="bg-slate-950 border border-slate-700 rounded-l px-2 py-1.5 pl-7 text-xs text-slate-300 w-full focus:outline-none focus:border-blue-500 font-mono transition"
+                            autocomplete="off" onkeydown="handleSearch(event)">
+                        <div id="autocomplete-list"
+                            class="absolute top-full left-0 w-full bg-slate-900 border border-slate-700 mt-1 rounded shadow-lg z-50 hidden max-h-60 overflow-y-auto">
+                        </div>
+                    </div>
+                    <button
+                        class="px-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-r border border-l-0 border-blue-500 transition"
+                        onclick="runScan(document.getElementById('ticker-input').value)">
+                        Scan
+                    </button>
+                </div>
+
+                <!-- Right Side: Sector Toggle & ROI -->
+
+
+                <!-- ROW 3: Filters, Sort, ROI -->
+                <div class="flex items-center justify-between text-xs text-slate-500 border-t border-slate-800 pt-3">
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <span>Filter:</span>
+                            <select id="filter-ticker"
+                                class="bg-transparent border-none focus:ring-0 cursor-pointer hover:text-slate-300"
+                                onchange="applyFilters()">
+                                <option value="all">All Tickers</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <span>Sort:</span>
+                            <select id="sort-by"
+                                class="bg-transparent border-none focus:ring-0 cursor-pointer hover:text-slate-300"
+                                onchange="applySort()">
+                                <option value="score">Score (High-Low)</option>
+                                <option value="profit">Profit %</option>
+                                <option value="premium">Premium</option>
+                            </select>
+                        </div>
+
+                        <div class="h-4 w-px bg-slate-800"></div>
+
+                        <!-- ROI Filters grouped with Sort/Filter -->
+                        <div class="flex gap-1" id="roi-filters">
+                            <button
+                                class="roi-btn px-2 py-1 rounded bg-slate-800 text-[10px] text-slate-400 border border-slate-700 hover:text-green-400 transition"
+                                onclick="setROI(15, this)">>15%</button>
+                            <button
+                                class="roi-btn px-2 py-1 rounded bg-slate-800 text-[10px] text-slate-400 border border-slate-700 hover:text-green-400 transition"
+                                onclick="setROI(25, this)">>25%</button>
+                            <button
+                                class="roi-btn px-2 py-1 rounded bg-slate-800 text-[10px] text-slate-400 border border-slate-700 hover:text-green-400 transition active"
+                                onclick="setROI(35, this)">>35%</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GRID CONTAINER -->
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-950 scroll-smooth">
+                <div id="results-grid"
+                    class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-24 md:pb-10">
+                    <!-- Empty State -->
+                    <div class="col-span-full text-center py-20 opacity-50">
+                        <div class="text-4xl mb-4">🚀</div>
+                        <p>Ready to Scan.</p>
+                    </div>
+                </div>
+            </div>
+    </main>
+
+    <!-- VERIFICATION DRAWER -->
+    <div id="verify-drawer"
+        class="fixed inset-y-0 right-0 w-full md:w-[450px] bg-slate-900 border-l border-slate-700 shadow-2xl z-50 transform md:translate-x-full translate-y-full md:translate-y-0 flex flex-col h-[90vh] md:h-full mt-auto md:mt-0 rounded-t-2xl md:rounded-l-2xl md:rounded-tr-none border-t md:border-t-0 transition-transform duration-300">
+        <div id="drawer-content" class="flex-1 flex flex-col h-full"></div>
+    </div>
+
+    <div id="backdrop"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 hidden opacity-0 transition-opacity duration-300"
+        onclick="closeDrawer()"></div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- SCRIPT -->
+    <script>
+        let currentMode = 'weekly-0';
+        let currentState = { results: [], minROI: 35 };
+        let tickers = [];
+
+        const INDUSTRIES = {
+            'Technology': ['Software - Infrastructure', 'Semiconductors', 'Consumer Electronics', 'Software - Application', 'Information Technology Services', 'Computer Hardware'],
+            'Financial Services': ['Banks - Diversified', 'Credit Services', 'Asset Management', 'Capital Markets', 'Insurance - Diversified'],
+            'Healthcare': ['Drug Manufacturers - General', 'Healthcare Plans', 'Biotechnology', 'Medical Devices', 'Diagnostics & Research'],
+            'Consumer Cyclical': ['Internet Retail', 'Auto Manufacturers', 'Restaurants', 'Footwear & Accessories', 'Apparel Retail'],
+            'Consumer Defensive': ['Discount Stores', 'Beverages - Non-Alcoholic', 'Household & Personal Products', 'Grocery Stores'],
+            'Energy': ['Oil & Gas Integrated', 'Oil & Gas E&P', 'Oil & Gas Midstream', 'Oil & Gas Equipment & Services'],
+            'Industrials': ['Aerospace & Defense', 'Specialty Industrial Machinery', 'Railroads', 'Airlines', 'Farm & Heavy Construction Machinery'],
+            'Communication Services': ['Internet Content & Information', 'Telecom Services', 'Entertainment', 'Broadcasting'],
+            'Basic Materials': ['Specialty Chemicals', 'Agricultural Inputs', 'Building Materials', 'Steel', 'Copper'],
+            'Real Estate': ['REIT - Specialty', 'REIT - Industrial', 'REIT - Residential', 'Real Estate Services'],
+            'Utilities': ['Utilities - Regulated Electric', 'Utilities - Diversified', 'Utilities - Renewable']
+        };
+
+        // --- INIT ---
+        window.addEventListener('DOMContentLoaded', () => {
+            updateDateLabels();
+            initSmartSearch();
+            setupSectorScan();
+        });
+
+        function setupSectorScan() {
+            const sectorSelect = document.getElementById('sector-select');
+            const industrySelect = document.getElementById('industry-select');
+
+            sectorSelect.addEventListener('change', (e) => {
+                const sector = e.target.value;
+                industrySelect.innerHTML = '<option value="">Any Subsector</option>';
+
+                if (sector && INDUSTRIES[sector]) {
+                    INDUSTRIES[sector].sort().forEach(ind => {
+                        const opt = document.createElement('option');
+                        opt.value = ind;
+                        opt.textContent = ind;
+                        industrySelect.appendChild(opt);
+                    });
+                    industrySelect.classList.remove('hidden');
+                } else {
+                    industrySelect.classList.add('hidden');
+                }
+            });
+        }
+
+        async function initSmartSearch() {
+            try {
+                const response = await fetch('/api/data/tickers.json');
+                const data = await response.json();
+                tickers = data.tickers || [];
+                console.log(`✅ Loaded ${tickers.length} tickers`);
+            } catch (e) {
+                console.error("Failed to load tickers:", e);
+            }
+
+            const input = document.getElementById('ticker-input');
+            const list = document.getElementById('autocomplete-list');
+
+            input.addEventListener('input', (e) => {
+                const query = e.target.value;
+                if (query.length > 0) {
+                    const matches = searchTickers(query);
+                    showAutocomplete(matches);
+                } else {
+                    list.classList.add('hidden');
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (e.target !== input && e.target !== list) {
+                    list.classList.add('hidden');
+                }
+            });
+        }
+
+        function searchTickers(query) {
+            if (!query || query.length < 1) return [];
+            query = query.toUpperCase();
+
+            const symbolMatches = tickers.filter(t => t.symbol.toUpperCase().startsWith(query));
+            const nameStartMatches = tickers.filter(t => !symbolMatches.includes(t) && (t.name || '').toUpperCase().startsWith(query));
+
+            return [...symbolMatches, ...nameStartMatches].slice(0, 8);
+        }
+
+        function showAutocomplete(matches) {
+            const list = document.getElementById('autocomplete-list');
+            if (matches.length === 0) {
+                list.classList.add('hidden');
+                return;
+            }
+
+            list.innerHTML = matches.map(t => `
+                <div class="px-3 py-2 hover:bg-slate-800 cursor-pointer border-b border-slate-800 last:border-0" 
+                     onclick="selectTicker('${t.symbol}')">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-white">${t.symbol}</span>
+                        <span class="text-[10px] text-slate-500 truncate max-w-[100px]">${t.name}</span>
+                    </div>
+                </div>
+            `).join('');
+            list.classList.remove('hidden');
+        }
+
+        function selectTicker(symbol) {
+            const input = document.getElementById('ticker-input');
+            input.value = symbol;
+            document.getElementById('autocomplete-list').classList.add('hidden');
+            runScan(symbol);
+        }
+
+        function updateDateLabels() {
+            // Helper to get next Friday
+            function getNextFriday(weeksOut) {
+                const d = new Date();
+                d.setDate(d.getDate() + (7 - d.getDay() + 5) % 7 + (weeksOut * 7));
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
+            document.getElementById('date-0').innerText = getNextFriday(0);
+            document.getElementById('date-1').innerText = getNextFriday(1);
+            document.getElementById('date-2').innerText = getNextFriday(2);
+        }
+
+        // --- TABS & MODES ---
+        function setMode(mode, btn) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(b => {
+                b.className = 'mode-btn px-3 py-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-medium transition';
+            });
+            btn.className = 'mode-btn px-3 py-1.5 rounded-md bg-blue-600 text-white text-xs font-bold shadow-sm transition-all';
+        }
+
+        function toggleSectorTools() {
+            const tools = document.getElementById('sector-tools');
+            const btn = document.getElementById('sector-toggle');
+            tools.classList.toggle('hidden');
+            btn.classList.toggle('bg-slate-800');
+            btn.classList.toggle('text-white');
+        }
+
+        function setROI(val, btn) {
+            currentState.minROI = val;
+            document.querySelectorAll('.roi-btn').forEach(b => {
+                b.classList.remove('text-green-400', 'border-green-500/50', 'active');
+                b.classList.add('text-slate-400', 'border-slate-700');
+            });
+            btn.classList.add('text-green-400', 'border-green-500/50', 'active'); // Simplified active state handling
+            applyFilters();
+        }
+
+        // --- API CALLS ---
+        async function handleSearch(event) {
+            if (event.key === 'Enter') {
+                const ticker = event.target.value.toUpperCase().trim();
+                if (ticker) runScan(ticker);
+            }
+        }
+
+        async function runScan(ticker) {
+            setLoading(true);
+            try {
+                let url, body;
+                if (currentMode === '0dte') {
+                    url = `/api/scan/0dte/${ticker}`;
+                    body = {};
+                } else {
+                    const weeksOut = parseInt(currentMode.split('-')[1]);
+                    url = `/api/scan/daily/${ticker}`;
+                    body = { weeks_out: weeksOut };
+                }
+
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                processResults(data.result || []);
+            } catch (e) {
+                console.error(e);
+                showError('Network Error');
+            }
+        }
+
+        async function runSectorScan() {
+            setLoading(true);
+            const sector = document.getElementById('sector-select').value;
+            const industry = document.getElementById('industry-select').value;
+            const minCap = document.getElementById('min-cap').value * 1e9; // B to actual
+            const minVol = document.getElementById('min-vol').value;
+            let weeksOut = currentMode === '0dte' ? 0 : parseInt(currentMode.split('-')[1]);
+
+            try {
+                const res = await fetch('/api/scan/sector', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sector,
+                        min_market_cap: minCap,
+                        min_volume: minVol,
+                        weeks_out: weeksOut,
+                        industry: industry || null
+                    })
+                });
+                const data = await res.json();
+
+                // Flatten results if sector scan returns grouped structure
+                let flat = [];
+                if (Array.isArray(data.result)) {
+                    data.result.forEach(group => {
+                        if (group.opportunities) flat.push(...group.opportunities);
+                    });
+                }
+                processResults(flat);
+            } catch (e) {
+                console.error(e);
+                showError('Sector Scan Failed');
+            }
+        }
+
+        // --- DATA PROCESSING ---
+        function processResults(raw) {
+            // Normalize structure
+            let items = [];
+            // If raw structure is ticker-based (calls/puts)
+            if (raw.calls || raw.puts) {
+                // Try to grab parent price if available
+                const parentPrice = raw.current_price || raw.price || 0;
+                items = [...(raw.calls || []), ...(raw.puts || [])].map(i => ({ ...i, parent_price: parentPrice }));
+            }
+            else if (Array.isArray(raw)) items = raw;
+            else if (raw.opportunities) items = raw.opportunities;
+
+            currentState.results = items;
+
+            // Populate Filter Dropdown
+            const filterSelect = document.getElementById('filter-ticker');
+            const tickers = new Set(items.map(i => i.ticker));
+            filterSelect.innerHTML = '<option value="all">All Tickers</option>';
+            tickers.forEach(t => filterSelect.innerHTML += `<option value="${t}">${t}</option>`);
+
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const tickerFilter = document.getElementById('filter-ticker').value;
+
+            let filtered = currentState.results.filter(i => {
+                const val = i.profit_potential || i.profitPotential || 0;
+                const roiPass = val >= currentState.minROI;
+                const tickerPass = tickerFilter === 'all' || i.ticker === tickerFilter;
+                return roiPass && tickerPass;
+            });
+
+            applySort(filtered);
+        }
+
+        function applySort(items = null) {
+            const list = items || currentState.results; // Use current filtered list if passed, else all
+            const sortBy = document.getElementById('sort-by').value;
+
+            list.sort((a, b) => {
+                if (sortBy === 'score') return (b.opportunity_score || 0) - (a.opportunity_score || 0);
+                if (sortBy === 'profit') return (b.profit_potential || 0) - (a.profit_potential || 0);
+                if (sortBy === 'premium') return (a.premium || 0) - (b.premium || 0);
+                return 0;
+            });
+
+            renderGrid(list);
+        }
+
+        function renderGrid(items) {
+            const grid = document.getElementById('results-grid');
+            grid.innerHTML = '';
+
+            if (items.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center py-10 opacity-50">No results match filters.</div>';
+                return;
+            }
+
+            items.forEach(opp => {
+                // Mapping
+                const isPut = opp.option_type === 'Put' || opp.type === 'put';
+                const color = isPut ? 'red' : 'green';
+                const action = isPut ? 'BUY PUT' : 'BUY CALL';
+                const strike = opp.strike_price || opp.strike || 0;
+
+                // Price Logic: Prefer direct -> parent -> underlying -> 0
+                const price = opp.current_price || opp.parent_price || opp.underlying_price || 0;
+
+                const score = opp.opportunity_score || opp.score || 0;
+                const expiry = opp.expiration_date || opp.expiryDate || 'N/A';
+                const days = opp.days_to_expiry || 0;
+
+                // Date Formatting
+                let dateStr = expiry;
+                try {
+                    const d = new Date(expiry);
+                    dateStr = d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+                } catch (e) { }
+
+                // Badges
+                let badges = '';
+                if (opp.play_type === 'momentum') badges += '<span class="px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-[10px] text-purple-300 font-bold">🚀 Momentum</span>';
+
+                const card = document.createElement('div');
+                card.className = `bg-slate-900 rounded-xl border-t-4 border-${color}-500 p-4 hover:bg-slate-800 transition shadow-lg cursor-pointer group hover:-translate-y-1 relative overflow-hidden`;
+                card.onclick = () => openDrawer({ ...opp, current_price: price });
+
+                card.innerHTML = `
+                   <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <div class="flex items-baseline gap-2">
+                                <h3 class="text-xl font-bold text-white">${opp.ticker}</h3>
+                                <div class="flex flex-col">
+                                    <span class="text-[10px] text-slate-500 font-mono">Underlying</span>
+                                    <span class="text-sm font-bold text-slate-300">$${price.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-xs font-mono text-white font-bold">${score.toFixed(0)}/100</span>
+                    </div>
+
+                    <div class="text-center mb-4 p-2 bg-slate-950/30 rounded">
+                         <div class="text-[10px] text-${color}-400 font-bold uppercase tracking-widest mb-1">${action}</div>
+                         <div class="text-4xl font-bold text-${color}-500 font-mono">${strike}</div>
+                         <div class="mt-2 text-${color}-400 text-sm font-bold font-mono">+${(opp.profit_potential || 0).toFixed(0)}% Potential</div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 text-center text-xs text-slate-400 mb-3">
+                        <div class="bg-slate-950/50 p-2 rounded border border-slate-800">
+                             <div class="text-[9px] uppercase opacity-50">Expiry</div>
+                             <div class="font-mono text-slate-200">${dateStr}</div>
+                             <div class="text-[9px] text-${days < 3 ? 'red-400' : 'slate-500'}">(${days}d left)</div>
+                        </div>
+                         <div class="bg-slate-950/50 p-2 rounded border border-slate-800">
+                             <div class="text-[9px] uppercase opacity-50">Premium</div>
+                             <div class="font-mono text-white">$${(opp.premium || 0).toFixed(2)}</div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function openDrawer(data) {
+            const drawer = document.getElementById('verify-drawer');
+            const backdrop = document.getElementById('backdrop');
+            const content = document.getElementById('drawer-content');
+
+            const isPut = data.option_type === 'Put' || data.type === 'put';
+            const color = isPut ? 'red' : 'green';
+            // Generate Analysis Text based on score
+            let analysis = "No detailed analysis available.";
+            if (data.opportunity_score > 80) analysis = "Strong technical setup detected. Momentum indicators are aligned with the trade direction. Volume accumulation suggests institutional interest.";
+            else if (data.opportunity_score > 50) analysis = "Moderate setup. Standard deviation channels allow for this move, but confirmation is needed.";
+            else analysis = "Low confidence setup. High risk.";
+
+            content.innerHTML = `
+                <div class="h-16 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-950 rounded-t-2xl md:rounded-none shrink-0">
+                    <h2 class="font-bold text-${color}-400 flex items-center space-x-3 text-lg">
+                        <span class="bg-${color}-500/20 p-1.5 rounded-md text-sm">${isPut ? '📉' : '📈'}</span>
+                        <span>ANALYSIS ${isPut ? 'PUT' : 'CALL'}</span>
+                    </h2>
+                    <button class="text-slate-400 hover:text-white p-2" onclick="closeDrawer()">✕</button>
+                </div>
+                <div class="flex-1 overflow-y-auto bg-slate-950 p-6">
+                    <!-- Loading Placeholder -->
+                    <div id="analysis-loading" class="text-center py-10">
+                        <div class="animate-pulse text-blue-400">Loading comprehensive analysis...</div>
+                    </div>
+                    <!-- Content Container -->
+                    <div id="analysis-real-content" class="hidden space-y-6"></div>
+                </div>
+            `;
+
+            backdrop.classList.remove('hidden');
+            setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
+            drawer.classList.remove('md:translate-x-full', 'translate-y-full');
+
+            // FETCH ANALYSIS
+            fetchAnalysis(data, color, isPut);
+        }
+
+        async function fetchAnalysis(opp, color, isPut) {
+            const container = document.getElementById('analysis-real-content');
+            const loader = document.getElementById('analysis-loading');
+
+            try {
+                // Fetch from API
+                const res = await fetch(`/api/analysis/${opp.ticker}`);
+                const response = await res.json();
+
+                if (!response.success) throw new Error("Analysis failed");
+                const analysis = response.analysis;
+                const indicators = analysis.indicators || {};
+                const sentiment = analysis.sentiment_analysis || {};
+
+                // Formatting Helpers
+                const getSigColor = (sig) => sig === 'bullish' ? 'text-green-400' : sig === 'bearish' ? 'text-red-400' : 'text-slate-400';
+
+                container.innerHTML = `
+                   <!-- Header Stats -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex flex-col items-center">
+                            <span class="text-xs text-slate-500 uppercase">Current Price</span>
+                            <span class="text-xl font-bold font-mono text-white">$${(analysis.current_price || 0).toFixed(2)}</span>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex flex-col items-center">
+                             <span class="text-xs text-slate-500 uppercase">Tech Score</span>
+                            <span class="text-xl font-bold font-mono text-white">${(analysis.technical_score || 0).toFixed(0)}</span>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex flex-col items-center">
+                             <span class="text-xs text-slate-500 uppercase">Sentiment</span>
+                            <span class="text-xl font-bold font-mono text-white">${(analysis.sentiment_score || 0).toFixed(0)}</span>
+                        </div>
+                    </div>
+
+                    <!-- Technicals -->
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-200 mb-3">Technical Indicators</h3>
+                        <div class="bg-slate-900 rounded-lg p-4 border border-slate-800 grid gap-2 text-sm">
+                             <div class="flex justify-between border-b border-slate-800 pb-2">
+                                <span class="text-slate-400">RSI</span>
+                                <div>
+                                    <span class="text-white font-mono mr-2">${(indicators.rsi?.value || 0).toFixed(2)}</span>
+                                    <span class="${getSigColor(indicators.rsi?.signal)} uppercase text-xs font-bold">${indicators.rsi?.signal}</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between border-b border-slate-800 pb-2">
+                                <span class="text-slate-400">MACD</span>
+                                <span class="${getSigColor(indicators.macd?.signal)} uppercase text-xs font-bold">${indicators.macd?.signal}</span>
+                            </div>
+                             <div class="flex justify-between border-b border-slate-800 pb-2">
+                                <span class="text-slate-400">Bollinger</span>
+                                <span class="${getSigColor(indicators.bollinger_bands?.signal)} uppercase text-xs font-bold">${indicators.bollinger_bands?.signal}</span>
+                            </div>
+                            <div class="flex justify-between pt-1">
+                                <span class="text-slate-400">Volume</span>
+                                <span class="${getSigColor(indicators.volume?.signal)} uppercase text-xs font-bold">${indicators.volume?.signal}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Section -->
+                    <div id="ai-section">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-bold text-slate-200">AI Reasoning</h3>
+                            <button onclick="runAIReasoning('${opp.ticker}')" class="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs font-bold transition">
+                                ⚡ Run Engine
+                            </button>
+                        </div>
+                        <div id="ai-result" class="bg-slate-900 rounded-lg p-6 border border-slate-800 border-dashed text-center">
+                            <p class="text-slate-500 text-sm">Click above to generate deep-dive risk analysis.</p>
+                        </div>
+                    </div>
+                `;
+
+                loader.classList.add('hidden');
+                container.classList.remove('hidden');
+
+            } catch (e) {
+                console.error(e);
+                loader.innerHTML = '<div class="text-red-500">Failed to load detailed analysis.</div>';
+            }
+        }
+
+        async function runAIReasoning(ticker) {
+            const container = document.getElementById('ai-result');
+            container.innerHTML = '<div class="animate-pulse text-purple-400">🧠 Reasoning Engine Active...</div>';
+
+            try {
+                const res = await fetch('/api/analysis/ai/' + ticker, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ strategy: 'LEAP' })
+                });
+                const data = await res.json();
+
+                if (data.success && data.ai_analysis) {
+                    const ai = data.ai_analysis;
+                    const verdictColor = ai.verdict === 'SAFE' ? 'text-green-400' : 'text-red-400';
+
+                    // Simple formatter
+                    const format = text => text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+
+                    container.className = "bg-slate-900 rounded-lg p-4 border border-slate-800 text-left space-y-4";
+                    container.innerHTML = `
+                        <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                            <div class="text-lg font-bold">Verdict: <span class="${verdictColor}">${ai.verdict}</span></div>
+                            <div class="text-xs text-slate-400">Conviction: ${ai.score}/10</div>
+                        </div>
+                        
+                        <div class="bg-red-500/10 p-3 rounded border-l-2 border-red-500">
+                             <h5 class="text-red-400 font-bold mb-1 text-xs uppercase">Bear Case / Risks</h5>
+                             <div class="text-sm text-slate-300 leading-relaxed">${format(ai.bear_case)}</div>
+                        </div>
+
+                         <div class="bg-purple-500/10 p-3 rounded border-l-2 border-purple-500">
+                             <h5 class="text-purple-400 font-bold mb-1 text-xs uppercase">Final Thesis</h5>
+                             <div class="text-sm text-slate-300 leading-relaxed">${format(ai.analysis)}</div>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = '<div class="text-red-500">AI Analysis Failed</div>';
+                }
+            } catch (e) {
+                container.innerHTML = '<div class="text-red-500">Network Error during AI Analysis</div>';
+            }
+
+
+            function closeDrawer() {
+                const drawer = document.getElementById('verify-drawer');
+                const backdrop = document.getElementById('backdrop');
+                drawer.classList.add('md:translate-x-full', 'translate-y-full');
+                backdrop.classList.add('opacity-0');
+                setTimeout(() => backdrop.classList.add('hidden'), 300);
+            }
+
+            function setLoading(b) {
+                const grid = document.getElementById('results-grid');
+                if (b) grid.innerHTML = '<div class="col-span-full text-center py-20 animate-pulse text-blue-400">Scanning Markets...</div>';
+            }
+
+            function showError(msg) {
+                const grid = document.getElementById('results-grid');
+                grid.innerHTML = `<div class="col-span-full text-center py-20 text-red-500">${msg}</div>`;
+                showToast(msg, 'error');
+            }
+
+            function showToast(msg, type = 'info') {
+                const container = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+
+                const colors = {
+                    'info': 'bg-blue-600',
+                    'success': 'bg-green-600',
+                    'error': 'bg-red-600'
+                };
+                const bg = colors[type] || colors['info'];
+
+                toast.className = `${bg} text-white px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 translate-y-10 opacity-0 pointer-events-auto flex items-center gap-2 min-w-[200px]`;
+                toast.innerHTML = `<span>${type === 'error' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️'}</span> <span>${msg}</span>`;
+
+                container.appendChild(toast);
+
+                // Animate In
+                requestAnimationFrame(() => {
+                    toast.classList.remove('translate-y-10', 'opacity-0');
+                });
+
+                // Animate Out
+                setTimeout(() => {
+                    toast.classList.add('translate-y-10', 'opacity-0');
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            }
+    </script>
+</body>
+
+</html>
