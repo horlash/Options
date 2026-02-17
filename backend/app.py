@@ -13,14 +13,8 @@ from backend.services.watchlist_service import WatchlistService
 from backend.security import Security
 from datetime import datetime
 
-# Determine static folder (dist if exists, else src)
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if os.path.exists(os.path.join(project_root, 'frontend_dist')):
-    static_folder = os.path.join(project_root, 'frontend_dist')
-    print("Serving secure frontend from 'frontend_dist'")
-else:
-    static_folder = os.path.join(project_root, 'frontend')
-    print("Serving standard frontend from 'frontend'")
+static_folder = os.path.join(project_root, 'frontend')
 
 app = Flask(__name__, static_folder=static_folder, static_url_path='')
 app.config.from_object(Config)
@@ -73,9 +67,7 @@ def logout():
 def index():
     return app.send_static_file('index.html')
 
-@app.route('/demo')
-def demo():
-    return app.send_static_file('demo.html')
+
 
 # Serve static data files (for tickers.json)
 @app.route('/api/data/<path:filename>')
@@ -269,20 +261,12 @@ def run_daily_scan():
 @app.route('/api/scan/daily/<ticker>', methods=['POST'])
 def scan_ticker_daily(ticker):
     """Run Daily scan on a specific ticker"""
-    import sys
-    sys.stderr.write("I AM THE DEV APP STARTUP\n")
-
     try:
         data = request.get_json() or {}
         weeks_out = int(data.get('weeks_out', 0))
         
-        sys.stderr.write(f"DEBUG: Entering scan_ticker_daily for {ticker} weeks_out={weeks_out}\n")
-        
         service = get_scanner()
-        sys.stderr.write("DEBUG: Service retrieved.\n")
-        
         result = service.scan_weekly_options(ticker, weeks_out=weeks_out)
-        sys.stderr.write(f"DEBUG: Result type: {type(result)}\n")
         
         if result:
             return jsonify({
@@ -292,38 +276,16 @@ def scan_ticker_daily(ticker):
         else:
             return jsonify({
                 'success': False,
-                'error': f'Failed to scan {ticker} (DEV DAILY ROUTE)'
+                'error': f'Failed to scan {ticker}'
             }), 500
     except Exception as e:
-        print(f"ERROR in run_daily_scan route: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'error': str(e)
-        }), 500
-
-@app.route('/api/scan/0dte/<ticker>', methods=['POST'])
-def scan_0dte_ticker(ticker):
-    """Run 0DTE Scan on Index/ETF"""
-    try:
-        service = get_scanner()
-        result = service.scan_0dte_options(ticker)
-        
-        if result:
-            return jsonify({
-                'success': True,
-                'result': result
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': f'Scan failed/blocked for {ticker}'
-            }), 200
-    except Exception as e:
+        print(f"ERROR in scan_ticker_daily: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
+
+
 
 @app.route('/api/tickers', methods=['GET'])
 def get_tickers():
@@ -384,7 +346,6 @@ def run_sector_scan():
             'error': str(e)
         }), 500
 
-@app.route('/api/history', methods=['GET'])
 @app.route('/api/history', methods=['GET'])
 def get_history():
     """Get recent search history for current user"""

@@ -1,0 +1,147 @@
+/* Analysis Detail Modal Styles */
+
+/* Analysis header inside modal */
+.analysis-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.analysis-header h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.analysis-header .score-badge {
+    font-size: 1.25rem;
+}
+
+/* Analysis sections */
+.analysis-section {
+    margin-bottom: 1.5rem;
+}
+
+.analysis-section h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--primary-light);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Greeks row */
+.greeks-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.greek-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 1rem;
+    text-align: center;
+    flex: 1;
+    min-width: 80px;
+}
+
+.greek-item .label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.greek-item .value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: 0.25rem;
+}
+
+/* Analysis metrics grid */
+.analysis-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.metric-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+}
+
+.metric-card .metric-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.metric-card .metric-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* AI Analysis section */
+.ai-analysis {
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: var(--radius-md);
+    padding: 1.25rem;
+    margin-top: 1rem;
+}
+
+.ai-analysis h3 {
+    color: var(--primary-light);
+    border-bottom: none;
+}
+
+.ai-analysis .thesis {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-size: 0.95rem;
+}
+
+/* Badge list */
+.badge-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 0.25rem 0.6rem;
+    border-radius: var(--radius-full);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .greeks-row {
+        gap: 0.5rem;
+    }
+
+    .greek-item {
+        min-width: 60px;
+        padding: 0.4rem 0.6rem;
+    }
+
+    .analysis-metrics {
+        grid-template-columns: 1fr;
+    }
+}

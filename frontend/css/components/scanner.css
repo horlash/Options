@@ -1,0 +1,65 @@
+/* Scanner Component Styles */
+
+/* Sector scan controls */
+.sector-controls .select-field {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.sector-controls .select-field:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.sector-controls .select-field option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+/* Scan progress animation */
+.scan-progress .progress-fill {
+    animation: progress-pulse 2s ease-in-out infinite;
+}
+
+@keyframes progress-pulse {
+    0%, 100% { width: 30%; }
+    50% { width: 70%; }
+}
+
+.progress-text {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* Full width scan buttons */
+.full-width-btn {
+    width: 100%;
+    justify-content: center;
+}
+
+/* Source badge (data provider indicator) */
+.source-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.source-orats {
+    background: #00c853;
+    color: white;
+}
+
+.source-tradier {
+    background: #0066cc;
+    color: white;
+}
