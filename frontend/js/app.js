@@ -1,5 +1,22 @@
 // Main application initialization
-// Main application initialization
+// Feature: automated-trading (tab switching + new component init)
+
+// Tab Switching
+function switchTab(tabId, btn) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    const panel = document.getElementById('tab-' + tabId);
+    if (panel) panel.classList.add('active');
+    if (btn) btn.classList.add('active');
+
+    // Lazy render when switching to a tab
+    if (tabId === 'portfolio' && typeof portfolio !== 'undefined') {
+        portfolio.render();
+    }
+    if (tabId === 'risk' && typeof riskDashboard !== 'undefined') {
+        riskDashboard.render();
+    }
+}
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('LEAP Options Scanner initialized');
 
@@ -51,6 +68,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load history
     renderHistory();
+
+    // Initialize trading components
+    if (typeof portfolio !== 'undefined') {
+        portfolio.init();
+    }
+    if (typeof riskDashboard !== 'undefined') {
+        riskDashboard.init();
+    }
+
+    // Trade modal overlay click to close
+    const tradeOverlay = document.getElementById('trade-modal-overlay');
+    if (tradeOverlay) {
+        tradeOverlay.addEventListener('click', (e) => {
+            if (e.target === tradeOverlay) {
+                tradeModal.close();
+            }
+        });
+    }
 });
 
 async function renderHistory() {

@@ -142,13 +142,41 @@ const opportunities = {
 
             // Add Click Listeners for Details Modal
             container.querySelectorAll('.opportunity-card').forEach(card => {
-                card.addEventListener('click', () => {
+                card.addEventListener('click', (e) => {
+                    // Don't open detail if trade button was clicked
+                    if (e.target.closest('.trade-btn')) return;
+
                     const index = card.dataset.index;
                     const opp = filtered[index];
 
                     if (opp && analysisDetail) {
                         console.log(`[UI] Card clicked for ${opp.ticker} (Context: ${opp.strike_price} ${opp.option_type})`);
                         analysisDetail.show(opp.ticker, opp);
+                    }
+                });
+            });
+
+            // Trade button handlers
+            container.querySelectorAll('.trade-btn:not(.trade-btn-disabled)').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const idx = btn.dataset.tradeIndex;
+                    const opp = filtered[idx];
+                    if (opp && typeof tradeModal !== 'undefined') {
+                        const dateObj = new Date(opp.expiration_date);
+                        const expiryStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+                        tradeModal.open({
+                            ticker: opp.ticker,
+                            price: opp.current_price,
+                            strike: opp.strike_price.toFixed(0),
+                            expiry: expiryStr,
+                            daysLeft: opp.days_to_expiry,
+                            premium: opp.premium,
+                            type: opp.option_type === 'Call' ? 'CALL' : 'PUT',
+                            score: opp.opportunity_score,
+                            hasEarnings: opp.has_earnings_risk || false,
+                            badges: opp.play_type || ''
+                        });
                     }
                 });
             });
@@ -312,8 +340,42 @@ const opportunities = {
                         <span class="source-text">${source}</span>
                     </div>
                 </div>
+
+                <!-- TRADE BUTTON -->
+                <div style="padding: 0 1.25rem 0.75rem;">
+                    ${this._renderTradeButton(opp, index)}
+                </div>
             </div>
         `;
+    },
+
+    _renderTradeButton(opp, index) {
+        const score = opp.opportunity_score;
+        const isCall = opp.option_type === 'Call';
+        const btnClass = isCall ? 'trade-btn-call' : 'trade-btn-put';
+
+        if (score >= 80) {
+            return `
+                <button class="trade-btn ${btnClass}" data-trade-index="${index}">
+                    ⚡ Trade — ✅ High Edge
+                </button>
+                <div class="edge-gate-label">Score ${score.toFixed(0)} — Full conviction</div>
+            `;
+        } else if (score >= 72) {
+            return `
+                <button class="trade-btn ${btnClass}" data-trade-index="${index}" style="opacity: 0.85;">
+                    ⚡ Trade — ⚠️ Moderate Edge
+                </button>
+                <div class="edge-gate-label" style="color: var(--accent);">Score ${score.toFixed(0)} — Proceed with caution</div>
+            `;
+        } else {
+            return `
+                <button class="trade-btn trade-btn-disabled" disabled>
+                    🔒 Trade Locked
+                </button>
+                <div class="edge-gate-label" style="color: var(--text-muted);">Score ${score.toFixed(0)} — Below 72 threshold</div>
+            `;
+        }
     },
 
     updateCount(count) {

@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="css/components/scanner.css?v=17">
     <link rel="stylesheet" href="css/components/opportunities.css?v=17">
     <link rel="stylesheet" href="css/components/analysis-detail.css?v=17">
+    <link rel="stylesheet" href="css/components/trading.css?v=18">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
@@ -35,13 +36,37 @@
                         <span class="stat-label">Opportunities</span>
                         <span class="stat-value" id="opportunities-count">0</span>
                     </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Open Trades</span>
+                        <span class="stat-value" id="open-trades-count" style="color: var(--primary-light);">3</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Heat</span>
+                        <span class="stat-value" id="portfolio-heat" style="color: var(--accent);">4.1%</span>
+                    </div>
                 </div>
             </div>
         </div>
     </header>
 
+    <!-- Tab Navigation -->
+    <nav class="nav-tabs">
+        <button class="nav-tab active" onclick="switchTab('scanner', this)">
+            <span class="tab-icon">🎯</span> Scanner
+        </button>
+        <button class="nav-tab" onclick="switchTab('portfolio', this)">
+            <span class="tab-icon">💼</span> Portfolio
+        </button>
+        <button class="nav-tab" onclick="switchTab('risk', this)">
+            <span class="tab-icon">🛡️</span> Risk
+        </button>
+    </nav>
+
     <!-- Main Content -->
     <main class="main-content">
+
+    <!-- SCANNER TAB (existing content, untouched) -->
+    <div id="tab-scanner" class="tab-panel active">
         <div class="container">
             <!-- Control Panel -->
             <section class="control-panel">
@@ -214,7 +239,32 @@
                 </div>
             </div>
         </div>
+    </div> <!-- /tab-scanner -->
+
+    <!-- PORTFOLIO TAB -->
+    <div id="tab-portfolio" class="tab-panel">
+        <div class="container">
+            <div id="portfolio-content">
+                <!-- Rendered by portfolio.js -->
+            </div>
+        </div>
+    </div>
+
+    <!-- RISK DASHBOARD TAB -->
+    <div id="tab-risk" class="tab-panel">
+        <div class="container">
+            <div id="risk-content">
+                <!-- Rendered by risk-dashboard.js -->
+            </div>
+        </div>
+    </div>
+
     </main>
+
+    <!-- Trade Modal Overlay -->
+    <div id="trade-modal-overlay" class="modal-overlay-trade">
+        <!-- Rendered by trade-modal.js -->
+    </div>
 
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-container"></div>
@@ -227,7 +277,10 @@
     <script src="js/components/scanner.js?v=17"></script>
     <script src="js/components/opportunities.js?v=17"></script>
     <script src="js/components/analysis-detail.js?v=17"></script>
-    <script src="js/app.js?v=17"></script>
+    <script src="js/components/trade-modal.js?v=18"></script>
+    <script src="js/components/portfolio.js?v=18"></script>
+    <script src="js/components/risk-dashboard.js?v=18"></script>
+    <script src="js/app.js?v=18"></script>
 </body>
 
 </html>

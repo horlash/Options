@@ -1,0 +1,1897 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading UI Demo — LEAP Scanner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        /* ============================================
+           DESIGN TOKENS — Matching production styles.css
+           ============================================ */
+        :root {
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --secondary: #10b981;
+            --accent: #f59e0b;
+            --danger: #ef4444;
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: rgba(30, 41, 59, 0.6);
+            --text-primary: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: rgba(148, 163, 184, 0.1);
+            --radius-sm: 0.5rem;
+            --radius-md: 1rem;
+            --radius-lg: 1.5rem;
+            --radius-full: 9999px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Aptos', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #1a1f3a 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* ============================================
+           HEADER — Matching production
+           ============================================ */
+        .header {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-icon {
+            font-size: 2rem;
+        }
+
+        .logo h1 {
+            font-size: 1.75rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-light), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-light);
+        }
+
+        /* ============================================
+           NAV TABS — Scanner | Portfolio | Risk
+           ============================================ */
+        .nav-tabs {
+            display: flex;
+            gap: 0;
+            background: var(--bg-card);
+            border-bottom: 2px solid var(--border);
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-tab {
+            padding: 1rem 2rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-tab:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .nav-tab.active {
+            color: var(--primary-light);
+            border-bottom-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .tab-badge {
+            background: var(--danger);
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 7px;
+            border-radius: var(--radius-full);
+            font-weight: 700;
+        }
+
+        /* ============================================
+           TAB PANELS
+           ============================================ */
+        .tab-panel {
+            display: none;
+            padding: 2rem 0;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        /* ============================================
+           SCANNER TAB — Scan Results with Trade Button
+           ============================================ */
+        .opportunities-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 1.5rem;
+        }
+
+        /* Control Panel — matching production */
+        .control-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .panel-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .panel-card h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+        .scan-mode-toggle {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+
+        .btn-mode {
+            flex: 1 1 auto;
+            min-width: 100px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 0.6rem 0.4rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .btn-mode:hover {
+            border-color: var(--primary);
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-mode.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+            font-weight: 700;
+        }
+
+        .input-field-ctrl {
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            background: #475569;
+            border: 1px solid #64748b;
+            border-radius: var(--radius-sm);
+            color: #e2e8f0;
+            font-size: 0.9rem;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+
+        .input-field-ctrl:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .input-field-ctrl::placeholder {
+            color: #94a3b8;
+        }
+
+        .select-field {
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            background: #334155;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: inherit;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .btn-ctrl {
+            width: 100%;
+            padding: 0.65rem;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .btn-primary-ctrl {
+            background: linear-gradient(135deg, var(--primary), #4f46e5);
+            color: white;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-secondary-ctrl {
+            background: #334155;
+            color: var(--text-primary);
+        }
+
+        .btn-ctrl:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.1);
+        }
+
+        .watchlist-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+
+        .watchlist-pill {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 0.35rem 0.7rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--primary-light);
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .watchlist-pill:hover {
+            background: var(--primary);
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        .section-divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 1.5rem 0;
+        }
+
+        .opportunity-card {
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .opportunity-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-call {
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+
+        .card-call:hover {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.2);
+        }
+
+        .card-put {
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+
+        .card-put:hover {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.2);
+        }
+
+        .card-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 1rem;
+        }
+
+        .ticker-symbol {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--primary-light);
+        }
+
+        .price-display {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-left: 0.75rem;
+        }
+
+        .score-badge {
+            font-size: 1.4rem;
+            font-weight: 800;
+            padding: 0.3rem 0.8rem;
+            border-radius: var(--radius-full);
+        }
+
+        .score-high {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--secondary);
+        }
+
+        .hero-action {
+            text-align: center;
+            margin: 1rem 0;
+        }
+
+        .action-type {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+        }
+
+        .action-text {
+            font-size: 2rem;
+            font-weight: 800;
+            margin: 0.25rem 0;
+        }
+
+        .text-call {
+            color: var(--secondary);
+        }
+
+        .text-put {
+            color: var(--danger);
+        }
+
+        .profit-pill {
+            display: inline-block;
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--secondary);
+            padding: 0.25rem 0.75rem;
+            border-radius: var(--radius-full);
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.4rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .m-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .m-value {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+        }
+
+        .badge-momentum {
+            background: rgba(99, 102, 241, 0.2);
+            color: var(--primary-light);
+        }
+
+        .badge-earnings {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--accent);
+        }
+
+        .badge-fund {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: var(--radius-sm);
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary-light);
+            font-weight: 600;
+        }
+
+        /* === TRADE BUTTON (NEW) === */
+        .trade-btn {
+            width: 100%;
+            padding: 0.85rem;
+            margin-top: 1rem;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            letter-spacing: 0.02em;
+        }
+
+        .trade-btn-call {
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: white;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .trade-btn-put {
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+            color: white;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+
+        .trade-btn:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+
+        .trade-btn-disabled {
+            background: #334155 !important;
+            color: var(--text-muted) !important;
+            box-shadow: none !important;
+            cursor: not-allowed;
+        }
+
+        .trade-btn-disabled:hover {
+            transform: none;
+            filter: none;
+        }
+
+        /* ============================================
+           TRADE SETUP MODAL
+           ============================================ */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .trade-modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            width: 95vw;
+            max-width: 480px;
+            max-height: 92vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+            animation: modalIn 0.3s ease;
+        }
+
+        .trade-modal * {
+            box-sizing: border-box;
+            max-width: 100%;
+        }
+
+        @keyframes modalIn {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem 0;
+        }
+
+        .modal-header h2 {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .modal-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.75rem;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 0.75rem 1.25rem 1rem;
+            overflow-x: hidden;
+        }
+
+        /* Order Summary Bar */
+        .order-summary-bar {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: var(--radius-md);
+            padding: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .order-ticker {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--primary-light);
+        }
+
+        .order-action-badge {
+            padding: 0.35rem 0.75rem;
+            border-radius: var(--radius-full);
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .order-action-call {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--secondary);
+        }
+
+        /* Form Sections */
+        .form-section {
+            margin-bottom: 0.75rem;
+        }
+
+        .form-section-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            overflow: hidden;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .form-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .form-input {
+            background: #374151;
+            border: 1px solid #4b5563;
+            border-radius: var(--radius-sm);
+            padding: 0.45rem 0.35rem;
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            font-weight: 600;
+            font-family: inherit;
+            min-width: 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        /* Quick Adjust Buttons */
+        .input-with-adjust {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .adjust-btn {
+            background: #475569;
+            border: 1px solid #4b5563;
+            color: var(--text-primary);
+            padding: 0.45rem 0.4rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 700;
+            transition: background 0.15s;
+            flex-shrink: 0;
+        }
+
+        .adjust-btn:first-child {
+            border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+            border-right: none;
+        }
+
+        .adjust-btn:last-child {
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            border-left: none;
+        }
+
+        .adjust-btn:hover {
+            background: var(--primary);
+        }
+
+        .input-with-adjust .form-input {
+            border-radius: 0;
+            text-align: center;
+            flex: 1;
+            min-width: 0;
+            width: auto;
+        }
+
+        /* Risk Summary */
+        .risk-summary {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: var(--radius-md);
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .risk-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.3rem 0;
+        }
+
+        .risk-label {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .risk-value {
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        .risk-value.danger {
+            color: var(--danger);
+        }
+
+        .risk-value.success {
+            color: var(--secondary);
+        }
+
+        .risk-value.warning {
+            color: var(--accent);
+        }
+
+        /* Pre-Trade Checks */
+        .checks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .check-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .check-pass {
+            color: var(--secondary);
+        }
+
+        .check-warn {
+            color: var(--accent);
+        }
+
+        /* Confirm Button */
+        .confirm-section {
+            border-top: 1px solid var(--border);
+            padding-top: 0.75rem;
+        }
+
+        .confirm-warning {
+            text-align: center;
+            color: var(--danger);
+            font-weight: 700;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .confirm-btn {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: linear-gradient(135deg, var(--primary), #4f46e5);
+            color: white;
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .confirm-btn:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+
+        .keyboard-hint {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin-top: 0.75rem;
+        }
+
+        .keyboard-hint kbd {
+            background: #374151;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        /* ============================================
+           PORTFOLIO TAB
+           ============================================ */
+        .portfolio-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .port-stat-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            text-align: center;
+        }
+
+        .port-stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .port-stat-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin-top: 0.3rem;
+        }
+
+        .port-stat-sub {
+            font-size: 0.8rem;
+            margin-top: 0.25rem;
+        }
+
+        .positions-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .positions-table th {
+            padding: 1rem;
+            text-align: left;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            background: rgba(0, 0, 0, 0.2);
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        .positions-table td {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        .positions-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .positions-table tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .pos-ticker {
+            font-weight: 700;
+            color: var(--primary-light);
+        }
+
+        .pos-pnl-pos {
+            color: var(--secondary);
+            font-weight: 700;
+        }
+
+        .pos-pnl-neg {
+            color: var(--danger);
+            font-weight: 700;
+        }
+
+        .pos-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .pos-action-btn {
+            padding: 0.4rem 0.8rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 0.3rem;
+        }
+
+        .pos-action-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .pos-action-btn.close-btn:hover {
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+
+        /* ============================================
+           RISK DASHBOARD TAB
+           ============================================ */
+        .risk-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .risk-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+        }
+
+        .risk-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .risk-card-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+        }
+
+        .risk-card-value {
+            font-size: 2rem;
+            font-weight: 800;
+        }
+
+        .risk-card-sub {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.3rem;
+        }
+
+        /* Heat Bar */
+        .heat-bar-container {
+            margin-top: 1rem;
+        }
+
+        .heat-bar-bg {
+            width: 100%;
+            height: 12px;
+            background: #334155;
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .heat-bar-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.8s ease;
+        }
+
+        .heat-bar-limit {
+            position: absolute;
+            top: -3px;
+            height: 18px;
+            width: 2px;
+            background: var(--danger);
+        }
+
+        .heat-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.4rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Tilt Status */
+        .tilt-status {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: var(--radius-md);
+            margin-top: 1rem;
+        }
+
+        .tilt-icon {
+            font-size: 1.5rem;
+        }
+
+        .tilt-text {
+            font-size: 0.85rem;
+        }
+
+        .tilt-label {
+            font-weight: 700;
+            color: var(--secondary);
+        }
+
+        /* Weekly Report Card */
+        .report-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+        }
+
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .report-title {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .report-date {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .report-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+
+        .report-metric {
+            text-align: center;
+            padding: 0.75rem;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: var(--radius-sm);
+        }
+
+        .report-metric-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .report-metric-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-top: 0.25rem;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .toast {
+            padding: 1rem 1.5rem;
+            border-radius: var(--radius-md);
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-width: 320px;
+            animation: slideIn 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--secondary);
+        }
+
+        .toast.info {
+            border-left: 4px solid var(--primary);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast-icon {
+            font-size: 1.25rem;
+        }
+
+        .toast-text {
+            font-size: 0.85rem;
+        }
+
+        .toast-bold {
+            font-weight: 700;
+        }
+
+        /* Edge Gate label */
+        .edge-gate-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 0.25rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .opportunities-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .portfolio-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .risk-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .report-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .control-panel {
+                grid-template-columns: 1fr;
+            }
+
+            .trade-modal {
+                width: 98%;
+                max-width: 98%;
+            }
+
+            .modal-body {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ============================================
+     HEADER
+     ============================================ -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">📈</div>
+                    <h1>LEAP Scanner</h1>
+                </div>
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Watchlist</span>
+                        <span class="stat-value">12</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Open Trades</span>
+                        <span class="stat-value" style="color: var(--secondary)">3</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Portfolio Heat</span>
+                        <span class="stat-value" style="color: var(--accent)">4.1%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ============================================
+     NAVIGATION TABS
+     ============================================ -->
+    <nav class="nav-tabs">
+        <div class="container" style="display:flex; gap:0;">
+            <button class="nav-tab active" onclick="switchTab('scanner')">🎯 Scanner</button>
+            <button class="nav-tab" onclick="switchTab('portfolio')">💼 Portfolio <span
+                    class="tab-badge">3</span></button>
+            <button class="nav-tab" onclick="switchTab('risk')">🛡️ Risk</button>
+        </div>
+    </nav>
+
+    <!-- ============================================
+     SCANNER TAB — Scan Results + Trade Button
+     ============================================ -->
+    <div id="tab-scanner" class="tab-panel active">
+        <div class="container">
+
+            <!-- Control Panel — MATCHING PRODUCTION index.html -->
+            <section class="control-panel">
+                <!-- Scan Control -->
+                <div class="panel-card">
+                    <h2>Scan Control</h2>
+                    <div class="scan-mode-toggle">
+                        <button class="btn-mode"
+                            style="background: linear-gradient(135deg, #ff4d4d, #c62828); border-color: #ff4d4d; color: white;">⚡
+                            0DTE</button>
+                        <button class="btn-mode active">This Week</button>
+                        <button class="btn-mode">Next Week</button>
+                        <button class="btn-mode">Next 2 Wks</button>
+                        <button class="btn-mode">Leaps</button>
+                    </div>
+                </div>
+
+                <!-- Recent History -->
+                <div class="panel-card">
+                    <h2>Recent History</h2>
+                    <div style="display:flex; flex-direction:column; gap:0.4rem;">
+                        <div
+                            style="display:flex; justify-content:space-between; padding:0.4rem 0.6rem; background:rgba(255,255,255,0.03); border-radius:var(--radius-sm); font-size:0.8rem;">
+                            <span style="color:var(--primary-light); font-weight:600;">NVDA</span>
+                            <span style="color:var(--text-muted);">Weekly · 5m ago</span>
+                        </div>
+                        <div
+                            style="display:flex; justify-content:space-between; padding:0.4rem 0.6rem; background:rgba(255,255,255,0.03); border-radius:var(--radius-sm); font-size:0.8rem;">
+                            <span style="color:var(--primary-light); font-weight:600;">Technology</span>
+                            <span style="color:var(--text-muted);">Sector · 12m ago</span>
+                        </div>
+                        <div
+                            style="display:flex; justify-content:space-between; padding:0.4rem 0.6rem; background:rgba(255,255,255,0.03); border-radius:var(--radius-sm); font-size:0.8rem;">
+                            <span style="color:var(--primary-light); font-weight:600;">AAPL</span>
+                            <span style="color:var(--text-muted);">Weekly · 18m ago</span>
+                        </div>
+                        <div
+                            style="display:flex; justify-content:space-between; padding:0.4rem 0.6rem; background:rgba(255,255,255,0.03); border-radius:var(--radius-sm); font-size:0.8rem;">
+                            <span style="color:var(--primary-light); font-weight:600;">AMD</span>
+                            <span style="color:var(--text-muted);">LEAPS · 25m ago</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Smart Search -->
+                <div class="panel-card">
+                    <h2>Smart Search</h2>
+                    <input type="text" class="input-field-ctrl" placeholder="Search Ticker (e.g. NVDA, AAPL)">
+                    <button class="btn-ctrl btn-primary-ctrl">Scan</button>
+                </div>
+
+                <!-- Sector Scan -->
+                <div class="panel-card">
+                    <h2>Sector Scan</h2>
+                    <select class="select-field" id="demo-sector" onchange="toggleSubsector()">
+                        <option value="">Select Sector...</option>
+                        <option value="Technology">Technology</option>
+                        <option value="Financial Services">Financial Services</option>
+                        <option value="Healthcare">Healthcare</option>
+                        <option value="Consumer Cyclical">Consumer Cyclical</option>
+                        <option value="Energy">Energy</option>
+                        <option value="Industrials">Industrials</option>
+                        <option value="Communication Services">Communication Services</option>
+                    </select>
+                    <select class="select-field" id="demo-subsector" style="display:none; margin-top:0.5rem;">
+                        <option>Any Subsector</option>
+                    </select>
+                    <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                        <select class="select-field" style="flex:1;">
+                            <option>Any Cap</option>
+                            <option>Mega (&gt;200B)</option>
+                            <option>Large (&gt;10B)</option>
+                        </select>
+                        <select class="select-field" style="flex:1;">
+                            <option>Any Vol</option>
+                            <option>High (&gt;1M)</option>
+                            <option>Med (&gt;500k)</option>
+                        </select>
+                    </div>
+                    <button class="btn-ctrl btn-secondary-ctrl">Scan Top Picks</button>
+                </div>
+
+                <!-- Watchlist -->
+                <div class="panel-card">
+                    <h2>My Watchlist</h2>
+                    <div class="watchlist-pills">
+                        <span class="watchlist-pill">NVDA</span>
+                        <span class="watchlist-pill">AAPL</span>
+                        <span class="watchlist-pill">AMD</span>
+                        <span class="watchlist-pill">TSLA</span>
+                        <span class="watchlist-pill">MSFT</span>
+                        <span class="watchlist-pill">META</span>
+                        <span class="watchlist-pill">AMZN</span>
+                        <span class="watchlist-pill">GOOG</span>
+                    </div>
+                    <input type="text" class="input-field-ctrl" placeholder="Add Ticker (e.g. AMD)"
+                        style="margin-top:0.75rem;">
+                    <button class="btn-ctrl btn-primary-ctrl">+ Add</button>
+                </div>
+            </section>
+
+            <hr class="section-divider">
+
+            <!-- Scan Results -->
+            <div class="opportunities-grid">
+
+                <!-- Card 1: NVDA Call (High Score — Trade Enabled) -->
+                <div class="opportunity-card card-call">
+                    <div class="card-header-row">
+                        <div>
+                            <span class="ticker-symbol">NVDA</span>
+                            <span class="price-display">$142.30</span>
+                        </div>
+                        <span class="score-badge score-high">82</span>
+                    </div>
+                    <div class="hero-action">
+                        <span class="action-type">BUY CALL</span>
+                        <div class="action-text text-call">$150</div>
+                        <div class="profit-pill">+62% Potential</div>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-row"><span class="m-label">Expiry</span><span class="m-value">Mar 7,
+                                2026</span></div>
+                        <div class="metric-row"><span class="m-label">Days Left</span><span class="m-value">18d</span>
+                        </div>
+                        <div class="metric-row"><span class="m-label">Premium</span><span class="m-value">$4.20</span>
+                        </div>
+                        <div class="metric-row"><span class="m-label">Break Even</span><span
+                                class="m-value">$154.20</span></div>
+                    </div>
+                    <div class="badge-container">
+                        <span class="badge badge-momentum">🚀 Momentum</span>
+                        <span class="badge-fund">EPS Growth ↗</span>
+                        <span class="badge-fund">Analyst Buy ⭐</span>
+                    </div>
+                    <button class="trade-btn trade-btn-call" onclick="openTradeModal()">
+                        ⚡ Trade This Setup
+                    </button>
+                    <div class="edge-gate-label">Score 82 — Above Edge Gate (72)</div>
+                </div>
+
+                <!-- Card 2: AAPL Call (Moderate Score — Trade with Warning) -->
+                <div class="opportunity-card card-call">
+                    <div class="card-header-row">
+                        <div>
+                            <span class="ticker-symbol">AAPL</span>
+                            <span class="price-display">$248.55</span>
+                        </div>
+                        <span class="score-badge"
+                            style="background: rgba(245,158,11,0.2); color: var(--accent);">74</span>
+                    </div>
+                    <div class="hero-action">
+                        <span class="action-type">BUY CALL</span>
+                        <div class="action-text text-call">$255</div>
+                        <div class="profit-pill">+38% Potential</div>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-row"><span class="m-label">Expiry</span><span class="m-value">Mar 14,
+                                2026</span></div>
+                        <div class="metric-row"><span class="m-label">Days Left</span><span class="m-value">25d</span>
+                        </div>
+                        <div class="metric-row"><span class="m-label">Premium</span><span class="m-value">$5.80</span>
+                        </div>
+                        <div class="metric-row"><span class="m-label">Break Even</span><span
+                                class="m-value">$260.80</span></div>
+                    </div>
+                    <div class="badge-container">
+                        <span class="badge badge-earnings">⚠️ Earnings 4d</span>
+                        <span class="badge-fund">Smart Money 🏦</span>
+                    </div>
+                    <button class="trade-btn trade-btn-call" style="opacity: 0.85;" onclick="openTradeModal()">
+                        ⚡ Trade — ⚠️ Moderate Edge
+                    </button>
+                    <div class="edge-gate-label" style="color: var(--accent);">Score 74 — Marginal (Gate: 72)</div>
+                </div>
+
+                <!-- Card 3: META Put (Low Score — Trade Disabled) -->
+                <div class="opportunity-card card-put">
+                    <div class="card-header-row">
+                        <div>
+                            <span class="ticker-symbol">META</span>
+                            <span class="price-display">$612.40</span>
+                        </div>
+                        <span class="score-badge"
+                            style="background: rgba(239,68,68,0.2); color: var(--danger);">58</span>
+                    </div>
+                    <div class="hero-action">
+                        <span class="action-type">BUY PUT</span>
+                        <div class="action-text text-put">$600</div>
+                        <div class="profit-pill" style="background: rgba(239,68,68,0.2); color: var(--danger);">+22%
+                            Potential</div>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-row"><span class="m-label">Expiry</span><span class="m-value">Feb 28,
+                                2026</span></div>
+                        <div class="metric-row"><span class="m-label">Days Left</span><span class="m-value">11d</span>
+                        </div>
+                        <div class="metric-row"><span class="m-label">Premium</span><span class="m-value">$8.90</span>
+                        </div>
+                        <div class="metric-row"><span class="m-label">Break Even</span><span
+                                class="m-value">$591.10</span></div>
+                    </div>
+                    <button class="trade-btn trade-btn-disabled" disabled>
+                        🔒 Watch Only — Score Below 72
+                    </button>
+                    <div class="edge-gate-label" style="color: var(--danger);">Score 58 — Below Edge Gate</div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+     PORTFOLIO TAB
+     ============================================ -->
+    <div id="tab-portfolio" class="tab-panel">
+        <div class="container">
+            <!-- Portfolio Stats -->
+            <div class="portfolio-stats">
+                <div class="port-stat-card">
+                    <div class="port-stat-label">Account Value</div>
+                    <div class="port-stat-value" style="color: var(--text-primary);">$5,280</div>
+                    <div class="port-stat-sub" style="color: var(--secondary);">+5.6% All Time</div>
+                </div>
+                <div class="port-stat-card">
+                    <div class="port-stat-label">Today's P&L</div>
+                    <div class="port-stat-value" style="color: var(--secondary);">+$85</div>
+                    <div class="port-stat-sub" style="color: var(--secondary);">+1.6%</div>
+                </div>
+                <div class="port-stat-card">
+                    <div class="port-stat-label">Open Positions</div>
+                    <div class="port-stat-value" style="color: var(--primary-light);">3</div>
+                    <div class="port-stat-sub">of 5 max</div>
+                </div>
+                <div class="port-stat-card">
+                    <div class="port-stat-label">Cash Available</div>
+                    <div class="port-stat-value" style="color: var(--text-primary);">$3,540</div>
+                    <div class="port-stat-sub">67% cash</div>
+                </div>
+            </div>
+
+            <!-- Positions Table -->
+            <table class="positions-table">
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Type</th>
+                        <th>Strike</th>
+                        <th>Entry</th>
+                        <th>Current</th>
+                        <th>P&L</th>
+                        <th>SL / TP</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="pos-ticker">NVDA</td>
+                        <td style="color: var(--secondary)">Call</td>
+                        <td>$150</td>
+                        <td>$4.20</td>
+                        <td>$5.10</td>
+                        <td class="pos-pnl-pos">+$90 (+21%)</td>
+                        <td>$3.15 / $6.30</td>
+                        <td><span class="pos-status" style="color: var(--secondary);">🟢 Winning</span></td>
+                        <td>
+                            <button class="pos-action-btn">Adjust SL</button>
+                            <button class="pos-action-btn close-btn">Close</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="pos-ticker">AMD</td>
+                        <td style="color: var(--secondary)">Call</td>
+                        <td>$180</td>
+                        <td>$3.50</td>
+                        <td>$3.20</td>
+                        <td class="pos-pnl-neg">-$30 (-9%)</td>
+                        <td>$2.45 / $5.25</td>
+                        <td><span class="pos-status" style="color: var(--accent);">🟡 Dipping</span></td>
+                        <td>
+                            <button class="pos-action-btn">Adjust SL</button>
+                            <button class="pos-action-btn close-btn">Close</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="pos-ticker">TSLA</td>
+                        <td style="color: var(--danger)">Put</td>
+                        <td>$340</td>
+                        <td>$6.80</td>
+                        <td>$8.20</td>
+                        <td class="pos-pnl-pos">+$140 (+21%)</td>
+                        <td>$4.76 / $10.20</td>
+                        <td><span class="pos-status" style="color: var(--secondary);">🟢 → Break-even SL active</span>
+                        </td>
+                        <td>
+                            <button class="pos-action-btn">Adjust TP</button>
+                            <button class="pos-action-btn close-btn">Close</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ============================================
+     RISK DASHBOARD TAB
+     ============================================ -->
+    <div id="tab-risk" class="tab-panel">
+        <div class="container">
+            <!-- Risk Metric Cards -->
+            <div class="risk-cards">
+                <!-- Portfolio Heat -->
+                <div class="risk-card">
+                    <div class="risk-card-header">
+                        <span class="risk-card-title">🔥 Portfolio Heat</span>
+                        <span style="font-size: 0.8rem; color: var(--secondary);">✅ SAFE</span>
+                    </div>
+                    <div class="risk-card-value" style="color: var(--accent);">4.1%</div>
+                    <div class="risk-card-sub">of 6% maximum</div>
+                    <div class="heat-bar-container">
+                        <div class="heat-bar-bg">
+                            <div class="heat-bar-fill"
+                                style="width: 68%; background: linear-gradient(90deg, var(--secondary), var(--accent));">
+                            </div>
+                            <div class="heat-bar-limit" style="left: 100%;"></div>
+                        </div>
+                        <div class="heat-labels">
+                            <span>0%</span>
+                            <span style="color: var(--danger);">6% Limit</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Win Rate -->
+                <div class="risk-card">
+                    <div class="risk-card-header">
+                        <span class="risk-card-title">📊 Win Rate</span>
+                        <span style="font-size: 0.8rem; color: var(--secondary);">ABOVE TARGET</span>
+                    </div>
+                    <div class="risk-card-value" style="color: var(--secondary);">68%</div>
+                    <div class="risk-card-sub">17W / 8L (last 25 trades)</div>
+                    <div class="heat-bar-container">
+                        <div class="heat-bar-bg">
+                            <div class="heat-bar-fill" style="width: 68%; background: var(--secondary);"></div>
+                        </div>
+                        <div class="heat-labels">
+                            <span>0%</span>
+                            <span style="color: var(--text-muted);">55% min target</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tilt Status -->
+                <div class="risk-card">
+                    <div class="risk-card-header">
+                        <span class="risk-card-title">🧠 Tilt Status</span>
+                    </div>
+                    <div class="risk-card-value" style="color: var(--secondary);">0</div>
+                    <div class="risk-card-sub">consecutive losses</div>
+                    <div class="tilt-status">
+                        <span class="tilt-icon">✅</span>
+                        <div class="tilt-text">
+                            <div class="tilt-label">ALL CLEAR</div>
+                            <div>Full position sizing enabled. Last win: NVDA Call +21%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weekly Report -->
+            <div class="report-card">
+                <div class="report-header">
+                    <div class="report-title">📋 Weekly Risk Report</div>
+                    <div class="report-date">Week of Feb 10-14, 2026</div>
+                </div>
+                <div class="report-grid">
+                    <div class="report-metric">
+                        <div class="report-metric-label">Trades</div>
+                        <div class="report-metric-value">7</div>
+                    </div>
+                    <div class="report-metric">
+                        <div class="report-metric-label">Win Rate</div>
+                        <div class="report-metric-value" style="color: var(--secondary);">71%</div>
+                    </div>
+                    <div class="report-metric">
+                        <div class="report-metric-label">Avg Win</div>
+                        <div class="report-metric-value" style="color: var(--secondary);">+$145</div>
+                    </div>
+                    <div class="report-metric">
+                        <div class="report-metric-label">Avg Loss</div>
+                        <div class="report-metric-value" style="color: var(--danger);">-$95</div>
+                    </div>
+                    <div class="report-metric">
+                        <div class="report-metric-label">Expectancy</div>
+                        <div class="report-metric-value" style="color: var(--secondary);">+$74/trade</div>
+                    </div>
+                    <div class="report-metric">
+                        <div class="report-metric-label">Max Drawdown</div>
+                        <div class="report-metric-value" style="color: var(--accent);">-$190</div>
+                    </div>
+                    <div class="report-metric">
+                        <div class="report-metric-label">Best Trade</div>
+                        <div class="report-metric-value" style="color: var(--secondary);">NVDA +$210</div>
+                    </div>
+                    <div class="report-metric">
+                        <div class="report-metric-label">Worst Trade</div>
+                        <div class="report-metric-value" style="color: var(--danger);">META -$130</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+     TRADE SETUP MODAL
+     ============================================ -->
+    <div class="modal-overlay" id="trade-modal">
+        <div class="trade-modal">
+            <div class="modal-header">
+                <h2>⚡ Trade Setup</h2>
+                <button class="modal-close" onclick="closeTradeModal()">×</button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Order Summary -->
+                <div class="order-summary-bar">
+                    <div>
+                        <span class="order-ticker">NVDA</span>
+                        <span class="order-action-badge order-action-call">BUY CALL</span>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">Conviction</div>
+                        <div style="font-size: 1.5rem; font-weight: 800; color: var(--secondary);">82</div>
+                    </div>
+                </div>
+
+                <!-- Entry -->
+                <div class="form-section">
+                    <div class="form-section-title">Entry</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <span class="form-label">Strike Price</span>
+                            <input class="form-input" value="$150.00" readonly style="color: var(--primary-light);">
+                        </div>
+                        <div class="form-group">
+                            <span class="form-label">Expiry</span>
+                            <input class="form-input" value="Mar 7, 2026 (18d)" readonly>
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-top:0.5rem;">
+                        <div class="form-group">
+                            <span class="form-label">Limit Price (Mid)</span>
+                            <div class="input-with-adjust">
+                                <button class="adjust-btn" title="-$0.05">−</button>
+                                <input class="form-input" value="$4.20" id="limit-price">
+                                <button class="adjust-btn" title="+$0.05">+</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <span class="form-label">Qty</span>
+                            <div class="input-with-adjust">
+                                <button class="adjust-btn">−</button>
+                                <input class="form-input" value="1" id="qty">
+                                <button class="adjust-btn">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bracket Orders -->
+                <div class="form-section">
+                    <div class="form-section-title">Bracket Orders (Auto-Attached)</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                        <div class="form-group">
+                            <span class="form-label">Stop Loss (-25%)</span>
+                            <div class="input-with-adjust">
+                                <button class="adjust-btn">−</button>
+                                <input class="form-input" value="$3.15" style="color: var(--danger);">
+                                <button class="adjust-btn">+</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <span class="form-label">Take Profit (+50%)</span>
+                            <div class="input-with-adjust">
+                                <button class="adjust-btn">−</button>
+                                <input class="form-input" value="$6.30" style="color: var(--secondary);">
+                                <button class="adjust-btn">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Risk Summary -->
+                <div class="risk-summary">
+                    <div
+                        style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem;">
+                        Risk Analysis</div>
+                    <div class="risk-row">
+                        <span class="risk-label">Total Cost</span>
+                        <span class="risk-value">$420.00 (1 × $4.20 × 100)</span>
+                    </div>
+                    <div class="risk-row">
+                        <span class="risk-label">Max Loss (if SL hits)</span>
+                        <span class="risk-value danger">-$105.00 (2.1% of account)</span>
+                    </div>
+                    <div class="risk-row">
+                        <span class="risk-label">Target Profit</span>
+                        <span class="risk-value success">+$210.00 (+50%)</span>
+                    </div>
+                    <div class="risk-row">
+                        <span class="risk-label">Risk : Reward</span>
+                        <span class="risk-value success">1 : 2.0 ✅</span>
+                    </div>
+                    <div class="risk-row">
+                        <span class="risk-label">Portfolio Heat After</span>
+                        <span class="risk-value warning">5.2% → within 6% limit</span>
+                    </div>
+                </div>
+
+                <!-- Pre-Trade Checks -->
+                <div class="checks-list">
+                    <div class="check-item check-pass">✅ Buying power sufficient ($3,540 available)</div>
+                    <div class="check-item check-pass">✅ Bid-Ask spread: 3.2% (healthy)</div>
+                    <div class="check-item check-pass">✅ Open Interest: 2,450 (liquid)</div>
+                    <div class="check-item check-pass">✅ No earnings within 5 days</div>
+                    <div class="check-item check-pass">✅ Daily loss limit: $0 used of $150</div>
+                    <div class="check-item check-pass">✅ No duplicate position for NVDA</div>
+                </div>
+
+                <!-- Confirm -->
+                <div class="confirm-section">
+                    <div class="confirm-warning">
+                        ⚠️ YOU ARE ABOUT TO SPEND $420.00 — Max Risk: $105.00
+                    </div>
+                    <button class="confirm-btn" onclick="confirmTrade()">
+                        ✅ CONFIRM TRADE — BUY 1x NVDA $150 Call
+                    </button>
+                    <div class="keyboard-hint">
+                        <kbd>Enter</kbd> to Confirm &nbsp;&nbsp; <kbd>Esc</kbd> to Cancel
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // Tab Switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            event.target.closest('.nav-tab').classList.add('active');
+        }
+
+        // Trade Modal
+        function openTradeModal() {
+            document.getElementById('trade-modal').classList.add('show');
+        }
+
+        function closeTradeModal() {
+            document.getElementById('trade-modal').classList.remove('show');
+        }
+
+        // Confirm Trade (Demo)
+        function confirmTrade() {
+            closeTradeModal();
+            showToast('success', '✅', '<span class="toast-bold">Order Submitted!</span><br>BUY 1x NVDA $150 Call @ $4.20 — Brackets attached');
+            setTimeout(() => {
+                showToast('info', '📋', '<span class="toast-bold">Brackets Active</span><br>SL: $3.15 | TP: $6.30 — Monitoring started');
+            }, 1500);
+        }
+
+        // Toast Notification
+        function showToast(type, icon, html) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-text">${html}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        }
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeTradeModal();
+            if (e.key === 'Enter' && document.getElementById('trade-modal').classList.contains('show')) {
+                confirmTrade();
+            }
+        });
+
+        // Close modal on overlay click
+        document.getElementById('trade-modal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('trade-modal')) closeTradeModal();
+        });
+
+        // Subsector toggle (shows when sector is selected)
+        const subsectorMap = {
+            'Technology': ['Semiconductors', 'Software - Application', 'Software - Infrastructure', 'Consumer Electronics', 'Information Technology Services'],
+            'Financial Services': ['Banks - Regional', 'Insurance', 'Asset Management', 'Capital Markets', 'Credit Services'],
+            'Healthcare': ['Biotechnology', 'Medical Devices', 'Drug Manufacturers', 'Health Information Services', 'Diagnostics & Research'],
+            'Consumer Cyclical': ['Auto Manufacturers', 'Restaurants', 'Apparel Retail', 'Home Improvement', 'Travel Services'],
+            'Energy': ['Oil & Gas Exploration', 'Oil & Gas Integrated', 'Solar', 'Uranium', 'Oil & Gas Midstream'],
+            'Industrials': ['Aerospace & Defense', 'Railroads', 'Specialty Industrial Machinery', 'Waste Management', 'Engineering & Construction'],
+            'Communication Services': ['Internet Content', 'Telecom Services', 'Entertainment', 'Electronic Gaming', 'Advertising Agencies']
+        };
+
+        function toggleSubsector() {
+            const sector = document.getElementById('demo-sector').value;
+            const sub = document.getElementById('demo-subsector');
+            if (sector && subsectorMap[sector]) {
+                sub.innerHTML = '<option>Any Subsector</option>' +
+                    subsectorMap[sector].map(s => `<option>${s}</option>`).join('');
+                sub.style.display = 'block';
+            } else {
+                sub.style.display = 'none';
+            }
+        }
+    </script>
+
+</body>
+
+</html>
