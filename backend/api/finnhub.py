@@ -21,7 +21,7 @@ class FinnhubAPI:
         params['token'] = self.api_key
         
         try:
-            resp = self.session.get(f"{self.BASE_URL}/{endpoint}", params=params, timeout=5)
+            resp = self.session.get(f"{self.BASE_URL}/{endpoint}", params=params, timeout=15)
             if resp.status_code == 200:
                 return resp.json()
             elif resp.status_code == 403:

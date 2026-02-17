@@ -754,7 +754,7 @@ class HybridScannerService:
                  try:
                      price_history = self.batch_manager.orats_api.get_history(ticker)
                      if price_history:
-                         print(f"   ℹ️  History fetched from ORATS ({len(price_history)} candles)")
+                         print(f"   ℹ️  History fetched from ORATS ({len(price_history.get('candles', []))} candles)")
                  except Exception as e:
                      print(f"   ⚠️ ORATS History Error: {e}")
 
@@ -983,9 +983,12 @@ class HybridScannerService:
                              collect_typed(opts.get('putExpDateMap', {}), 'Put')
             
             opportunities = []
-            sma_20 = indicators['moving_averages']['values']['sma_50'] # Proxied 50 or 20, using dict value
-            # Note: stored as sma_50/sma_200. Let's rely on Price vs SMA 50 for Trend
-            is_uptrend = current_price > sma_20
+            # Use the new MA signal system for trend detection
+            ma_signal = indicators['moving_averages']['signal']
+            # Calls allowed when: bullish or pullback_bullish (dip in uptrend)
+            # Puts allowed when: bearish, rally_bearish, or breakdown
+            is_uptrend = ma_signal in ('bullish', 'pullback bullish')
+            is_downtrend = ma_signal in ('bearish', 'rally bearish', 'breakdown')
             
             rsi_val = indicators['rsi']['value']
 
@@ -995,9 +998,16 @@ class HybridScannerService:
                 bid = opt.get('bid', 0)
                 ask = opt.get('ask', 0)
                 last = opt.get('last', 0)
+                mark = opt.get('mark', 0)
                 
                 start_price = (bid + ask) / 2 if (bid > 0 and ask > 0) else last
-                if start_price == 0: continue
+                if start_price == 0:
+                    # Only log skips for near-the-money options (±30%) — deep OTM bid=0 is expected
+                    if current_price and current_price > 0:
+                        proximity = abs(strike - current_price) / current_price
+                        if proximity < 0.30:
+                            print(f"  SKIPPED {ticker} {strike} {otype}: bid={bid} ask={ask} last={last} mark={mark}")
+                    continue
 
                 # --- ADVANCED FILTERING LOGIC ---
 
@@ -1319,22 +1329,69 @@ class HybridScannerService:
                 if sent_analysis and 'headlines' in sent_analysis:
                     context['headlines'] = sent_analysis['headlines']
                 
-                # B. Technicals
+                # C. Technicals (Enriched with upgrade signals)
                 inds = scan_result.get('indicators', {})
+                ma_vals = inds.get('moving_averages', {}).get('values', {})
+                vol_vals = inds.get('volume', {}).get('values', {})
+                bb_vals = inds.get('bollinger_bands', {}).get('values', {})
                 context['technicals'] = {
                     'rsi': f"{inds.get('rsi', 0):.1f}",
+                    'rsi_signal': inds.get('rsi_signal', 'neutral'),
                     'trend': inds.get('trend', 'Neutral'),
                     'atr': f"{inds.get('atr', 0):.2f}",
-                    'hv_rank': f"{inds.get('hv_rank', 0):.1f}"
+                    'hv_rank': f"{inds.get('hv_rank', 0):.1f}",
+                    'sma_5': f"{ma_vals.get('sma_5', 0):.2f}" if ma_vals.get('sma_5') else 'N/A',
+                    'sma_50': f"{ma_vals.get('sma_50', 0):.2f}" if ma_vals.get('sma_50') else 'N/A',
+                    'sma_200': f"{ma_vals.get('sma_200', 0):.2f}" if ma_vals.get('sma_200') else 'N/A',
+                    'ma_signal': inds.get('moving_averages', {}).get('signal', 'neutral'),
+                    'volume_ratio': f"{vol_vals.get('volume_ratio', 0):.2f}" if vol_vals.get('volume_ratio') else 'N/A',
+                    'volume_signal': inds.get('volume', {}).get('signal', 'normal'),
+                    'volume_zscore': f"{vol_vals.get('z_score', 0):.1f}" if vol_vals.get('z_score') is not None else 'N/A',
+                    'macd_signal': inds.get('macd', {}).get('signal', 'neutral'),
+                    'bb_signal': inds.get('bollinger_bands', {}).get('signal', 'neutral'),
+                    'bb_squeeze': bb_vals.get('is_squeeze', False),
+                    'bb_bandwidth_pct': f"{bb_vals.get('bandwidth_percentile', 50):.0f}" if bb_vals.get('bandwidth_percentile') is not None else 'N/A',
                 }
                 
-                # C. GEX
+                # Log upgraded signal summary
+                print(f"📊 SIGNALS: RSI={context['technicals']['rsi']}({context['technicals']['rsi_signal']}) | "
+                      f"MACD={context['technicals']['macd_signal']} | "
+                      f"BB={context['technicals']['bb_signal']} (BW%={context['technicals']['bb_bandwidth_pct']}) | "
+                      f"MA={context['technicals']['ma_signal']} | "
+                      f"Vol={context['technicals']['volume_signal']} (z={context['technicals']['volume_zscore']})")
+                
+                # D. GEX
                 gex = scan_result.get('gex_data')
                 if gex:
                     context['gex'] = {
                         'call_wall': gex.get('call_wall', 'N/A'),
                         'put_wall': gex.get('put_wall', 'N/A')
                     }
+
+                # E. Option Greeks (Fix 3: Find specific option if strike+type provided)
+                req_strike = kwargs.get('strike')
+                req_type = kwargs.get('type')
+                if req_strike and req_type:
+                    try:
+                        strike_f = float(req_strike)
+                        opps = scan_result.get('opportunities', [])
+                        for opp in opps:
+                            if (abs(opp.get('strike_price', 0) - strike_f) < 0.01 and
+                                str(opp.get('option_type', '')).lower() == str(req_type).lower()):
+                                context['option_greeks'] = {
+                                    'delta': round(opp.get('delta', 0), 4),
+                                    'gamma': round(opp.get('gamma', 0), 4),
+                                    'theta': round(opp.get('theta', 0), 4),
+                                    'iv': round(opp.get('iv', 0), 1),
+                                    'oi': opp.get('open_interest', 0),
+                                    'volume': opp.get('volume', 0),
+                                }
+                                print(f"  ✓ Found Greeks for {ticker} {req_strike} {req_type}: delta={context['option_greeks']['delta']}")
+                                break
+                        else:
+                            print(f"  ⚠️ Could not find Greeks for {ticker} {req_strike} {req_type} in scan results")
+                    except Exception as e:
+                        print(f"  ⚠️ Greeks lookup error: {e}")
                     
         except Exception as e:
             print(f"⚠️ Context gather failed: {e}")

@@ -223,7 +223,7 @@ window.analysisDetail = {
             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
                 <div>
                     <h4 style="margin: 0; font-size: 1.25rem;">Verdict: <span style="color: ${verdictColor}">${analysis.verdict}</span></h4>
-                    <p style="margin: 0.5rem 0 0; color: var(--text-muted); font-size: 0.875rem;">Conviction Score: ${analysis.score}/10</p>
+                    <p style="margin: 0.5rem 0 0; color: var(--text-muted); font-size: 0.875rem;">Conviction Score: ${analysis.score}/100</p>
                 </div>
             </div>
             
@@ -248,8 +248,22 @@ window.analysisDetail = {
     },
 
     getSignalColor(signal) {
-        if (signal === 'bullish') return 'var(--secondary)';
-        if (signal === 'bearish') return 'var(--danger)';
+        // Bullish signals (green)
+        if (['bullish', 'oversold', 'near oversold', 'pullback bullish', 'weakening bearish'].includes(signal)) {
+            return 'var(--secondary)';
+        }
+        // Bearish signals (red)
+        if (['bearish', 'overbought', 'near overbought', 'breakdown', 'rally bearish', 'weakening bullish'].includes(signal)) {
+            return 'var(--danger)';
+        }
+        // Special signals (amber/warning)
+        if (signal === 'squeeze' || signal === 'surging') {
+            return '#f59e0b';
+        }
+        // Volume signals
+        if (signal === 'strong') return 'var(--secondary)';
+        if (signal === 'weak') return 'var(--danger)';
+        // Neutral / normal
         return 'var(--text-muted)';
     }
 };

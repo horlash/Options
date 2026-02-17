@@ -159,13 +159,19 @@ class OptionsAnalyzer:
             
             is_leap = days_to_expiry >= self.min_leap_days
             
-            # DELTA CHECK: Exempt Indices (often hedges/directional plays width wide attributes)
-            if is_leap and not is_pricing_anomaly and (delta < 0.50 or delta > 0.80):
-                if delta < 0.50:
-                    rejected_reasons.append(f"Strike {strike_price}: Delta too low ({delta:.2f} < 0.50 - lotto ticket)")
-                else:
+            # DELTA CHECK: Foolproof Three-Layer Defense
+            # Layer 1: Hard floor 0.15 — blocks true lotto tickets (safety net, rarely triggers)
+            # Layer 2: Hard ceiling 0.80 — blocks deep ITM stock replacement
+            # Layer 3: 30% profit floor (downstream) — creates effective delta floor ~0.38
+            #          because a 15% stock move can't generate 30%+ returns on delta <0.38
+            # Old filter: delta 0.50-0.80 conflicted with $2000 cost cap for stocks >$100
+            if is_leap and not is_pricing_anomaly:
+                if delta > 0.80:
                     rejected_reasons.append(f"Strike {strike_price}: Delta too high ({delta:.2f} > 0.80 - deep ITM, use stock instead)")
-                continue
+                    continue
+                if delta < 0.15:
+                    rejected_reasons.append(f"Strike {strike_price}: Delta too low ({delta:.2f} < 0.15 - extreme lotto ticket)")
+                    continue
             
             # Calculate contract cost (premium * 100 shares)
             contract_cost = premium * 100

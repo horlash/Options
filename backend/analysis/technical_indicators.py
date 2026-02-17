@@ -56,13 +56,17 @@ class TechnicalIndicators:
         rsi = rsi_indicator.rsi()
         current_rsi = rsi.iloc[-1]
         
-        # Determine signal
+        # Determine signal (5-zone system)
         if current_rsi < self.rsi_oversold:
-            signal = 'bullish'  # Oversold - potential buy
+            signal = 'oversold'      # < 30 — strong buy signal
+        elif current_rsi < 40:
+            signal = 'near oversold'  # 30-40 — approaching buy zone
         elif current_rsi > self.rsi_overbought:
-            signal = 'bearish'  # Overbought - potential sell
+            signal = 'overbought'     # > 70 — strong sell signal
+        elif current_rsi > 60:
+            signal = 'near overbought' # 60-70 — approaching sell zone
         else:
-            signal = 'neutral'
+            signal = 'neutral'         # 40-60 — no signal
         
         return current_rsi, signal
     
@@ -88,11 +92,24 @@ class TechnicalIndicators:
         signal_line = macd_indicator.macd_signal().iloc[-1]
         histogram = macd_indicator.macd_diff().iloc[-1]
         
-        # Determine signal based on crossover
+        # Get last 3 histogram bars for momentum detection
+        hist_series = macd_indicator.macd_diff().dropna().tail(3).tolist()
+        
+        # Determine signal with histogram momentum (2-bar confirmation)
         if macd_line > signal_line and histogram > 0:
-            signal_type = 'bullish'
+            # Check if histogram is shrinking for 2+ consecutive bars
+            if (len(hist_series) >= 3 and 
+                hist_series[-1] < hist_series[-2] < hist_series[-3]):
+                signal_type = 'weakening bullish'  # Trend losing steam
+            else:
+                signal_type = 'bullish'
         elif macd_line < signal_line and histogram < 0:
-            signal_type = 'bearish'
+            # Check if bearish histogram is shrinking (becoming less negative)
+            if (len(hist_series) >= 3 and 
+                hist_series[-1] > hist_series[-2] > hist_series[-3]):
+                signal_type = 'weakening bearish'  # Bear trend fading
+            else:
+                signal_type = 'bearish'
         else:
             signal_type = 'neutral'
         
@@ -124,11 +141,29 @@ class TechnicalIndicators:
         middle_band = bb_indicator.bollinger_mavg().iloc[-1]
         lower_band = bb_indicator.bollinger_lband().iloc[-1]
         
-        # Determine signal
-        if current_price <= lower_band:
-            signal = 'bullish'  # Price at lower band - potential buy
+        # Calculate bandwidth and percentile for squeeze detection
+        bandwidth = (upper_band - lower_band) / middle_band if middle_band > 0 else 0
+        bb_width_series = (bb_indicator.bollinger_hband() - bb_indicator.bollinger_lband()) / bb_indicator.bollinger_mavg()
+        bb_width_history = bb_width_series.dropna().tail(100)
+        bandwidth_percentile = (bb_width_history < bandwidth).sum() / len(bb_width_history) * 100 if len(bb_width_history) > 0 else 50
+        
+        # Price position within bands (0 = lower, 100 = upper)
+        band_range = upper_band - lower_band
+        band_position = ((current_price - lower_band) / band_range * 100) if band_range > 0 else 50
+        
+        # Determine signal (squeeze-aware, 5-zone)
+        is_squeeze = bandwidth_percentile < 20  # Bands in bottom 20% of width
+        
+        if is_squeeze:
+            signal = 'squeeze'              # Volatility contraction — big move imminent
         elif current_price >= upper_band:
-            signal = 'bearish'  # Price at upper band - potential sell
+            signal = 'overbought'           # At/above upper band
+        elif band_position > 75:
+            signal = 'near overbought'      # Upper 25% of bands
+        elif current_price <= lower_band:
+            signal = 'oversold'             # At/below lower band
+        elif band_position < 25:
+            signal = 'near oversold'        # Lower 25% of bands
         else:
             signal = 'neutral'
         
@@ -136,7 +171,11 @@ class TechnicalIndicators:
             'upper': upper_band,
             'middle': middle_band,
             'lower': lower_band,
-            'current_price': current_price
+            'current_price': current_price,
+            'bandwidth': bandwidth,
+            'bandwidth_percentile': bandwidth_percentile,
+            'band_position': band_position,
+            'is_squeeze': is_squeeze
         }, signal
     
     def calculate_moving_averages(self, df):
@@ -163,11 +202,17 @@ class TechnicalIndicators:
         
         print(f"DEBUG: Calculated SMA5={sma_5}, SMA50={sma_50}")
         
-        # Golden cross / Death cross
+        # 5-zone trend analysis with SMA200 safety net
         if sma_50 > sma_200 and current_price > sma_50:
-            signal = 'bullish'
+            signal = 'bullish'             # Full uptrend: price > SMA50 > SMA200
+        elif sma_50 > sma_200 and current_price > sma_200:
+            signal = 'pullback bullish'    # Dip in uptrend: SMA200 < price < SMA50 (buy-the-dip)
+        elif sma_50 > sma_200 and current_price < sma_200:
+            signal = 'breakdown'           # SMA50 > SMA200 but price crashed below both — danger
         elif sma_50 < sma_200 and current_price < sma_50:
-            signal = 'bearish'
+            signal = 'bearish'             # Full downtrend: price < SMA50 < SMA200
+        elif sma_50 < sma_200 and current_price > sma_200:
+            signal = 'rally bearish'       # Bear bounce above SMA200 — dead cat bounce
         else:
             signal = 'neutral'
         
@@ -197,16 +242,29 @@ class TechnicalIndicators:
         
         volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
         
-        # High volume can confirm trends
-        if volume_ratio > Config.MIN_VOLUME_MULTIPLIER:
-            signal = 'strong'  # High volume confirms movement
+        # Z-score based volume tiers (ticker-adaptive)
+        vol_series = df['Volume'].tail(50)
+        vol_mean = vol_series.mean()
+        vol_std = vol_series.std()
+        
+        if vol_mean > 0 and vol_std > 0:
+            z_score = (current_volume - vol_mean) / vol_std
+            if z_score > 2.0:
+                signal = 'surging'     # >2 std dev — institutional/news-driven
+            elif z_score > 0.5:
+                signal = 'strong'      # Above average
+            elif z_score > -0.5:
+                signal = 'normal'      # Typical trading day
+            else:
+                signal = 'weak'        # Below average
         else:
-            signal = 'weak'  # Low volume - weak signal
+            signal = 'normal'  # Can't calculate — assume normal (not weak)
         
         return {
             'current_volume': current_volume,
             'avg_volume': avg_volume,
-            'volume_ratio': volume_ratio
+            'volume_ratio': volume_ratio,
+            'z_score': z_score if vol_mean > 0 and vol_std > 0 else 0
         }, signal
     
     def calculate_support_resistance(self, df, window=20):
@@ -314,41 +372,73 @@ class TechnicalIndicators:
             return 0
         
         score = 0
+        # Rebalanced weights: faster indicators get more weight for weekly options
         weights = {
-            'rsi': 20,
-            'macd': 25,
-            'bollinger_bands': 20,
-            'moving_averages': 25,
-            'volume': 10
+            'rsi': 20,              # Leading indicator — unchanged
+            'macd': 20,             # Reduced from 25 — lagging for weeklies
+            'bollinger_bands': 25,  # Increased from 20 — squeeze is highest-value signal
+            'moving_averages': 20,  # Reduced from 25 — slowest indicator
+            'volume': 15            # Increased from 10 — confirms everything
         }
         
-        # RSI score
-        if indicators['rsi']['signal'] == 'bullish':
+        # RSI score (5-zone)
+        rsi_sig = indicators['rsi']['signal']
+        if rsi_sig == 'oversold':
             score += weights['rsi']
-        elif indicators['rsi']['signal'] == 'bearish':
+        elif rsi_sig == 'near oversold':
+            score += weights['rsi'] * 0.5
+        elif rsi_sig == 'overbought':
             score -= weights['rsi']
+        elif rsi_sig == 'near overbought':
+            score -= weights['rsi'] * 0.5
         
-        # MACD score
-        if indicators['macd']['signal'] == 'bullish':
+        # MACD score (with histogram momentum)
+        macd_sig = indicators['macd']['signal']
+        if macd_sig == 'bullish':
             score += weights['macd']
-        elif indicators['macd']['signal'] == 'bearish':
+        elif macd_sig == 'weakening bullish':
+            score += weights['macd'] * 0.5     # Half — trend intact but fading
+        elif macd_sig == 'bearish':
             score -= weights['macd']
+        elif macd_sig == 'weakening bearish':
+            score -= weights['macd'] * 0.5     # Half — bear trend fading
         
-        # Bollinger Bands score
-        if indicators['bollinger_bands']['signal'] == 'bullish':
+        # Bollinger Bands score (squeeze-aware, 5-zone)
+        bb_sig = indicators['bollinger_bands']['signal']
+        if bb_sig == 'squeeze':
+            pass  # 0 directional pts — flagged separately for AI
+        elif bb_sig == 'oversold':
             score += weights['bollinger_bands']
-        elif indicators['bollinger_bands']['signal'] == 'bearish':
+        elif bb_sig == 'near oversold':
+            score += weights['bollinger_bands'] * 0.5
+        elif bb_sig == 'overbought':
             score -= weights['bollinger_bands']
+        elif bb_sig == 'near overbought':
+            score -= weights['bollinger_bands'] * 0.5
         
-        # Moving Averages score
-        if indicators['moving_averages']['signal'] == 'bullish':
+        # Moving Averages score (with pullback/breakdown zones)
+        ma_sig = indicators['moving_averages']['signal']
+        if ma_sig == 'bullish':
             score += weights['moving_averages']
-        elif indicators['moving_averages']['signal'] == 'bearish':
+        elif ma_sig == 'pullback bullish':
+            score += weights['moving_averages'] * 0.5  # Half — dip in uptrend
+        elif ma_sig == 'breakdown':
+            score -= weights['moving_averages'] * 0.75  # Penalty — uptrend failing
+        elif ma_sig == 'bearish':
             score -= weights['moving_averages']
+        elif ma_sig == 'rally bearish':
+            score -= weights['moving_averages'] * 0.5  # Half — dead cat bounce
         
-        # Volume confirmation
-        if indicators['volume']['signal'] == 'strong':
-            score *= 1.1  # Boost score by 10% for strong volume
+        # Volume confirmation (z-score based)
+        vol_sig = indicators['volume']['signal']
+        if vol_sig == 'surging':
+            score *= 1.2   # 20% boost — institutional conviction
+        elif vol_sig == 'strong':
+            score *= 1.1   # 10% boost
+        elif vol_sig == 'normal':
+            pass            # No impact — fair baseline
+        elif vol_sig == 'weak':
+            score *= 0.95   # 5% reduction — less reliable signals
         
         # Normalize to 0-100 scale
         normalized_score = ((score + 100) / 200) * 100
