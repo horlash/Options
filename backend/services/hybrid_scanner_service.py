@@ -1,8 +1,6 @@
 import os
 from datetime import datetime, timedelta
-from backend.api.yahoo_finance import YahooFinanceAPI
 from backend.api.tradier import TradierAPI
-# from backend.api.schwab import SchwabAPI # REMOVED
 from backend.api.fmp import FMPAPI
 from backend.api.free_news import FreeNewsAPIs
 from backend.api.finnhub import FinnhubAPI
