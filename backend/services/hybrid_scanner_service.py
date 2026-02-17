@@ -72,10 +72,10 @@ class HybridScannerService:
                 age_days = (datetime.now() - last_updated).days
                 
                 if age_days > 90:
-                    print(f"⚠️  Ticker list is {age_days} days old (>90 days)")
-                    print(f"⚠️  Run 'python backend/scripts/refresh_tickers.py' to update")
+                    print(f"[WARNING] Ticker list is {age_days} days old (>90 days)")
+                    print(f"[WARNING] Run 'python backend/scripts/refresh_tickers.py' to update")
                 else:
-                    print(f"✅ Ticker list age: {age_days} days (updated {last_updated.strftime('%Y-%m-%d')})")
+                    print(f"[OK] Ticker list age: {age_days} days (updated {last_updated.strftime('%Y-%m-%d')})")
             
             tickers = data.get('tickers', [])
             
@@ -92,14 +92,14 @@ class HybridScannerService:
                 })
             
             HybridScannerService._ticker_cache = filtered
-            print(f"✅ Loaded {len(filtered)} tickers from local cache")
+            print(f"[OK] Loaded {len(filtered)} tickers from local cache")
             
         except FileNotFoundError:
-            print(f"❌ Ticker file not found: {local_path}")
-            print(f"⚠️  Run 'python backend/scripts/refresh_tickers.py' to create it")
+            print(f"[ERROR] Ticker file not found: {local_path}")
+            print(f"[WARNING] Run 'python backend/scripts/refresh_tickers.py' to create it")
             HybridScannerService._ticker_cache = []
         except Exception as e:
-            print(f"❌ Error loading tickers: {e}")
+            print(f"[ERROR] Error loading tickers: {e}")
             HybridScannerService._ticker_cache = []
 
     def get_cached_tickers(self):
