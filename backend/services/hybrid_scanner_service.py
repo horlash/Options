@@ -1409,8 +1409,8 @@ class HybridScannerService:
         Focus: Gamma Walls, VWAP (if avail), Momentum.
         RESTRICTED: Only Indices/Major ETFs (SPX, NDX, etc).
         """
-        allowed_indices = ['$SPX', '$NDX', '$RUT', '$DJX', 'SPY', 'QQQ', 'IWM']
-        normalized = self._normalize_ticker(ticker) # e.g. SPX -> $SPX
+        allowed_indices = ['$SPX', '$NDX', '$RUT', '$DJX', 'SPY', 'QQQ', 'IWM', 'SPX', 'NDX', 'RUT', 'DJX']
+        normalized = ticker.upper().strip()  # Simple normalization
         
         if normalized not in allowed_indices:
              print(f"⛔ 0DTE Scan BLOCKED for {normalized} (Indices Only)")
