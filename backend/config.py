@@ -1,9 +1,11 @@
 import os
 from dotenv import load_dotenv
 
-# Load .env from project root
+# Load .env from project root (prioritize .env.feature for testing)
 basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-env_path = os.path.join(basedir, '.env')
+feature_env = os.path.join(basedir, '.env.feature')
+prod_env = os.path.join(basedir, '.env')
+env_path = feature_env if os.path.exists(feature_env) else prod_env
 load_dotenv(env_path, override=True)
 
 class Config:

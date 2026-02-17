@@ -47,13 +47,13 @@ class HybridScannerService:
             self._load_orats_universe()
         
         if self.use_orats:
-             print("✅ ORATS API configured - Primary Source (History + Options)")
+             print("[OK] ORATS API configured - Primary Source (History + Options)")
         else:
-             print("⚠️ ORATS API NOT configured - Critical Error for Full Switch")
+             print("[WARNING] ORATS API NOT configured - Critical Error for Full Switch")
 
     def _refresh_ticker_cache(self):
         """Load tickers from local JSON file (backend/data/tickers.json)"""
-        print("📥 Loading Ticker Cache...")
+        print("[LOADING] Ticker Cache...")
         
         # Path to local ticker file
         import json
