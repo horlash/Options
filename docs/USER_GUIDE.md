@@ -1,6 +1,6 @@
 # User Guide
 **Last Updated:** 2026-02-16
-**Version:** NewScanner v2.0
+**Version:** NewScanner v3.0 (Strict ORATS Mode)
 
 Welcome to the NewScanner! This guide will help you get the most out of the application.
 
@@ -17,6 +17,7 @@ Welcome to the NewScanner! This guide will help you get the most out of the appl
 ### 3. Sector Scanner (Rotation) [NEW]
 -   **Goal:** Find the "Best House in the Best Neighborhood".
 -   **Output:** Top 3 tickers in a sector (e.g., Energy, Tech) with AI Analysis.
+-   **Fallback:** If FMP is down, uses a local cached list.
 
 ---
 
@@ -66,28 +67,26 @@ Navigate to `http://localhost:8000`
 For Top Picks, you will see a text block explaining the trade:
 -   **"The Setup":** Why the technicals look good.
 -   **"The Risk":** What could go wrong (e.g., Earnings coming up).
--   **"The Verdict":** A Confidence Score (e.g., "High Confidence: 85%").
+-   **"The Verdict":** A Conviction Score (e.g., "High Confidence: 85%").
 
 ---
 
 ## Understanding the Scoring System
 
-```
-Score = (Technical Score × 40%) + (Sentiment Score × 30%) + (Profit Potential × 20%) + (Liquidity × 10%)
-```
+The system uses a **Hybrid Scoring Model**:
 
-### Technical Score (40%)
--   RSI, MACD, Bollinger Bands, Moving Averages.
+1.  **Base Score (Hard Data):** We calculate a raw score (0-100) based on:
+    -   **Technicals (40%)**: RSI, MACD, Bollinger Bands.
+    -   **Sentiment (30%)**: News sentiment + Analyst Ratings.
+    -   **Volume (10%)**: "Surging" volume adds points.
+    -   **Trend (20%)**: Moving Average alignment.
 
-### Sentiment Score (30%)
--   Finnhub News + AI Analysis.
-
-### Profit Potential (20%) [Adjusted]
--   **Stocks:** Must show >15% ROI based on ATR targets.
--   **Indices (VIX/SPX):** Exempt from this check (Pricing Anomaly).
-
-### Liquidity Score (10%)
--   Open Interest weights heavily.
+2.  **AI Adjustment (Soft Data):**
+    -   The AI receives the Base Score (e.g., 75).
+    -   It reads the specific news headlines and earnings transcripts.
+    -   It adjusts the score by **±20 points** (e.g., +5 for a new contract announcement = Final 80).
+    
+**Why this matters:** The score is grounded in math but flexible enough to capture human-like nuance.
 
 ---
 

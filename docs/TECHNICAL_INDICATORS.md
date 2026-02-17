@@ -19,181 +19,78 @@ Each indicator generates a signal (bullish, bearish, or neutral) that contribute
 ## 1. RSI (Relative Strength Index)
 
 ### What It Is
-RSI measures the speed and magnitude of price changes on a scale of 0-100.
+RSI measures the speed and magnitude of price changes. We use a **5-Zone System** for precision.
 
-### How It Works
-- **Formula**: RSI = 100 - (100 / (1 + RS))
-  - RS = Average Gain / Average Loss over 14 periods
-- **Range**: 0 to 100
-
-### Interpretation
-
-| RSI Value | Condition | Signal | Meaning |
-|-----------|-----------|--------|---------|
-| < 30 | Oversold | 🟢 Bullish | Stock may be undervalued, potential buy |
-| 30-70 | Neutral | ⚪ Neutral | Normal trading range |
-| > 70 | Overbought | 🔴 Bearish | Stock may be overvalued, potential sell |
-
-### For LEAP Options
-- **Oversold (RSI < 30)**: Good for buying CALL options
-- **Overbought (RSI > 70)**: Good for buying PUT options
-
-### Example
-If AAPL has RSI of 25:
-- Stock is oversold
-- Bullish signal generated
-- Scanner favors CALL options
-- Contributes positively to technical score
+### Zones & Signals
+| RSI Value | Zone | Signal | Meaning |
+|-----------|------|--------|---------|
+| < 30 | Extreme Oversold | 🟢 **Oversold** | Strong Buy signal |
+| 30-40 | Weakness | 🟢 **Near Oversold** | Potential bottom forming |
+| 40-60 | Neutral | ⚪ **Neutral** | Normal range |
+| 60-70 | Strength | 🔴 **Near Overbought** | Potential top forming |
+| > 70 | Extreme Overbought | 🔴 **Overbought** | Strong Sell signal |
 
 ---
 
 ## 2. MACD (Moving Average Convergence Divergence)
 
 ### What It Is
-MACD is a trend-following momentum indicator that shows the relationship between two moving averages.
-
-### Components
-- **MACD Line**: 12-day EMA - 26-day EMA
-- **Signal Line**: 9-day EMA of MACD Line
-- **Histogram**: MACD Line - Signal Line
+MACD tracks momentum. We use **Histogram Momentum** to detect shifts *before* the crossover.
 
 ### Interpretation
-
 | Condition | Signal | Meaning |
 |-----------|--------|---------|
-| MACD > Signal & Histogram > 0 | 🟢 Bullish | Upward momentum |
-| MACD < Signal & Histogram < 0 | 🔴 Bearish | Downward momentum |
-| Crossover occurring | ⚪ Neutral | Trend changing |
-
-### Key Signals
-- **Bullish Crossover**: MACD crosses above signal line
-- **Bearish Crossover**: MACD crosses below signal line
-- **Divergence**: Price and MACD moving in opposite directions
-
-### For LEAP Options
-- Bullish MACD → Favor CALL options
-- Bearish MACD → Favor PUT options
-- Strong histogram → Higher confidence in signal
-
-### Example
-If TSLA shows:
-- MACD: 5.2
-- Signal: 3.8
-- Histogram: 1.4 (positive)
-
-Result: Bullish signal, good for CALL LEAPs
+| MACD > Signal & Hist > 0 | 🟢 **Bullish** | Strong uptrend |
+| MACD > Signal but Hist shrinking | 🟡 **Weakening Bullish** | Momentum fading |
+| MACD < Signal & Hist < 0 | 🔴 **Bearish** | Strong downtrend |
+| MACD < Signal but Hist rising | 🟡 **Weakening Bearish** | Selling pressure fading |
 
 ---
 
 ## 3. Bollinger Bands
 
 ### What It Is
-Bollinger Bands measure volatility and identify overbought/oversold conditions using standard deviations.
+Measures volatility. We look for **Squeezes** (volatility compression) which often precede big moves.
 
-### Components
-- **Middle Band**: 20-day Simple Moving Average
-- **Upper Band**: Middle Band + (2 × Standard Deviation)
-- **Lower Band**: Middle Band - (2 × Standard Deviation)
-
-### Interpretation
-
-| Price Position | Signal | Meaning |
-|----------------|--------|---------|
-| At/Below Lower Band | 🟢 Bullish | Oversold, potential bounce |
-| Between Bands | ⚪ Neutral | Normal range |
-| At/Above Upper Band | 🔴 Bearish | Overbought, potential pullback |
-
-### Additional Signals
-- **Band Squeeze**: Bands narrow → Low volatility, breakout coming
-- **Band Expansion**: Bands widen → High volatility, strong trend
-
-### For LEAP Options
-- Price at lower band → Buy CALL options
-- Price at upper band → Buy PUT options
-- Tight bands → Wait for breakout direction
-
-### Example
-If NVDA is trading at:
-- Current Price: $450
-- Lower Band: $455
-- Middle Band: $475
-- Upper Band: $495
-
-Result: Near lower band, bullish signal for CALLs
+### Signals
+| Condition | Signal | Meaning |
+|-----------|--------|---------|
+| Bandwidth < 20th Percentile | 🟠 **Squeeze** | Energy building (Big move coming) |
+| Price <= Lower Band | 🟢 **Oversold** | Potential bounce |
+| Price >= Upper Band | 🔴 **Overbought** | Potential pullback |
+| %B < 25 | 🟢 **Near Oversold** | Approaching support |
+| %B > 75 | 🔴 **Near Overbought** | Approaching resistance |
 
 ---
 
 ## 4. Moving Averages
 
 ### What They Are
-Moving averages smooth price data to identify trends.
+Trend confirmation using SMA 50 and SMA 200.
 
-### Types Used
-- **50-day SMA**: Short-to-medium term trend
-- **200-day SMA**: Long-term trend
-
-### Interpretation
-
+### Signals
 | Condition | Signal | Meaning |
 |-----------|--------|---------|
-| Price > 50 SMA > 200 SMA | 🟢 Bullish | Strong uptrend |
-| Price < 50 SMA < 200 SMA | 🔴 Bearish | Strong downtrend |
-| 50 SMA crosses 200 SMA | ⚪ Transitioning | Trend change |
-
-### Key Patterns
-- **Golden Cross**: 50 SMA crosses above 200 SMA (bullish)
-- **Death Cross**: 50 SMA crosses below 200 SMA (bearish)
-
-### For LEAP Options
-- Golden Cross → Strong signal for CALL LEAPs
-- Death Cross → Strong signal for PUT LEAPs
-- Price above both MAs → Bullish trend confirmed
-
-### Example
-If MSFT shows:
-- Current Price: $380
-- 50-day SMA: $375
-- 200-day SMA: $360
-
-Result: Price above both MAs, bullish signal
+| Price > 50 > 200 | 🟢 **Bullish** | Strong uptrend |
+| Price > 200 but < 50 | 🟢 **Pullback Bullish** | Buy the dip opportunity |
+| Price < 50 but > 200 | 🔴 **Breakdown** | Warning: Uptrend failing |
+| Price < 50 < 200 | 🔴 **Bearish** | Strong downtrend |
+| Price < 200 but > 50 | 🔴 **Rally Bearish** | Dead cat bounce |
 
 ---
 
 ## 5. Volume Analysis
 
 ### What It Is
-Volume measures the number of shares traded and confirms price movements.
+We use **Z-Score Analysis** to detect unusual institutional activity relative to the stock's own history.
 
-### How It Works
-- Compare current volume to 20-day average
-- High volume confirms trends
-- Low volume suggests weak movements
-
-### Interpretation
-
-| Condition | Signal | Meaning |
-|-----------|--------|---------|
-| Volume > 1.5× Average | 🟢 Strong | Movement confirmed |
-| Volume < 1.5× Average | 🔴 Weak | Movement questionable |
-
-### Volume Patterns
-- **Volume Spike + Price Up**: Strong bullish confirmation
-- **Volume Spike + Price Down**: Strong bearish confirmation
-- **Price Up + Low Volume**: Weak rally, may reverse
-- **Price Down + Low Volume**: Weak selloff, may bounce
-
-### For LEAP Options
-- High volume strengthens all other signals
-- Low volume reduces confidence in opportunity
-- Volume acts as a multiplier (±10%) on technical score
-
-### Example
-If AMD shows:
-- Current Volume: 75M shares
-- 20-day Average: 45M shares
-- Volume Ratio: 1.67× (above 1.5× threshold)
-
-Result: Strong signal, boosts overall score by 10%
+### Z-Score Tiers
+| Z-Score | Signal | Meaning |
+|---------|--------|---------|
+| > 2.0 | 🟣 **Surging** | Massive institutional buying/selling |
+| > 0.5 | 🟢 **Strong** | Above average volume |
+| -0.5 to 0.5 | ⚪ **Normal** | Average volume |
+| < -0.5 | 🔴 **Weak** | Low conviction move |
 
 ---
 
