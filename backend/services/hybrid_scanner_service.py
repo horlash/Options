@@ -502,6 +502,124 @@ class HybridScannerService:
 
         return final_results
 
+    def _calculate_greeks_black_scholes(self, S, K, T, sigma, r=0.045, opt_type='call'):
+        """
+        Estimate Greeks using Black-Scholes (Pure Python, no scipy).
+        S: Spot Price
+        K: Strike Price
+        T: Time to Expiry (years)
+        sigma: Volatility (decimal, e.g. 0.30)
+        r: Risk-free rate
+        """
+        import math
+        
+        if T <= 0 or sigma <= 0:
+            return {'delta': 0, 'gamma': 0, 'theta': 0}
+            
+        try:
+            d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+            d2 = d1 - sigma * math.sqrt(T)
+            
+            # Cumulative Distribution Function (CDF)
+            def N(x):
+                return 0.5 * (1 + math.erf(x / math.sqrt(2)))
+            
+            # Probability Density Function (PDF)
+            def N_prime(x):
+                return (1 / math.sqrt(2 * math.pi)) * math.exp(-0.5 * x ** 2)
+            
+            if opt_type.lower() == 'call':
+                delta = N(d1)
+                theta = (- (S * N_prime(d1) * sigma) / (2 * math.sqrt(T)) 
+                         - r * K * math.exp(-r * T) * N(d2)) / 365.0
+            else: # Put
+                delta = N(d1) - 1
+                theta = (- (S * N_prime(d1) * sigma) / (2 * math.sqrt(T)) 
+                         + r * K * math.exp(-r * T) * N(-d2)) / 365.0
+                
+            gamma = N_prime(d1) / (S * sigma * math.sqrt(T))
+            
+            return {
+                'delta': round(delta, 4),
+                'gamma': round(gamma, 4),
+                'theta': round(theta, 4),
+                'source': 'Black-Scholes (Est.)'
+            }
+        except Exception as e:
+            print(f"⚠️ BS Calc Error: {e}")
+            return {'delta': 0, 'gamma': 0, 'theta': 0, 'source': 'Error'}
+
+    def _enrich_greeks(self, ticker, strike, expiry_date_str, opt_type, current_price, iv, context_greeks):
+        """
+        Ensure Greeks are populated on weekends.
+        Strategy: ORATS (Live) -> Tradier (Live/Last) -> Black-Scholes (Est) -> Unavailable
+        """
+        # 1. Check if ORATS gave us good Greeks (Delta != 0)
+        if abs(context_greeks.get('delta', 0)) > 0.001:
+            context_greeks['source'] = 'ORATS (Live)'
+            return context_greeks
+            
+        print(f"⚠️ ORATS Greeks are 0. Attempting enrichment for {ticker}...")
+
+        # 2. Try Tradier API (if configured)
+        if self.use_tradier:
+            try:
+                # Tradier format: YYYY-MM-DD
+                chain = self.tradier_api.get_option_chain(ticker, expiry_date_str)
+                if chain:
+                    # Find matching strike
+                    for opt in chain:
+                        if (abs(opt.get('strike', 0) - strike) < 0.01 and 
+                            opt.get('option_type', '').lower() == opt_type.lower()):
+                            greeks = opt.get('greeks', {})
+                            if greeks and greeks.get('delta'):
+                                print("  ✅ Found Greeks via Tradier")
+                                return {
+                                    'delta': greeks.get('delta'),
+                                    'gamma': greeks.get('gamma'),
+                                    'theta': greeks.get('theta'),
+                                    'iv': context_greeks.get('iv', 0), # Keep original IV logic
+                                    'oi': context_greeks.get('oi', 0),
+                                    'volume': context_greeks.get('volume', 0),
+                                    'source': 'Tradier (Live)'
+                                }
+            except Exception as e:
+                print(f"  ⚠️ Tradier fallback failed: {e}")
+
+        # 3. Try Black-Scholes (Calculation)
+        # Needs IV > 0 and Time > 0
+        from datetime import datetime
+        try:
+            exp_dt = datetime.strptime(expiry_date_str, "%Y-%m-%d")
+            days_to_exp = (exp_dt - datetime.now()).days
+            T = max(1, days_to_exp) / 365.0
+            
+            # Use 'iv' from ORATS (smvVol usually present even if Greeks aren't)
+            # If iv is 0, we can't calc BS.
+            sigma = context_greeks.get('iv', 0) / 100.0
+            
+            if sigma > 0 and current_price > 0:
+                bs_greeks = self._calculate_greeks_black_scholes(
+                    S=current_price,
+                    K=strike,
+                    T=T,
+                    sigma=sigma,
+                    opt_type=opt_type
+                )
+                if bs_greeks['delta'] != 0:
+                    print(f"  ✅ Calculated Greeks via Black-Scholes (IV={sigma:.1%})")
+                    # Merge with original (keep IO/Vol)
+                    context_greeks.update(bs_greeks)
+                    return context_greeks
+            else:
+                print(f"  ⚠️ Cannot calc BS: IV={sigma:.2f}, Price={current_price}")
+        except Exception as e:
+            print(f"  ⚠️ BS Setup Error: {e}")
+
+        # 4. Give up
+        context_greeks['source'] = 'Unavailable (Market Closed)'
+        return context_greeks
+
     def scan_sector_top_picks(self, sector, min_volume, min_market_cap, limit=15, weeks_out=None, industry=None):
         """
         Run a 'Smart Scan' on a sector.
@@ -1375,18 +1493,35 @@ class HybridScannerService:
                     try:
                         strike_f = float(req_strike)
                         opps = scan_result.get('opportunities', [])
+                        # Need expiry for Tradier/BS
+                        expiry_date_str = scan_result.get('expiry_date') # e.g. "2026-07-17"
+                        if not expiry_date_str and opps:
+                            expiry_date_str = opps[0].get('expiration_date')
+
                         for opp in opps:
                             if (abs(opp.get('strike_price', 0) - strike_f) < 0.01 and
                                 str(opp.get('option_type', '')).lower() == str(req_type).lower()):
-                                context['option_greeks'] = {
+                                
+                                raw_greeks = {
                                     'delta': round(opp.get('delta', 0), 4),
                                     'gamma': round(opp.get('gamma', 0), 4),
                                     'theta': round(opp.get('theta', 0), 4),
-                                    'iv': round(opp.get('iv', 0), 1),
+                                    'iv': round(opp.get('iv', 0), 1) or round(opp.get('implied_volatility', 0), 1),
                                     'oi': opp.get('open_interest', 0),
                                     'volume': opp.get('volume', 0),
                                 }
-                                print(f"  ✓ Found Greeks for {ticker} {req_strike} {req_type}: delta={context['option_greeks']['delta']}")
+                                
+                                # Enrich if needed (Weekend Fix)
+                                context['option_greeks'] = self._enrich_greeks(
+                                    ticker=ticker,
+                                    strike=strike_f,
+                                    expiry_date_str=expiry_date_str,
+                                    opt_type=str(req_type).lower(),
+                                    current_price=current_price,
+                                    iv=raw_greeks['iv'],
+                                    context_greeks=raw_greeks
+                                )
+                                print(f"  ✓ Found Greeks for {ticker} {req_strike} {req_type}: delta={context['option_greeks']['delta']} [{context['option_greeks'].get('source', 'Original')}]")
                                 break
                         else:
                             print(f"  ⚠️ Could not find Greeks for {ticker} {req_strike} {req_type} in scan results")

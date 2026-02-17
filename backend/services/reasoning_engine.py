@@ -242,11 +242,23 @@ class ReasoningEngine:
                  "   - **The Risk (Bear Case):** What could crash it?"
              )
 
+        # 5. Base Score Calculation (Enhancement #2)
+        base_score = self.calculate_base_score(
+            technicals=context.get('technicals', {}),
+            sentiment=context.get('sentiment', {})
+        )
+        
+        # 6. Score Range Instructions
+        score_low = max(0, base_score - 20)
+        score_high = min(100, base_score + 20)
+        
         final_reminder = (
             f"\n\n🛑 **FINAL REMINDER before you answer:**\n"
             f"- The Stock Price is **${spot_price}**.\n"
             f"- Imagine it is **2026**.\n"
-            f"- Do NOT tell me it is 2025 or that the price is wrong.\n"
+            f"- **BASE CONVICTION SCORE: {base_score}** (Calculated from Hard Data).\n"
+            f"- You may adjust this score ±20 points based on news, catalysts, and specific trade risks.\n"
+            f"- Your Final Conviction Score MUST be between **{score_low}** and **{score_high}**.\n"
             f"- JUST ANALYZE THE TRADE at ${spot_price}."
         )
 
@@ -267,7 +279,7 @@ class ReasoningEngine:
             f"{rr_section}\n"
             f"4. **Trade Viability:** Is strictly this ${strike if strike else 'ATM'} {opt_type if opt_type else 'Play'} reasonable?\n"
             f"5. **Verdict:** [SAFE / RISKY / AVOID]\n"
-            f"6. **Conviction Score:** (0-100) where >70 is Safe/Buy, <40 is Avoid."
+            f"6. **Conviction Score:** (0-100) where >70 is Safe/Buy, <40 is Avoid. **Target Range: {score_low}-{score_high}** (Base: {base_score})"
             f"{final_reminder}"
         )
 
@@ -306,6 +318,48 @@ class ReasoningEngine:
         except Exception as e:
             print(f"Reasoning Engine Failed: {e}", flush=True)
             return {"error": str(e)}
+
+    def calculate_base_score(self, technicals, sentiment):
+        """
+        Calculate objective base score from hard data.
+        Range: 10-90 (clamped)
+        """
+        score = 50.0  # Start neutral
+        
+        # 1. Technical Score (worth ±30 points)
+        # technicals['score'] is 0-100. Neutral is 50.
+        tech_score = float(technicals.get('score', 50))
+        score += (tech_score - 50) * 0.6
+        
+        # 2. Sentiment (worth ±20 points)
+        # sentiment['score'] should be 0-100.
+        sent_val = sentiment.get('score', 50)
+        # Handle if it's a dict or extraction error
+        if isinstance(sent_val, dict): sent_val = sent_val.get('score', 50)
+        sent_score = float(sent_val)
+        score += (sent_score - 50) * 0.4
+        
+        # 3. Volume Confirmation (worth ±15 points)
+        try:
+            vol_z = float(technicals.get('volume_zscore', 0))
+        except:
+            vol_z = 0
+            
+        if vol_z > 2.0:      score += 15   # Super surging
+        elif vol_z > 1.0:    score += 10   # Surging
+        elif vol_z > 0.5:    score += 5    # Strong
+        elif vol_z < -0.5:   score -= 5    # Weak
+        elif vol_z < -1.5:   score -= 10   # Very weak
+
+        # 4. Trend Alignment (worth ±15 points)
+        ma_signal = technicals.get('ma_signal', 'neutral')
+        if ma_signal == 'bullish':             score += 10
+        elif ma_signal == 'pullback_bullish':  score += 5
+        elif ma_signal == 'bearish':           score -= 10
+        elif ma_signal == 'breakdown':         score -= 15
+        
+        # Clamp to 10-90
+        return max(10, min(90, int(score)))
 
     def _extract_score(self, text):
         """Extract 'Conviction Score: 85' from text"""
