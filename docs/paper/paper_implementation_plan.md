@@ -18,33 +18,8 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
 
 | Decision | Choice |
 |----------|--------|
-| Dev database | SQLite (local) |
-| Production database | Neon PostgreSQL (always free, 500MB) |
+| Database | Neon PostgreSQL (prod) + SQLite (dev) |
 | Toggle | `DATABASE_URL` env variable |
-
-### Implementation Steps
-
-**Step 1.1** — Create SQLAlchemy models in `backend/database/models.py`:
-- `PaperTrade` (40+ fields: trade details, scanner context, Tradier IDs, outcome)
-- `PriceSnapshot` (trade_id, mark_price, bid, ask, delta, iv, underlying)
-- `UserSettings` (broker_mode, Tradier tokens, limits, preferences)
-
-**Step 1.2** — Update `backend/config.py`: add Tradier URLs
-
-**Step 1.3** — Create Neon project, get connection string, add to `.env.production`
-
-**Step 1.4** — Add API routes to `backend/app.py`:
-
-| Method | Route | Purpose |
-|--------|-------|---------|
-| POST | `/api/trades` | Place trade → DB + Tradier |
-| GET | `/api/trades?status=OPEN` | Open positions |
-| GET | `/api/trades?status=CLOSED` | Trade history |
-| GET | `/api/trades/<id>` | Trade detail + snapshots |
-| PUT | `/api/trades/<id>/close` | Manual close |
-| GET | `/api/trades/stats` | Performance metrics |
-| GET | `/api/trades/refresh` | Force-refresh prices |
-| GET/PUT | `/api/settings` | User settings |
 
 ---
 
@@ -54,37 +29,43 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
 
 | Decision | Choice |
 |----------|--------|
-| Trade execution | Tradier (sandbox/live) — SL/TP at tick level |
-| Server cron | 60s (Tradier sync) + 40s (ORATS snapshots) |
-| Frontend poll | 15s (DB reads) |
-| Scheduler | APScheduler |
-
-### Implementation Steps
-
-**Step 2.1** — Install APScheduler: `pip install apscheduler`
-
-**Step 2.2** — Create `backend/services/monitor_service.py`:
-- `sync_tradier_orders()`: check fills, update DB with exact Tradier data
-- `update_price_snapshots()`: ORATS chain fetch, save snapshots, update current_price
-- `is_market_hours()`: 9:30-4:00 ET guard
-
-**Step 2.3** — Create `backend/api/tradier.py`:
-- `place_order()`, `place_bracket_order()`, `get_order()`, `get_positions()`, `get_account_balance()`
-
-**Step 2.4** — Wire APScheduler in `backend/app.py`:
-- 60s job: `sync_tradier_orders()`
-- 40s job: `update_price_snapshots()`
-
-**Step 2.5** — Frontend polling in `frontend/js/components/portfolio.js`:
-- 15s `setInterval` reading `/api/trades?status=OPEN`
-- Start on Portfolio tab active, stop on tab switch
+| Architecture | Tradier-first (tick-level SL/TP) |
+| Polling | 60s cron (Tradier) + 40s (ORATS) + 15s (Frontend) |
 
 ---
 
-# Points 3-12: PENDING
+# Point 3: UI Upgrade — Portfolio Tab ✅ FINALIZED
 
-## Point 3: UI Location — Portfolio Tab Upgrade 🔲
-Upgrade existing tab with DB-backed data, responsive layout.
+**Deep Dive:** [point_3_ui_deepdive.md](./point_3_ui_deepdive.md)
+
+| Decision | Choice |
+|----------|--------|
+| Location | **Upgrade Existing Portfolio Tab** |
+| Sub-Tabs | **Open Positions**, **Trade History**, **Performance** |
+| Expansion | **Inline** (slide-down details) |
+| Export | **JSON + CSV** |
+| **Mandate** | **Visual Verification (Mockups) Required First** |
+
+### Implementation Steps
+
+**Step 3.1: Visual Verification (MOCKUPS FIRST)**
+- [ ] Generate numbered UI mockups
+- [ ] Present to user for review
+- [ ] HOLD until approved
+
+**Step 3.2: Code Structure Updates**
+- Update `frontend/index.html` triggers, `frontend/css/index.css` styles
+
+**Step 3.3: Refactor `portfolio.js`**
+- Sub-tab logic, fetch real data, inline expansion, auto-refresh
+
+**Step 3.4: Backend Support**
+- `/api/trades/history` endpoint
+- `/api/trades/export` endpoint
+
+---
+
+# Points 4-12: PENDING
 
 ## Point 4: SL/TP Bracket Enforcement 🔲
 Simplified by Tradier. Sync and display results. Alert queue.
@@ -99,7 +80,7 @@ Full context at entry + outcome at close. Schema in Point 1.
 `username` on every table, `@require_user` decorator.
 
 ## Point 8: Multi-Device Sync 🔲
-Optimistic locking, Tradier as source of truth.
+Optimistic locking (`version` column), Tradier as source of truth.
 
 ## Point 9: Tradier Integration Architecture 🔲
 `BrokerInterface` abstraction. Sandbox ↔ live URL swap.
@@ -120,7 +101,7 @@ Win rate, profit factor, AI accuracy, segmented analysis.
 | Phase | What | Status |
 |-------|------|--------|
 | Phase 1 | DB Models + Trade Placement + Tradier Client | 🔲 |
-| Phase 2 | Portfolio Display (DB-backed) | 🔲 |
+| Phase 2 | Portfolio UI (Mockups → Code) | 🔲 |
 | Phase 3 | Price Monitoring (APScheduler cron) | 🔲 |
 | Phase 4 | Bracket Sync (Tradier order status) | 🔲 |
 | Phase 5 | Analytics Dashboard | 🔲 |
