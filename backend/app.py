@@ -1,6 +1,12 @@
 import sys
 import os
 
+# Force UTF-8 output encoding (Windows CMD uses cp1252 by default, crashes on emoji)
+if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 # Add project root to sys.path so 'backend' module is found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -406,7 +412,8 @@ def get_analysis_detail(ticker):
     """Get detailed analysis for a ticker"""
     try:
         service = get_scanner()
-        analysis = service.get_detailed_analysis(ticker)
+        expiry = request.args.get('expiry')  # Optional: from card's expiration_date
+        analysis = service.get_detailed_analysis(ticker, expiry_date=expiry)
         
         if analysis:
             return jsonify({

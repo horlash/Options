@@ -84,15 +84,30 @@ const tradeModal = (() => {
                     <button class="modal-close-trade" onclick="tradeModal.close()">×</button>
                 </div>
                 <div class="modal-body-trade">
+                    <!-- AI Warning Banner (if present) -->
+                    ${t.aiWarning ? `
+                    <div style="background: rgba(255,77,77,0.1); border: 1px solid var(--danger); border-radius: var(--radius-sm); padding: 0.75rem 1rem; margin-bottom: 0.75rem; font-size: 0.9rem; color: var(--danger); font-weight: 600;">
+                        ${t.aiWarning}
+                    </div>` : ''}
+
                     <!-- Order Summary -->
                     <div class="order-summary-bar">
                         <div>
                             <span class="order-ticker">${t.ticker}</span>
                             <span class="order-action-badge ${actionClass}">${actionText}</span>
                         </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 0.8rem; color: var(--text-muted);">Conviction</div>
-                            <div style="font-size: 1.5rem; font-weight: 800; color: ${t.score >= 80 ? 'var(--secondary)' : 'var(--accent)'};">${t.score}</div>
+                        <div style="text-align: right; display: flex; gap: 1rem; align-items: center;">
+                            ${t.cardScore ? `
+                            <div style="text-align: center;">
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">Card</div>
+                                <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-muted);">${Math.round(t.cardScore)}</div>
+                            </div>` : ''}
+                            <div style="text-align: center;">
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">${t.aiConviction ? 'AI' : 'Score'}</div>
+                                <div style="font-size: 1.5rem; font-weight: 800; color: ${t.score >= 65 ? 'var(--secondary)' : t.score >= 40 ? 'var(--accent)' : 'var(--danger)'};">${Math.round(t.score)}</div>
+                            </div>
+                            ${t.aiConviction ? `
+                            <div style="font-size: 0.75rem; font-weight: 700; color: ${t.score >= 65 ? 'var(--secondary)' : t.score >= 40 ? 'var(--accent)' : 'var(--danger)'};">${t.score >= 65 ? 'PROCEED ✅' : t.score >= 40 ? 'CAUTION ⚠️' : 'AVOID 🚫'}</div>` : ''}
                         </div>
                     </div>
 

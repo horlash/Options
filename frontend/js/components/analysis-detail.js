@@ -16,7 +16,8 @@ window.analysisDetail = {
         }
 
         try {
-            const result = await api.getAnalysis(ticker);
+            const expiry = context ? context.expiration_date : null;
+            const result = await api.getAnalysis(ticker, expiry);
 
             if (result.success) {
                 this.render(result.analysis);
@@ -137,8 +138,30 @@ window.analysisDetail = {
         `;
     },
 
-    async runAIAnalysis(ticker) {
+    async runAIAnalysis(ticker, forceRefresh = false) {
         const container = document.getElementById('ai-result-container');
+
+        // Build cache key from trade context
+        let cacheKey = null;
+        if (this.selectedTradeContext) {
+            cacheKey = aiCache.buildKey(
+                ticker,
+                this.selectedTradeContext.strike_price,
+                this.selectedTradeContext.option_type,
+                this.selectedTradeContext.expiration_date
+            );
+
+            // Check shared cache (skip if force-refreshing)
+            if (!forceRefresh && cacheKey) {
+                const cached = aiCache.get(cacheKey);
+                if (cached) {
+                    console.log(`[AI-DETAIL] Using shared cached result for ${cacheKey}`);
+                    this.renderAIResult(cached, ticker);
+                    return;
+                }
+            }
+        }
+
         container.innerHTML = `
             <div class="text-center">
                 <p style="color: var(--accent);">🧠 Reasoning Engine Active...</p>
@@ -155,11 +178,6 @@ window.analysisDetail = {
                 strategy = 'WEEKLY';
             }
 
-            // Get current opportunity details if available
-            let expiry = null;
-            let strike = null;
-            let type = null;
-
             const payload = {
                 strategy: strategy,
                 ticker: ticker
@@ -171,9 +189,6 @@ window.analysisDetail = {
                 payload.expiry = this.selectedTradeContext.expiration_date;
                 payload.strike = this.selectedTradeContext.strike_price;
                 payload.type = this.selectedTradeContext.option_type;
-
-                // Override strategy tag if the specific trade has one? 
-                // Mostly strategy is determined by Scan Mode, but good to know.
             } else {
                 console.log("[AI] Using generic ticker context (no specific trade selected)");
             }
@@ -186,7 +201,11 @@ window.analysisDetail = {
             const data = await response.json();
 
             if (data.success && data.ai_analysis) {
-                this.renderAIResult(data.ai_analysis);
+                // Store in shared cache
+                if (cacheKey) {
+                    aiCache.set(cacheKey, data.ai_analysis);
+                }
+                this.renderAIResult(data.ai_analysis, ticker);
             } else {
                 container.innerHTML = `<p class="text-danger">Analysis Failed: ${data.error || 'Unknown error'}</p>`;
             }
@@ -196,7 +215,7 @@ window.analysisDetail = {
         }
     },
 
-    renderAIResult(analysis) {
+    renderAIResult(analysis, ticker) {
         const container = document.getElementById('ai-result-container');
         const verdictColor = analysis.verdict === 'SAFE' ? 'var(--secondary)' : 'var(--danger)';
 
@@ -225,6 +244,11 @@ window.analysisDetail = {
                     <h4 style="margin: 0; font-size: 1.25rem;">Verdict: <span style="color: ${verdictColor}">${analysis.verdict}</span></h4>
                     <p style="margin: 0.5rem 0 0; color: var(--text-muted); font-size: 0.875rem;">Conviction Score: ${analysis.score}/100</p>
                 </div>
+                ${ticker ? `<button onclick="analysisDetail.runAIAnalysis('${ticker}', true)" 
+                        style="background: transparent; color: var(--text-muted); border: 1px solid var(--border); padding: 0.35rem 0.75rem; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.75rem; white-space: nowrap;"
+                        title="Force refresh — bypass cache and re-run AI analysis">
+                    🔄 Re-run
+                </button>` : ''}
             </div>
             
             <div style="margin-bottom: 1.5rem; background: rgba(255, 77, 77, 0.05); padding: 1rem; border-radius: var(--radius-sm); border-left: 3px solid var(--danger);">
