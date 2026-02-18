@@ -1,4 +1,4 @@
-# Paper Trade Monitoring System — Implementation Plan
+# Paper Trade Monitoring — Implementation Plan
 
 > **Branch:** `feature/paper-trading` (off `feature/automated-trading`)  
 > **Status:** Planning — Point-by-Point Review  
@@ -8,120 +8,121 @@
 
 ## Overview
 
-Build a production-grade paper trade monitoring system that records every trade with full context, monitors live P&L via ORATS, enforces bracket orders, and generates backtesting data to measure scanner + AI accuracy. Designed for multi-user, multi-device use with future Tradier live trading integration.
+Build a production-grade paper trade monitoring system using **Tradier** for order execution (sandbox for paper, production for live), **Neon PostgreSQL** for persistence, and **ORATS** for price snapshots.
 
 ---
 
-## Point 1: Database Persistence ✅ FINALIZED
+# Point 1: Database Persistence ✅ FINALIZED
 
-> **Deep Dive:** [point_1_database_deepdive.md](./point_1_database_deepdive.md)
+**Deep Dive:** [point_1_database_deepdive.md](./point_1_database_deepdive.md)
 
 | Decision | Choice |
 |----------|--------|
-| Dev database | SQLite (local, zero setup) |
-| Production database | **Neon PostgreSQL** (always free, 500MB, no pause, no lock-in) |
+| Dev database | SQLite (local) |
+| Production database | Neon PostgreSQL (always free, 500MB) |
 | Toggle | `DATABASE_URL` env variable |
-| Data protection | Auto-backup + 6-hour PITR + `is_locked` on closed trades |
-| MCP server | Deferred to Phase 7 (need 50+ trades first) |
+
+### Implementation Steps
+
+**Step 1.1** — Create SQLAlchemy models in `backend/database/models.py`:
+- `PaperTrade` (40+ fields: trade details, scanner context, Tradier IDs, outcome)
+- `PriceSnapshot` (trade_id, mark_price, bid, ask, delta, iv, underlying)
+- `UserSettings` (broker_mode, Tradier tokens, limits, preferences)
+
+**Step 1.2** — Update `backend/config.py`: add Tradier URLs
+
+**Step 1.3** — Create Neon project, get connection string, add to `.env.production`
+
+**Step 1.4** — Add API routes to `backend/app.py`:
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| POST | `/api/trades` | Place trade → DB + Tradier |
+| GET | `/api/trades?status=OPEN` | Open positions |
+| GET | `/api/trades?status=CLOSED` | Trade history |
+| GET | `/api/trades/<id>` | Trade detail + snapshots |
+| PUT | `/api/trades/<id>/close` | Manual close |
+| GET | `/api/trades/stats` | Performance metrics |
+| GET | `/api/trades/refresh` | Force-refresh prices |
+| GET/PUT | `/api/settings` | User settings |
 
 ---
 
-## Point 2: Polling Frequency & Shared Price Cache 🔲 PENDING
+# Point 2: Polling & Price Cache ✅ FINALIZED
 
-**Current Recommendation:** 60-sec auto-poll while Portfolio tab active + manual refresh. Server-side batch polling (1 ORATS call per unique ticker across all users).
+**Deep Dive:** [point_2_polling_deepdive.md](./point_2_polling_deepdive.md)
 
-**Deep Dive:** TBD
+| Decision | Choice |
+|----------|--------|
+| Trade execution | Tradier (sandbox/live) — SL/TP at tick level |
+| Server cron | 60s (Tradier sync) + 40s (ORATS snapshots) |
+| Frontend poll | 15s (DB reads) |
+| Scheduler | APScheduler |
 
----
+### Implementation Steps
 
-## Point 3: UI Location — Portfolio Tab Upgrade 🔲 PENDING
+**Step 2.1** — Install APScheduler: `pip install apscheduler`
 
-**Current Recommendation:** Upgrade existing Portfolio tab with DB-backed real data, responsive layout, last-updated timestamp.
+**Step 2.2** — Create `backend/services/monitor_service.py`:
+- `sync_tradier_orders()`: check fills, update DB with exact Tradier data
+- `update_price_snapshots()`: ORATS chain fetch, save snapshots, update current_price
+- `is_market_hours()`: 9:30-4:00 ET guard
 
-**Deep Dive:** TBD
+**Step 2.3** — Create `backend/api/tradier.py`:
+- `place_order()`, `place_bracket_order()`, `get_order()`, `get_positions()`, `get_account_balance()`
 
----
+**Step 2.4** — Wire APScheduler in `backend/app.py`:
+- 60s job: `sync_tradier_orders()`
+- 40s job: `update_price_snapshots()`
 
-## Point 4: SL/TP Bracket Enforcement 🔲 PENDING
-
-**Current Recommendation:** Auto-close + toast alert + 1-click undo (60-sec window). Server-side enforcement for when user is offline.
-
-**Deep Dive:** TBD
-
----
-
-## Point 5: Market Hours & Bookend Snapshots 🔲 PENDING
-
-**Current Recommendation:** Poll during 9:30-4:00 ET only, plus pre-market (9:25 AM) and post-close (4:05 PM) snapshots.
-
-**Deep Dive:** TBD
-
----
-
-## Point 6: Backtesting Data Model 🔲 PENDING
-
-**Current Recommendation:** Full context at entry (card score, AI score, Greeks, strategy) + outcome at close (realized P&L, hold duration, close reason, override count).
-
-**Deep Dive:** TBD
+**Step 2.5** — Frontend polling in `frontend/js/components/portfolio.js`:
+- 15s `setInterval` reading `/api/trades?status=OPEN`
+- Start on Portfolio tab active, stop on tab switch
 
 ---
 
-## Point 7: Multi-User Data Isolation 🔲 PENDING
+# Points 3-12: PENDING
 
-**Current Recommendation:** `username` column on every trade table, `@require_user` decorator, query-level enforcement.
+## Point 3: UI Location — Portfolio Tab Upgrade 🔲
+Upgrade existing tab with DB-backed data, responsive layout.
 
-**Deep Dive:** TBD
+## Point 4: SL/TP Bracket Enforcement 🔲
+Simplified by Tradier. Sync and display results. Alert queue.
 
----
+## Point 5: Market Hours & Bookend Snapshots 🔲
+9:30-4:00 ET polling. Pre-market 9:25 AM, post-close 4:05 PM.
 
-## Point 8: Multi-Device Sync 🔲 PENDING
+## Point 6: Backtesting Data Model 🔲
+Full context at entry + outcome at close. Schema in Point 1.
 
-**Current Recommendation:** Optimistic locking (version column) to prevent double-close race conditions.
+## Point 7: Multi-User Data Isolation 🔲
+`username` on every table, `@require_user` decorator.
 
-**Deep Dive:** TBD
+## Point 8: Multi-Device Sync 🔲
+Optimistic locking, Tradier as source of truth.
 
----
+## Point 9: Tradier Integration Architecture 🔲
+`BrokerInterface` abstraction. Sandbox ↔ live URL swap.
 
-## Point 9: Tradier Integration Architecture 🔲 PENDING
+## Point 10: Concurrency & Race Conditions 🔲
+Idempotency keys, transactions, optimistic locking.
 
-**Current Recommendation:** `BrokerInterface` abstraction — `PaperBroker` (local) → `TradierBroker(sandbox)` → `TradierBroker(live)`.
+## Point 11: Position Lifecycle Management 🔲
+OPEN → SL_HIT/TP_HIT/MANUAL_CLOSE/EXPIRED_OTM/EXPIRED_ITM.
 
-**Deep Dive:** TBD
-
----
-
-## Point 10: Concurrency & Race Conditions 🔲 PENDING
-
-**Current Recommendation:** Idempotency keys for duplicate prevention, transaction wrapping, optimistic locking.
-
-**Deep Dive:** TBD
-
----
-
-## Point 11: Position Lifecycle Management 🔲 PENDING
-
-**Current Recommendation:** Full state machine (OPEN → SL_HIT/TP_HIT/MANUAL_CLOSE/EXPIRED_OTM/EXPIRED_ITM), expiry handling, daily pre-market health check.
-
-**Deep Dive:** TBD
+## Point 12: Analytics & Performance Reporting 🔲
+Win rate, profit factor, AI accuracy, segmented analysis.
 
 ---
 
-## Point 12: Analytics & Performance Reporting 🔲 PENDING
-
-**Current Recommendation:** Win rate, profit factor, AI accuracy, segmented analysis by strategy/score/delta. Trade History sub-tab.
-
-**Deep Dive:** TBD
-
----
-
-## Implementation Phases (After All Points Approved)
+## Implementation Phases
 
 | Phase | What | Status |
 |-------|------|--------|
-| Phase 1 | DB + Trade Placement | 🔲 |
-| Phase 2 | Portfolio Display | 🔲 |
-| Phase 3 | Price Monitoring | 🔲 |
-| Phase 4 | Bracket Enforcement | 🔲 |
+| Phase 1 | DB Models + Trade Placement + Tradier Client | 🔲 |
+| Phase 2 | Portfolio Display (DB-backed) | 🔲 |
+| Phase 3 | Price Monitoring (APScheduler cron) | 🔲 |
+| Phase 4 | Bracket Sync (Tradier order status) | 🔲 |
 | Phase 5 | Analytics Dashboard | 🔲 |
-| Phase 6 | Tradier Abstraction | 🔲 |
+| Phase 6 | Tradier Live Toggle | 🔲 |
 | Phase 7 | MCP Knowledge Server | 🔲 |
