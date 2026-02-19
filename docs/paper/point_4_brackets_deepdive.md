@@ -42,44 +42,80 @@
 
 ---
 
-## Implementation Detail
+## The 3 Scenarios
 
-### Backend Logic (`MonitorService`)
+### Scenario A: Clean Bracket Hit (The Happy Path)
+- **Action:** Price hits TP ($6.30).
+- **Tradier:** Fills TP order, cancels SL order automatically (OCO).
+- **System:** Cron detects fill, updates DB to `TP_HIT`, plays "Cha-ching" sound.
 
-```python
-def manual_close_position(self, trade_id):
-    trade = self.db.query(PaperTrade).get(trade_id)
-    
-    # 1. Place Market Sell
-    fill = self.tradier.place_order(..., side='sell', type='market')
-    
-    # 2. IMMEDIATE CLEANUP
-    if trade.tradier_sl_order_id:
-        self.tradier.cancel_order(trade.tradier_sl_order_id)
-    if trade.tradier_tp_order_id:
-        self.tradier.cancel_order(trade.tradier_tp_order_id)
-        
-    # 3. Update DB
-    trade.status = 'MANUAL_CLOSE'
-    trade.close_price = fill['price']
-    return trade
-```
+### Scenario B: User Manual Override (The "Panic Close")
+- **Action:** User clicks "Close" in UI.
+- **Risk:** The SL/TP bracket orders might remain open at Tradier.
+- **Solution:**
+  1. Backend places Market Sell order.
+  2. Backend **IMMEDIATELY** sends `cancel_order` for the orphaned SL/TP legs.
+  3. **Orphan Guard:** Cron double-checks every 60s for any missed orphans.
 
-### Frontend Logic (`portfolio.js`)
+### Scenario C: "Adjust SL" (Modify Bracket)
+- **Action:** User modifies SL price.
+- **Logic:** Tradier doesn't support "edit". We must:
+  1. Cancel the existing OCO group.
+  2. Place a **new** OCO group with the new SL and original TP.
+  3. Update DB with new Order IDs.
 
-```javascript
-function closePosition(ticker, id) {
-    if (!confirm(`Are you sure you want to close ${ticker} at market price?`)) {
-        return; // User cancelled
-    }
-    
-    api.closeTrade(id).then(() => {
-        playSound('click');
-        showToast(`Closed ${ticker}`);
-        refreshPortfolio();
-    });
-}
-```
+---
+
+## Detailed Implementation Steps
+
+### Step 4.1: Update `MonitorService`
+- **File:** `backend/services/monitor_service.py`
+- **Task:** Implement `manual_close_position(trade_id)`:
+  ```python
+  def manual_close_position(self, trade_id):
+      trade = self.db.query(PaperTrade).get(trade_id)
+      
+      # 1. Place Market Sell
+      fill = self.tradier.place_order(..., side='sell', type='market')
+      
+      # 2. IMMEDIATE CLEANUP
+      if trade.tradier_sl_order_id:
+          self.tradier.cancel_order(trade.tradier_sl_order_id)
+      if trade.tradier_tp_order_id:
+          self.tradier.cancel_order(trade.tradier_tp_order_id)
+          
+      # 3. Update DB
+      trade.status = 'MANUAL_CLOSE'
+      trade.close_price = fill['price']
+      return trade
+  ```
+- **Task:** Add **Orphan Guard** to `sync_tradier_orders` (60s cron):
+  - Check for closed positions with open bracket orders → Cancel them.
+
+### Step 4.2: Frontend Confirmation & Sounds
+- **Assets:** Add `pop.mp3`, `cash_register.mp3`, `downer.mp3` to `frontend/assets/sounds/`.
+- **File:** `frontend/js/utils/sound.js` — Create helper to play sounds.
+- **File:** `frontend/js/components/portfolio.js` — Add `confirm()` check to "Close Position" button:
+  ```javascript
+  function closePosition(ticker, id) {
+      if (!confirm(`Are you sure you want to close ${ticker} at market price?`)) {
+          return;
+      }
+      api.closeTrade(id).then(() => {
+          playSound('click');
+          showToast(`Closed ${ticker}`);
+          refreshPortfolio();
+      });
+  }
+  ```
+
+### Step 4.3: Backend "Adjust SL" Endpoint
+- **File:** `backend/app.py`
+- **Task:** Add `POST /api/trades/<id>/adjust` endpoint:
+  - Receives new SL price.
+  - Cancels existing OCO group.
+  - Places new OCO group with new SL and original TP.
+  - Updates DB with new order IDs.
 
 ---
 
@@ -91,3 +127,4 @@ function closePosition(ticker, id) {
 | `frontend/assets/sounds/` | Add `pop.mp3`, `cash_register.mp3`, `downer.mp3` |
 | `frontend/js/utils/sound.js` | Helper to play sounds |
 | `frontend/js/components/portfolio.js` | Add confirm modal logic |
+| `backend/api/routes.py` | Add `/adjust` endpoint for Scenario C |

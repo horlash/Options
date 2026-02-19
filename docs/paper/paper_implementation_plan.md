@@ -14,6 +14,8 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
 
 # Point 1: Database Persistence ✅ FINALIZED
 
+> **Deep Dive:** [point_1_database_deepdive.md](file:///C:/Users/olasu/.gemini/antigravity/brain/0f9f0645-7f4b-484c-bb93-cd378257c8d7/point_1_database_deepdive.md)
+
 | Decision | Choice |
 |----------|--------|
 | Dev database | SQLite (local) |
@@ -45,6 +47,8 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
 ---
 
 # Point 2: Polling & Price Cache ✅ FINALIZED
+
+> **Deep Dive:** [point_2_polling_deepdive.md](file:///C:/Users/olasu/.gemini/antigravity/brain/0f9f0645-7f4b-484c-bb93-cd378257c8d7/point_2_polling_deepdive.md)
 
 | Decision | Choice |
 |----------|--------|
@@ -79,6 +83,8 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
 
 # Point 3: UI Upgrade — Portfolio Tab ✅ FINALIZED
 
+> **Deep Dive:** [point_3_ui_deepdive.md](file:///C:/Users/olasu/.gemini/antigravity/brain/0f9f0645-7f4b-484c-bb93-cd378257c8d7/point_3_ui_deepdive.md)
+
 | Decision | Choice |
 |----------|--------|
 | Location | **Upgrade Existing Portfolio Tab** |
@@ -109,6 +115,8 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
 ---
 
 # Point 4: SL/TP Bracket Enforcement ✅ FINALIZED
+
+> **Deep Dive:** [point_4_brackets_deepdive.md](file:///C:/Users/olasu/.gemini/antigravity/brain/0f9f0645-7f4b-484c-bb93-cd378257c8d7/point_4_brackets_deepdive.md)
 
 | Decision | Choice |
 |----------|--------|
@@ -158,28 +166,32 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
 # Points 5-12: PENDING
 
 ## Point 5: Market Hours & Bookend Snapshots 🔲
-**Plan:** 9:30-4:00 ET polling. Pre-market 9:25 AM, post-close 4:05 PM.
+**Plan:**
+- **Polling Window:** Only run scheduler between 9:30 AM and 4:00 PM ET.
+- **Bookends:**
+  - **Pre-Market:** Take a snapshot at 9:25 AM to capture gap-ups/downs.
+  - **Post-Market:** Take a final snapshot at 4:05 PM to close the day's data.
 
 ## Point 6: Backtesting Data Model 🔲
-**Plan:** Full entry context for AI retraining.
+**Plan:** Ensure `PaperTrade` model captures full "Context at Entry" (Scanner scores, Greeks, AI verdict) so we can train future models on "What did we see?" vs "What happened?".
 
 ## Point 7: Multi-User Data Isolation 🔲
-**Plan:** `username` on every table.
+**Plan:** Add `username` column to all tables. Use a `current_user` context in Flask to automatically filter queries (e.g., `PaperTrade.query.filter_by(username=g.user)`).
 
 ## Point 8: Multi-Device Sync 🔲
-**Plan:** Optimistic locking.
+**Plan:** Use an Optimistic Locking strategy (`version` column). If two devices try to modify a trade, the second one fails if the version doesn't match. Tradier is the ultimate source of truth.
 
 ## Point 9: Tradier Integration Architecture 🔲
-**Plan:** `BrokerInterface` abstraction.
+**Plan:** Create a `BrokerInterface` abstract class. `TradierBroker` implements it. This allows easy swapping between Sandbox and Live modes (or other brokers later).
 
 ## Point 10: Concurrency & Race Conditions 🔲
-**Plan:** Idempotency keys & transactions.
+**Plan:** Use database transactions and "Idempotency Keys" for sensitive actions (like placing a trade) to prevent double-execution if the specific request is retried.
 
 ## Point 11: Position Lifecycle Management 🔲
-**Plan:** Valid state transitions only.
+**Plan:** Define a strict State Machine: `OPEN` → `PARTIAL` → `FILLED` → `CLOSING` → `CLOSED`. Enforce valid transitions only.
 
 ## Point 12: Analytics & Performance Reporting 🔲
-**Plan:** Win metrics & strategy analysis.
+**Plan:** A dedicated "Performance" tab calculating Win Rate, Profit Factor, Average Win/Loss, and "Best Strategy" analysis.
 
 ---
 
