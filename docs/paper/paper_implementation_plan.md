@@ -574,8 +574,36 @@ To skip RLS logic during backups (so we get full data):
 
 ### 🔒 The "Zombie Trade" Prevention
 
-**Scenario:** Laptop closes trade. Phone still shows "Open". User tries to close on Phone.
-**Prevention:** Database rejects the update because the version number has changed.
+**Scenario:**
+1.  **Laptop:** You close a trade. Profit secured. 💰
+2.  **Phone:** You are walking to lunch. The screen still shows the trade as `OPEN` (because it hasn't refreshed yet).
+3.  **Panic:** You see it "open" and hit **Close** on your iPhone.
+
+---
+
+### 👁️ The User Experience (What You See)
+
+**Q: "What does the user see?"**
+**A: They do NOT see a crash or a "409" error.**
+
+Here is the exact UI flow on the Phone:
+
+1.  **Action:** You tap **[CLOSE POSITION]**.
+2.  **Feedback:** The button turns into a **Spinner** ⏳.
+3.  **Behind the Scenes:** The API sends the request. The Server returns `409 Conflict`.
+4.  **The Intercept:** The JavaScript `api.js` layer catches the 409.
+5.  **The Notification:**
+    *   The Spinner stops.
+    *   A **Toast Notification** (Yellow/Orange) slides down:
+    *   ⚠️ *"Sync Alert: This trade was updated on another device."*
+6.  **The Auto-Fix:**
+    *   The app **automatically refreshes** the list 1 second later.
+    *   The "OPEN" trade vanishes from the list.
+    *   You see it in "HISTORY" as closed (by your laptop).
+
+**Result:** The user realizes, "Oh, I already closed it," instead of "Why is the system broken?"
+
+---
 
 ### Detailed Implementation Steps
 
@@ -590,16 +618,39 @@ class PaperTrade(Base):
 
 #### Step 8.2: Backend "Atomic Check"
 - **File:** `backend/services/trade_service.py`
-- **Check:** `UPDATE paper_trades ... WHERE id=101 AND version=1`
-- **Result:** If `rows_affected == 0`, return `409 Conflict`.
+
+```python
+def close_trade(self, trade_id, user_version):
+    # Atomic Update: Only works if version matches
+    rows = db.query(PaperTrade).filter(
+        id=trade_id, 
+        version=user_version
+    ).update({
+        "status": "CLOSED",
+        "version": PaperTrade.version + 1
+    })
+    
+    if rows == 0:
+        # Check if trade even exists
+        if db.query(PaperTrade).get(trade_id):
+            # It exists, so it must be a version mismatch
+            abort(409) 
+```
 
 #### Step 8.3: Frontend Warning System
 - **File:** `frontend/js/api.js`
-- **Interceptor:** Catch `409` status code.
-- **Action:**
-  1.  Hide Spinner ⏳
-  2.  Show Toast: ⚠️ *"Sync Alert: This trade was updated on another device."*
-  3.  **Auto-Refresh** the portfolio list.
+
+```javascript
+async function closeTrade(id, currentVersion) {
+    const res = await fetch(`/api/trades/${id}/close`, { ... });
+
+    if (res.status === 409) {
+        showToast("⚠️ State changed on another device. Refreshing...", "warning");
+        await refreshPortfolio(); // <--- The Magic Fix
+        return;
+    }
+}
+```
 
 ---
 
