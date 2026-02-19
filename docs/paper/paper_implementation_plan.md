@@ -325,17 +325,171 @@ class UserSettings(Base):
 
 ---
 
-# Points 5-12: PENDING
+# Point 5: Market Hours & Bookend Snapshots ✅ FINALIZED
 
-## Point 5: Market Hours & Bookend Snapshots 🔲
-**Plan:**
-- **Polling Window:** Only run scheduler between 9:30 AM and 4:00 PM ET.
-- **Bookends:**
-  - **Pre-Market:** Take a snapshot at 9:25 AM to capture gap-ups/downs.
-  - **Post-Market:** Take a final snapshot at 4:05 PM to close the day's data.
+> **Deep Dive:** [point_5_market_hours_deepdive.md](file:///C:/Users/olasu/.gemini/antigravity/brain/0f9f0645-7f4b-484c-bb93-cd378257c8d7/point_5_market_hours_deepdive.md)
 
-## Point 6: Backtesting Data Model 🔲
-**Plan:** Ensure `PaperTrade` model captures full "Context at Entry" (Scanner scores, Greeks, AI verdict) so we can train future models on "What did we see?" vs "What happened?".
+| Decision | Choice |
+|----------|--------|
+| **Polling Window** | **9:30 AM – 4:00 PM ET** (Strict US/Eastern time) |
+| **Pre-Market Snapshot** | **9:25 AM ET** (Capture gap-ups/downs) |
+| **Post-Market Snapshot** | **4:05 PM ET** (Official mark-to-market close) |
+| **Holidays** | **Ignored for V1** (Polling on holidays is harmless) |
+| **Extended Hours** | **Ignored** (Standard equity options only) |
+
+### Detailed Implementation Steps
+
+#### Step 5.1: Timezone Utility
+- **File:** `backend/utils/market_hours.py`
+- **Task:** Implement `is_market_open()` helper:
+  ```python
+  from datetime import datetime, time
+  import pytz
+  
+  EASTERN = pytz.timezone('US/Eastern')
+  
+  def is_market_open():
+      now = datetime.now(EASTERN)
+      if now.weekday() > 4: return False  # Weekend
+      # 9:30 AM to 4:00 PM
+      return time(9, 30) <= now.time() <= time(16, 0)
+  ```
+
+#### Step 5.2: Configure Scheduler Triggers
+- **File:** `backend/app.py`
+- **Task:** Use `CronTrigger` with explicit timezone:
+  ```python
+  from apscheduler.triggers.cron import CronTrigger
+  
+  # 1. Main Polling (9:30 - 4:00)
+  scheduler.add_job(
+      monitor.sync_tradier_orders,
+      CronTrigger(day_of_week='mon-fri', hour='9-15', minute='*', timezone=EASTERN)
+  )
+  
+  # 2. Pre-Market Bookend (9:25 AM)
+  scheduler.add_job(
+      monitor.capture_bookend_snapshot,
+      CronTrigger(day_of_week='mon-fri', hour=9, minute=25, timezone=EASTERN),
+      args=['PRE_MARKET']
+  )
+  
+  # 3. Post-Market Bookend (4:05 PM)
+  scheduler.add_job(
+      monitor.capture_bookend_snapshot,
+      CronTrigger(day_of_week='mon-fri', hour=16, minute=5, timezone=EASTERN),
+      args=['POST_MARKET']
+  )
+  ```
+
+#### Step 5.3: Manual Override
+- **task:** Add logic to `is_market_open()` to return `True` if `os.getenv('FORCE_MARKET_OPEN')` is set.
+
+---
+
+# Point 6: Backtesting Data Model & Schema ✅ FINALIZED
+
+> **Deep Dive:** [point_6_backtesting_deepdive.md](file:///C:/Users/olasu/.gemini/antigravity/brain/0f9f0645-7f4b-484c-bb93-cd378257c8d7/point_6_backtesting_deepdive.md)
+
+| Decision | Choice |
+|----------|--------|
+| **Signals** | **Multi-Timeframe** (1m, 5m, 1h, Daily) snapshots |
+| **Market Context** | **Regime Aware** (SPY, VIX, Sector Correlations) |
+| **Liquidity** | **Order Book State** (Bid/Ask Spread + Greeks) |
+| **AI Logic** | **Full Reasoning Log** (Prompt + Output + Confidence) |
+| **Targets** | **MFE/MAE/PnL** (Calculated post-trade for ML labeling) |
+
+### 🧱 The "Context-Rich" Data Architecture
+
+We are building a **Time Capsule** for every trade.
+
+#### 1. `signals_snapshot` (The "Micro" View)
+```json
+{
+  "1m": { "rsi": 75, "macd_hist": 0.02, "ema_9_21_cross": "bullish" },
+  "5m": { "rsi": 60, "macd_hist": 0.15, "ema_9_21_cross": "bullish" },
+  "15m": { "rsi": 55, "squeeze": "firing" },
+  "1h": { "trend": "neutral" },
+  "daily": { "trend": "bullish", "dist_from_200sma": 5.2 }
+}
+```
+
+#### 2. `market_regime` (The "Macro" View)
+```json
+{
+  "spy": { "price": 502.50, "pct_change": -0.45, "vix": 18.2 },
+  "sector": { "ticker": "XLK", "pct_change": -1.2, "correlation_30d": 0.85 },
+  "market_internals": { "ad_line": "declining", "put_call_ratio": 1.15 }
+}
+```
+
+#### 3. `order_book_state` (Liquidity & Greeks)
+```json
+{
+  "bid": 4.50,
+  "ask": 4.60,
+  "spread_pct": 2.1,
+  "volume": 520,
+  "open_interest": 12000,
+  "greeks": {
+    "delta": 0.35,
+    "gamma": 0.04,
+    "theta": -0.08,
+    "vega": 0.12,
+    "iv": 45.5
+  }
+}
+```
+
+### 🧪 Target Variables (ML Labels)
+
+We calculate these **after the trade closes** (Forensic Analysis).
+*   `target_pnl_15m`: P&L 15 minutes after entry.
+*   `target_pnl_1h`: P&L 1 hour after entry.
+*   `target_mae_pct`: **Maximum Adverse Excursion** (Max risk/pain during trade).
+*   `target_mfe_pct`: **Maximum Favorable Excursion** (Max potential profit).
+
+### Detailed Implementation Steps
+
+#### Step 6.1: Database Schema Overhaul
+- **File:** `backend/database/models.py`
+- **Task:** Add `JSONB` columns to `PaperTrade` (Postgres only).
+
+```python
+from sqlalchemy.dialects.postgresql import JSONB
+
+class PaperTrade(Base):
+    # ... existing fields ...
+    
+    # Context (Inputs - Captured at Entry)
+    signals_snapshot = Column(JSONB)   # Multi-timeframe technicals
+    market_regime    = Column(JSONB)   # SPY, VIX, Sector
+    order_book_state = Column(JSONB)   # Bid/Ask, Greeks, Liquidity
+    ai_reasoning_log = Column(JSONB)   # LLM Inputs/Outputs
+    
+    # Targets (Outputs - Calculated Post-Close)
+    target_pnl_15m   = Column(Float)
+    target_pnl_1h    = Column(Float)
+    target_mfe_pct   = Column(Float)   # Max potential profit %
+    target_mae_pct   = Column(Float)   # Max risk (pain) %
+```
+
+#### Step 6.2: "Context Collector" Service
+- **File:** `backend/services/context_service.py`
+- **Task:** Implement service that runs *at the moment of entry*:
+  1.  **get_multi_timeframe_signals(ticker):** Queries the scanner for 1m/5m/1h/D data.
+  2.  **get_market_context():** Fetches SPY/VIX and the ticker's Sector ETF (e.g., NVDA -> XLK).
+  3.  **get_greeks(option_symbol):** Fetches Delta/Gamma/Theta from Tradier/ORATS.
+
+#### Step 6.3: "Forensic Analyst" Job (Nightly)
+- **Task:** dedicated cron job to calculate `target_` variables for closed trades.
+  - Queries minute-level price history for the day.
+  - Computes MFE/MAE relative to entry price.
+  - Updates the `PaperTrade` record.
+
+---
+
+# Points 7-12: PENDING
 
 ## Point 7: Multi-User Data Isolation 🔲
 **Plan:** Add `username` column to all tables. Use a `current_user` context in Flask to automatically filter queries (e.g., `PaperTrade.query.filter_by(username=g.user)`).
