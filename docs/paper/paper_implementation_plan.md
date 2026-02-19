@@ -46,29 +46,35 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
 | Export | **JSON + CSV** |
 | **Mandate** | **Visual Verification (Mockups) Required First** |
 
+---
+
+# Point 4: SL/TP Bracket Enforcement ✅ FINALIZED
+
+**Deep Dive:** [point_4_brackets_deepdive.md](./point_4_brackets_deepdive.md)
+
+| Decision | Choice |
+|----------|--------|
+| Execution | **Tradier OCO** (Server-side brackets) |
+| Manual Close | **Immediate Cleanup** (Backend fires cancel commands) |
+| Confirmation | **Mandatory Modal** ("Are you sure?") |
+| Sounds | **Yes** (Profit 💰, Loss 📉, Close 🔵) |
+
 ### Implementation Steps
 
-**Step 3.1: Visual Verification (MOCKUPS FIRST)**
-- [ ] Generate numbered UI mockups
-- [ ] Present to user for review
-- [ ] HOLD until approved
+**Step 4.1: Update `MonitorService`**
+- `manual_close_position()`: Market sell + immediate cancellation of SL/TP brackets
+- Orphan Guard in cron: Cleanup closed positions with open brackets
 
-**Step 3.2: Code Structure Updates**
-- Update `frontend/index.html` triggers, `frontend/css/index.css` styles
+**Step 4.2: Frontend Logic**
+- Add sound assets (`pop.mp3`, `cash_register.mp3`, `downer.mp3`)
+- Add confirmation modal logic to Close button
 
-**Step 3.3: Refactor `portfolio.js`**
-- Sub-tab logic, fetch real data, inline expansion, auto-refresh
-
-**Step 3.4: Backend Support**
-- `/api/trades/history` endpoint
-- `/api/trades/export` endpoint
+**Step 4.3: Adjust SL Endpoint**
+- `POST /api/trades/<id>/adjust`: Client sends new SL → Backend cancels old OCO → Places new OCO
 
 ---
 
-# Points 4-12: PENDING
-
-## Point 4: SL/TP Bracket Enforcement 🔲
-Simplified by Tradier. Sync and display results. Alert queue.
+# Points 5-12: PENDING
 
 ## Point 5: Market Hours & Bookend Snapshots 🔲
 9:30-4:00 ET polling. Pre-market 9:25 AM, post-close 4:05 PM.
@@ -102,8 +108,8 @@ Win rate, profit factor, AI accuracy, segmented analysis.
 |-------|------|--------|
 | Phase 1 | DB Models + Trade Placement + Tradier Client | 🔲 |
 | Phase 2 | Portfolio UI (Mockups → Code) | 🔲 |
-| Phase 3 | Price Monitoring (APScheduler cron) | 🔲 |
-| Phase 4 | Bracket Sync (Tradier order status) | 🔲 |
+| Phase 3 | Price Monitoring (Cron + Orphan Guard) | 🔲 |
+| Phase 4 | Bracket Logic + Sounds | 🔲 |
 | Phase 5 | Analytics Dashboard | 🔲 |
 | Phase 6 | Tradier Live Toggle | 🔲 |
 | Phase 7 | MCP Knowledge Server | 🔲 |
