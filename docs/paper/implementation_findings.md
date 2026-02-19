@@ -2,7 +2,7 @@
 
 > **Status:** Living Document (updated with each Point implementation)  
 > **Branch:** `feature/paper-trading`  
-> **Last Updated:** Feb 19, 2026
+> **Last Updated:** Feb 19, 2026 (Point 9 added)
 
 ---
 
@@ -10,6 +10,7 @@
 
 - [Point 1: Database Schema](#point-1-database-schema--models)
 - [Point 7: Multi-User RLS Isolation](#point-7-multi-user-rls-isolation)
+- [Point 9: Tradier Integration](#point-9-tradier-integration)
 - [Architecture Decisions](#architecture-decisions)
 
 ---
@@ -252,6 +253,11 @@ current_setting('app.current_user', true)
 | AD-06 | `init-app-user.sql` as Docker entrypoint | Auto-creates app_user on first container start | Feb 19 |
 | AD-07 | Alembic migrations use superuser | Only superuser can CREATE/ALTER tables and policies | Feb 19 |
 | AD-08 | CANCELED trades hard-deleted | No soft delete — reduces noise, keeps schema simple | Feb 19 |
+| AD-09 | Provider Pattern (ABC → Concrete → Factory) | Enables future Schwab/IBKR integration without service changes | Feb 19 |
+| AD-10 | 30s request timeout for Tradier | Sandbox chains endpoint is slow; 15s caused timeouts | Feb 19 |
+| AD-11 | Post-placement order confirmation polling | Tradier "200 OK but rejected" gotcha requires status check | Feb 19 |
+| AD-12 | Rate limiter at 50/min (not 60) | 10-call headroom below sandbox limit prevents 429 errors | Feb 19 |
+| AD-13 | Fernet encryption for stored tokens | Tokens in DB encrypted at rest; key in env var only | Feb 19 |
 
 ### Environment Setup
 
@@ -267,6 +273,7 @@ $env:PYTHONPATH = "."
 # 3. Run tests (uses app_user non-super for RLS)
 .venv/Scripts/python.exe tests/test_point_01_schema.py
 .venv/Scripts/python.exe tests/test_point_07_rls.py
+.venv/Scripts/python.exe tests/test_point_09_tradier.py
 ```
 
 #### Production (Neon — Future)
@@ -277,4 +284,133 @@ Migrations run via CI/CD with the Neon superuser connection string.
 
 ---
 
-*This document is updated after each Point implementation. Future sections will be added for Points 9, 2, 3, 4, etc. as they are built.*
+## Point 9: Tradier Integration
+
+**Commit:** (pending) | **Tests:** 13/13 PASS  
+**Date:** Feb 19, 2026  
+**Sandbox Account:** VA81170223 (Olamide Olasupo, margin, active)
+
+### What Was Built
+
+A complete broker integration layer using the **Provider Pattern**:
+
+```
+BrokerProvider (ABC)        → Contract (11 abstract methods)
+  └── TradierBroker         → Concrete implementation
+       └── BrokerFactory    → Creates broker from UserSettings
+```
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `backend/services/broker/base.py` | `BrokerProvider` ABC (11 methods: quotes, chains, expirations, orders, OCO, cancel, balance, positions, test_connection) |
+| `backend/services/broker/tradier.py` | `TradierBroker` — full Tradier API client with rate limiting, retry, confirmation polling |
+| `backend/services/broker/factory.py` | `BrokerFactory` — creates broker from UserSettings (decrypts tokens) |
+| `backend/services/broker/exceptions.py` | 6 exception types: `BrokerException`, `BrokerAuthException`, `BrokerRateLimitException`, `BrokerOrderRejectedException`, `BrokerInsufficientFundsException`, `BrokerUnavailableException`, `BrokerTimeoutException` |
+| `backend/services/broker/__init__.py` | Clean re-exports |
+| `backend/security/crypto.py` | `encrypt()` / `decrypt()` using Fernet symmetric encryption |
+| `backend/utils/rate_limiter.py` | Thread-safe sliding-window rate limiter (50/min default) |
+| `tests/test_point_09_tradier.py` | 13 regression tests hitting live sandbox |
+
+### Live Sandbox Validation
+
+All tests hit the **real Tradier sandbox API** — no mocks:
+
+| Data Point | Value |
+|-----------|-------|
+| Account holder | Olamide Olasupo |
+| Account type | Margin |
+| Account status | Active |
+| Starting equity | $100,000 |
+| AAPL quote | $260.58 (bid $260.45, ask $260.57) |
+| Option expirations | 26 available (Feb 2026 → Dec 2028) |
+| Option chain | 158 options for nearest expiry |
+| Greeks | Available (delta=1.0 for deep ITM) |
+| Order placed | ID 25610467 (AAPL buy 1 share, market, pending) |
+
+### Design Decisions
+
+#### 1. Provider Pattern (Broker-Agnostic)
+The service layer calls `broker.get_quotes()`, `broker.place_order()` etc. It doesn't know or care if it's talking to Tradier, Schwab, or IBKR. Adding a new broker is just a new class implementing `BrokerProvider`.
+
+#### 2. "200 OK but Rejected" Gotcha
+> [!WARNING]
+> **Tradier returns HTTP 200 for orders that are later rejected downstream** (margin violations, risk checks, invalid symbols). If you trust the 200, you'll record a trade that never executed.
+
+Fix: `place_order()` automatically waits 1 second then polls `get_order()` to confirm the status isn't `rejected`. If rejected, it raises `BrokerOrderRejectedException` with the rejection reason.
+
+```python
+# Inside TradierBroker.place_order()
+time.sleep(self.ORDER_CONFIRM_DELAY)  # Wait 1s
+confirmation = self._confirm_order(order_id)
+if confirmation.get("status") == "rejected":
+    raise BrokerOrderRejectedException(...)
+```
+
+#### 3. Rate Limiter Strategy
+- **Local sliding window:** 50/min (sandbox limit is 60, live is 120 — we use 50 for safety)
+- **Tradier header integration:** If `X-Ratelimit-Available` header shows ≤5, we pad our local window to match
+- **Thread-safe:** Uses `threading.Lock` for concurrent access
+
+#### 4. Request Retry Strategy
+Using `urllib3.util.retry.Retry` adapter:
+- **2 retries** on 429, 500, 502, 503
+- **Exponential backoff** (1s, 2s)
+- **Only for idempotent methods** (GET, DELETE) — POST never retried to prevent double orders
+
+#### 5. Fernet Token Encryption
+Tokens stored in `user_settings.tradier_sandbox_token` are encrypted at rest:
+```
+Plaintext:  8A09vGkj...  (28 chars)
+Ciphertext: gAAAAABpl5...  (120+ chars)
+```
+- Key stored in `ENCRYPTION_KEY` env var only (never in code or DB)
+- Invalid key → clear error: "Re-enter your broker credentials"
+
+### Regression Test Results
+
+| ID | Priority | Description | Result |
+|----|----------|-------------|--------|
+| T-09-01 | 🔴 | Sandbox connection test (profile + account type) | ✅ PASS |
+| T-09-02 | 🔴 | Stock quotes (AAPL, MSFT, SPY) with all fields | ✅ PASS |
+| T-09-03 | 🔴 | Account balance with equity and buying power | ✅ PASS |
+| T-09-04 | 🟡 | Option expirations for AAPL (26 dates) | ✅ PASS |
+| T-09-05 | 🔴 | Option chain with greeks (158 options, delta available) | ✅ PASS |
+| T-09-06 | 🔴 | Place sandbox market order (buy 1 AAPL) | ✅ PASS |
+| T-09-07 | 🔴 | Get order status (confirm placement) | ✅ PASS |
+| T-09-08 | 🟡 | Get positions (sandbox may be empty) | ✅ PASS |
+| T-09-09 | 🔴 | Auth failure with invalid token → graceful error | ✅ PASS |
+| T-09-10 | 🔴 | Fernet encrypt → decrypt round-trip | ✅ PASS |
+| T-09-11 | 🟡 | Rate limiter blocks at limit (2.10s for 6 calls) | ✅ PASS |
+| T-09-12 | 🟡 | Get all orders returns list | ✅ PASS |
+| T-09-13 | 🔴 | Full factory flow: encrypt → store → factory → decrypt → connect | ✅ PASS |
+
+### Bugs / Issues Found
+
+1. **Sandbox chain timeout (15s)** — The `/markets/options/chains` endpoint is slow on the Tradier sandbox (sometimes >15s). Increased `REQUEST_TIMEOUT` from 15s to 30s. This is sandbox-specific; production should be faster.
+
+2. **Sandbox ignores `option_type` filter** — When requesting `option_type=call` on the chains endpoint, the sandbox sometimes returns puts too. The test was made resilient to this by searching for calls within the result rather than assuming the first result is always a call. This is a known sandbox limitation.
+
+3. **Tradier returns dict for single item, list for multiple** — `get_quotes(['AAPL'])` returns a dict, `get_quotes(['AAPL','MSFT'])` returns a list. All handlers now normalize this: `if isinstance(data, dict): data = [data]`.
+
+### Sandbox Gotchas (Documented for Future Reference)
+
+| Gotcha | Impact | Our Mitigation |
+|--------|--------|----------------|
+| 15-min delayed quotes | Prices stale | Use ORATS for real-time (Point 2) |
+| No streaming API | Can't use WebSocket | Polling only (our V1 strategy) |
+| Weekly data wipes | Test trades disappear | Our DB is source of truth |
+| Slower endpoints | Chains timeout at 15s | Increased to 30s timeout |
+| Mixed option types | Filter param ignored | Client-side filtering |
+| Tokens not interchangeable | 401 on wrong env | Factory pattern prevents this |
+
+### Known Limitations
+
+1. **OCO orders not yet tested live** — The `place_oco_order()` method is implemented per Tradier docs but not tested against sandbox (requires an open position to exit). Will be tested in Point 4 (Bracket Enforcement).
+2. **No WebSocket streaming** — Sandbox doesn't support it. Live streaming will be added in Phase 3 if needed.
+3. **No token refresh** — Tradier tokens don't expire (unlike OAuth), so refresh isn't needed. If this changes, add a refresh mechanism.
+
+---
+
+*This document is updated after each Point implementation. Next sections: Phase 2 (UI) and Phase 3 (Engine).*
