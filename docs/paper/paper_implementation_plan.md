@@ -22,27 +22,127 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
 | Production database | Neon PostgreSQL (always free, 500MB) |
 | Toggle | `DATABASE_URL` env variable |
 
-### Implementation Steps
+### Detailed Implementation Steps
 
 #### Step 1.1: Create SQLAlchemy Models
 **File:** `backend/database/models.py` — ADD three new model classes:
-- **`PaperTrade`**: Stores trade details, SL/TP, execution status, and Tradier order IDs.
-- **`PriceSnapshot`**: Stores 40s interval price/greeks data for charts.
-- **`UserSettings`**: Stores API keys and account preferences.
+
+**1. `PaperTrade` Model** (The core table)
+```python
+class PaperTrade(Base):
+    __tablename__ = 'paper_trades'
+
+    id              = Column(Integer, primary_key=True)
+    username        = Column(String(50), nullable=False, index=True)
+    idempotency_key = Column(String(100), unique=True)
+
+    # Trade details
+    ticker          = Column(String(10), nullable=False)
+    option_type     = Column(String(4), nullable=False)   # CALL / PUT
+    strike          = Column(Float, nullable=False)
+    expiry          = Column(String(10), nullable=False)   # YYYY-MM-DD
+    entry_price     = Column(Float, nullable=False)
+    entry_date      = Column(DateTime, default=datetime.utcnow)
+    qty             = Column(Integer, default=1)
+
+    # Brackets
+    sl_price        = Column(Float)
+    tp_price        = Column(Float)
+
+    # Scanner context (snapshot at entry)
+    strategy        = Column(String(20))
+    card_score      = Column(Float)
+    ai_score        = Column(Float)
+    ai_verdict      = Column(String(20))
+    gate_verdict    = Column(String(20))
+    technical_score = Column(Float)
+    sentiment_score = Column(Float)
+    delta_at_entry  = Column(Float)
+    iv_at_entry     = Column(Float)
+
+    # Live monitoring
+    current_price   = Column(Float)
+    last_updated    = Column(DateTime)
+    unrealized_pnl  = Column(Float)
+
+    # Outcome
+    status          = Column(String(20), default='OPEN')
+    close_price     = Column(Float)
+    close_date      = Column(DateTime)
+    close_reason    = Column(String(20))
+    realized_pnl    = Column(Float)
+    realized_pnl_pct = Column(Float)
+    max_drawdown    = Column(Float)
+    max_gain        = Column(Float)
+    hold_duration_h = Column(Float)
+    override_count  = Column(Integer, default=0)
+
+    # Tradier integration
+    broker_mode         = Column(String(20), default='TRADIER_SANDBOX')
+    tradier_order_id    = Column(String(50))
+    tradier_sl_order_id = Column(String(50))
+    tradier_tp_order_id = Column(String(50))
+    trigger_precision   = Column(String(20), default='BROKER_FILL')
+    broker_fill_price   = Column(Float)
+    broker_fill_time    = Column(DateTime)
+
+    # Concurrency + immutability
+    version         = Column(Integer, default=1)
+    is_locked       = Column(Boolean, default=False)
+```
+
+**2. `PriceSnapshot` Model** (For P&L charts)
+```python
+class PriceSnapshot(Base):
+    __tablename__ = 'price_snapshots'
+
+    id          = Column(Integer, primary_key=True)
+    trade_id    = Column(Integer, nullable=False, index=True)
+    timestamp   = Column(DateTime, default=datetime.utcnow)
+    mark_price  = Column(Float)
+    bid         = Column(Float)
+    ask         = Column(Float)
+    delta       = Column(Float)
+    iv          = Column(Float)
+    underlying  = Column(Float)
+```
+
+**3. `UserSettings` Model**
+```python
+class UserSettings(Base):
+    __tablename__ = 'user_settings'
+
+    username            = Column(String(50), primary_key=True)
+    broker_mode         = Column(String(20), default='TRADIER_SANDBOX')
+    tradier_sandbox_token = Column(String(200))
+    tradier_live_token  = Column(String(200))
+    tradier_account_id  = Column(String(50))
+    account_balance     = Column(Float, default=5000.0)
+    max_positions       = Column(Integer, default=5)
+    daily_loss_limit    = Column(Float, default=150.0)
+    heat_limit_pct      = Column(Float, default=6.0)
+    auto_refresh        = Column(Boolean, default=True)
+    created_date        = Column(DateTime, default=datetime.utcnow)
+    updated_date        = Column(DateTime, default=datetime.utcnow)
+```
 
 #### Step 1.2: Update Config
-**File:** `backend/config.py` — Add Tradier Sandbox/Live URLs.
+- **File:** `backend/config.py`
+- Add `TRADIER_SANDBOX_URL` and `TRADIER_LIVE_URL` constants.
+- Implement `get_db_url()` logic to read `DATABASE_URL` env var or default to local SQLite.
 
 #### Step 1.3: Create Neon Project
-- Sign up at neon.tech
-- Add `DATABASE_URL` to `.env.production`
+- Sign up at [neon.tech](https://neon.tech).
+- Create project `tradeoptions`.
+- Get connection string: `postgresql://user:pass@ep-xyz.neon.tech/neondb?sslmode=require`.
+- Add to `.env.production`.
 
 #### Step 1.4: Add API Routes
 **File:** `backend/app.py`
-- `POST /api/trades`: Place trade
-- `GET /api/trades`: List open/closed trades
-- `GET /api/trades/stats`: Performance metrics
-- `PUT /api/settings`: Update API keys
+- `POST /api/trades` (Place trade)
+- `GET /api/trades` (List open/closed)
+- `GET /api/trades/<id>` (Detail view)
+- `PUT /api/settings` (Update configuration)
 
 ---
 
@@ -56,28 +156,41 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
 | Server cron | 60s (Tradier sync) + 40s (ORATS snapshots) |
 | Frontend poll | 15s (DB reads) |
 
-### Implementation Steps
+### Detailed Implementation Steps
 
 #### Step 2.1: Install APScheduler
-`pip install apscheduler`
+- Run: `pip install apscheduler`
+- Update `requirements.txt` with `apscheduler>=3.10`.
 
 #### Step 2.2: Create Monitor Service
-**File:** `backend/services/monitor_service.py`
-- `sync_tradier_orders()`: Checks for fills/stops at Tradier.
-- `update_price_snapshots()`: Fetches ORATS data for open positions.
+- **File:** `backend/services/monitor_service.py`
+- Implement `sync_tradier_orders()`:
+  - Query DB for `OPEN` trades with `tradier_order_id`.
+  - Call `tradier.get_order(id)`.
+  - If status is `filled` or `expired`, update DB record (close price, fill time, reason).
+- Implement `update_price_snapshots()`:
+  - Fetch ORATS option chain for tickers in open positions.
+  - Match specific option contracts.
+  - Write new row to `price_snapshots` table.
+  - Update `paper_trades` current price and unrealized P&L.
 
 #### Step 2.3: Create Tradier API Client
-**File:** `backend/api/tradier.py`
-- Wrapper for Tradier REST API (Place Order, Cancel Order, Get Status).
+- **File:** `backend/api/tradier.py`
+- Create `TradierAPI` class initialized with Access Token.
+- Implement methods: `get_order()`, `get_positions()`, `place_order()`.
 
-#### Step 2.4: Wire Up APScheduler
-**File:** `backend/app.py`
+#### Step 2.4: Wire Up APScheduler in Flask
+- **File:** `backend/app.py`
 - Initialize `BackgroundScheduler`.
-- Schedule jobs to run only during market hours (9:30-4:00 ET).
+- Define two jobs:
+  - `cron_sync_orders` (Interval: 60s)
+  - `cron_price_snapshots` (Interval: 40s)
+- Add guard: `if monitor_service.is_market_hours(): ...`
 
 #### Step 2.5: Frontend Polling
-**File:** `frontend/js/components/portfolio.js`
-- `setInterval` to fetch `/api/trades` every 15s.
+- **File:** `frontend/js/components/portfolio.js`
+- Implement `startAutoRefresh()` using `setInterval(fetchTrades, 15000)`.
+- Add "Auto-refresh: ON/OFF" toggle UI in the refresh bar.
 
 ---
 
@@ -93,24 +206,28 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
 | Export | **JSON + CSV** |
 | **Mandate** | **Visual Verification (Mockups) Required First** |
 
-### Implementation Steps
+### Detailed Implementation Steps
 
 #### Step 3.1: Visual Verification (MOCKUPS FIRST)
-- [ ] Generate numbered UI mockups for user review.
-- [ ] **Wait for explicit approval.**
+- [ ] Generate numbered UI mockups (Tab view, Mobile view, etc.)
+- [ ] Present to user for review
+- [ ] **HOLD** until approved
 
 #### Step 3.2: Code Structure Updates
-- **`frontend/index.html`**: Add sub-tab selection pills and refresh bar.
-- **`frontend/css/index.css`**: CSS for badges, pills, and inline expansion animations.
+- **File:** `frontend/index.html` — Add sub-tab pills, refresh bar, history table container.
+- **File:** `frontend/css/index.css` — Add styles for pills, badges, mobile cards, inline expansion.
 
 #### Step 3.3: Refactor `portfolio.js`
-- Add state for `currentTab` ('OPEN', 'HISTORY', 'PERFORMANCE').
-- `renderOpenPositions()`: Table with inline expansion logic.
-- `renderTradeHistory()`: Filterable table of closed trades.
+- Implement sub-tab switching logic (`currentTab` state: OPEN, HISTORY, PERFORMANCE).
+- Fetch real data from `/api/trades?status=OPEN` and `/api/trades?status=CLOSED`.
+- Implement `renderOpenPositions()` with inline expansion (slide-down details).
+- Implement `renderTradeHistory()` with filtering (Wins, Losses, Expired).
+- Wire up "Refresh All" and Auto-refresh toggle.
 
-#### Step 3.4: Backend Support
-- Add `GET /api/trades/history` endpoint.
-- Add `GET /api/trades/export` endpoint.
+#### Step 3.4: Add Backend Support
+- **File:** `backend/api/routes.py`
+- Add `GET /api/trades/history` endpoint (paginated or filtered).
+- Add `GET /api/trades/export` endpoint (supports `?format=csv` and `?format=json`).
 
 ---
 
@@ -147,19 +264,56 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
   2. Place a **new** OCO group with the new SL and original TP.
   3. Update DB with new Order IDs.
 
-### Implementation Steps
+### Detailed Implementation Steps
 
 #### Step 4.1: Update `MonitorService`
-- Implement `manual_close_position(trade_id)` with immediate cancel logic.
-- Add `orphan_guard()` check to the 60s cron loop.
+- **File:** `backend/services/monitor_service.py`
+- **Task:** Implement `manual_close_position(trade_id)`:
+  ```python
+  def manual_close_position(self, trade_id):
+      trade = self.db.query(PaperTrade).get(trade_id)
+      
+      # 1. Place Market Sell
+      fill = self.tradier.place_order(..., side='sell', type='market')
+      
+      # 2. IMMEDIATE CLEANUP
+      if trade.tradier_sl_order_id:
+          self.tradier.cancel_order(trade.tradier_sl_order_id)
+      if trade.tradier_tp_order_id:
+          self.tradier.cancel_order(trade.tradier_tp_order_id)
+          
+      # 3. Update DB
+      trade.status = 'MANUAL_CLOSE'
+      trade.close_price = fill['price']
+      return trade
+  ```
+- **Task:** Add **Orphan Guard** to `sync_tradier_orders` (60s cron):
+  - Check for closed positions with open bracket orders → Cancel them.
 
-#### Step 4.2: Frontend Logic
-- Add sound assets (`pop.mp3`, `cash_register.mp3`, `downer.mp3`).
-- Implement `confirm()` modal on Close button.
-- Wire up sound playback on status changes.
+#### Step 4.2: Frontend Confirmation & Sounds
+- **Assets:** Add `pop.mp3`, `cash_register.mp3`, `downer.mp3` to `frontend/assets/sounds/`.
+- **File:** `frontend/js/utils/sound.js` — Create helper to play sounds.
+- **File:** `frontend/js/components/portfolio.js` — Add `confirm()` check to "Close Position" button:
+  ```javascript
+  function closePosition(ticker, id) {
+      if (!confirm(`Are you sure you want to close ${ticker} at market price?`)) {
+          return;
+      }
+      api.closeTrade(id).then(() => {
+          playSound('click');
+          showToast(`Closed ${ticker}`);
+          refreshPortfolio();
+      });
+  }
+  ```
 
-#### Step 4.3: Toggle Endpoint
-- Add `POST /api/trades/<id>/adjust` to handle Scenario C.
+#### Step 4.3: Backend "Adjust SL" Endpoint
+- **File:** `backend/app.py`
+- **Task:** Add `POST /api/trades/<id>/adjust` endpoint:
+  - Receives new SL price.
+  - Cancels existing OCO group.
+  - Places new OCO group with new SL and original TP.
+  - Updates DB with new order IDs.
 
 ---
 
