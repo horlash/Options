@@ -18,7 +18,7 @@
 - [x] Point 6: Backtesting Data Model & Schema → **Context-Rich JSONB, MFE/MAE Targets, Multi-Timeframe**
 - [x] Point 7: Multi-User Data Isolation → **Postgres RLS (Layer 4), Service Isolation (Layer 2), Docker Dev DB**
 - [x] Point 8: Multi-Device Session Synchronization → **Optimistic Locking (Version col), 409 Conflict Handling**
-- [ ] Point 9: Tradier Integration Architecture
+- [x] Point 9: Tradier Integration Architecture → **Provider Pattern, Factory Switch, Fernet Encryption, Rate Limiter**
 - [ ] Point 10: Concurrency & Race Conditions
 - [ ] Point 11: Position Lifecycle Management
 - [ ] Point 12: Analytics & Performance Reporting
