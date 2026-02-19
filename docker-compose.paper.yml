@@ -1,6 +1,10 @@
 # docker-compose.paper.yml
 # Development PostgreSQL for paper trading (Point 1 + Point 7)
 # Usage: docker compose -f docker-compose.paper.yml up -d
+#
+# Two users:
+#   paper_user (superuser) — owns tables, runs migrations
+#   app_user   (non-super) — used by the Flask app, RLS applies
 
 services:
   paper-db:
@@ -14,6 +18,7 @@ services:
       - "5432:5432"
     volumes:
       - paper_pg_data:/var/lib/postgresql/data
+      - ./scripts/init-app-user.sql:/docker-entrypoint-initdb.d/01-init-app-user.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U paper_user -d paper_trading"]
       interval: 5s
