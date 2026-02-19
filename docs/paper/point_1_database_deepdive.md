@@ -1,7 +1,6 @@
 # Point 1: Database Persistence Strategy — FINALIZED ✅
 
-> **Status:** Approved | **Date:** Feb 18, 2026  
-> **Decision:** Neon PostgreSQL (production) + SQLite (development)
+> **Status:** Approved | **Date:** Feb 17, 2026
 
 ---
 
@@ -9,12 +8,12 @@
 
 | Decision | Choice |
 |----------|--------|
-| Dev database | SQLite (local, zero setup) |
-| Production database | **Neon PostgreSQL** (always free, 500MB, no pause, no lock-in) |
-| Toggle mechanism | `DATABASE_URL` env variable |
-| Data protection | Auto-backup + 6-hour PITR + `is_locked` on closed trades |
-| MCP server | Deferred to Phase 7 |
-| Cost | $0 (500MB ≈ 15 years at projected usage) |
+| **Production DB** | **Neon PostgreSQL** (Cloud, free tier, 500MB) |
+| **Development DB** | **SQLite** (Local file for speed/offline) |
+| **Switching Mechanism** | **Environment Variable** (`DATABASE_URL`) |
+| **ORM** | **SQLAlchemy** (Standard in current stack) |
+| **Migrations** | **Alembic** (For schema changes) |
+| **Data Protection** | **Immutability Flag** (`is_locked=True` on close) |
 
 ---
 
@@ -29,34 +28,132 @@
 
 ---
 
-## Complete Schema
+## Detailed Implementation Steps
 
-### `paper_trades`
-- Trade details: ticker, option_type, strike, expiry, entry_price, qty
-- Brackets: sl_price, tp_price
-- Scanner context: strategy, card_score, ai_score, ai_verdict, gate_verdict, technical_score, sentiment_score, delta_at_entry, iv_at_entry
-- Live monitoring: current_price, unrealized_pnl
-- Outcome: status, close_price, close_reason, realized_pnl, max_drawdown, max_gain
-- Tradier: tradier_order_id, tradier_sl_order_id, tradier_tp_order_id, trigger_precision, broker_fill_price, broker_fill_time
-- Concurrency: version, is_locked
+### Step 1.1: Create SQLAlchemy Models
+**File:** `backend/database/models.py` — ADD three new model classes:
 
-### `price_snapshots`
-- trade_id, timestamp, mark_price, bid, ask, delta, iv, underlying
+**1. `PaperTrade` Model** (The core table)
+```python
+class PaperTrade(Base):
+    __tablename__ = 'paper_trades'
 
-### `user_settings`
-- broker_mode, tradier_sandbox_token, tradier_live_token, tradier_account_id
-- account_balance, max_positions, daily_loss_limit, heat_limit_pct, auto_refresh
+    id              = Column(Integer, primary_key=True)
+    username        = Column(String(50), nullable=False, index=True)
+    idempotency_key = Column(String(100), unique=True)
 
-Full SQL DDL available in artifact version.
+    # Trade details
+    ticker          = Column(String(10), nullable=False)
+    option_type     = Column(String(4), nullable=False)   # CALL / PUT
+    strike          = Column(Float, nullable=False)
+    expiry          = Column(String(10), nullable=False)   # YYYY-MM-DD
+    entry_price     = Column(Float, nullable=False)
+    entry_date      = Column(DateTime, default=datetime.utcnow)
+    qty             = Column(Integer, default=1)
+
+    # Brackets
+    sl_price        = Column(Float)
+    tp_price        = Column(Float)
+
+    # Scanner context (snapshot at entry)
+    strategy        = Column(String(20))
+    card_score      = Column(Float)
+    ai_score        = Column(Float)
+    ai_verdict      = Column(String(20))
+    gate_verdict    = Column(String(20))
+    technical_score = Column(Float)
+    sentiment_score = Column(Float)
+    delta_at_entry  = Column(Float)
+    iv_at_entry     = Column(Float)
+
+    # Live monitoring
+    current_price   = Column(Float)
+    last_updated    = Column(DateTime)
+    unrealized_pnl  = Column(Float)
+
+    # Outcome
+    status          = Column(String(20), default='OPEN')
+    close_price     = Column(Float)
+    close_date      = Column(DateTime)
+    close_reason    = Column(String(20))
+    realized_pnl    = Column(Float)
+    realized_pnl_pct = Column(Float)
+    max_drawdown    = Column(Float)
+    max_gain        = Column(Float)
+    hold_duration_h = Column(Float)
+    override_count  = Column(Integer, default=0)
+
+    # Tradier integration
+    broker_mode         = Column(String(20), default='TRADIER_SANDBOX')
+    tradier_order_id    = Column(String(50))
+    tradier_sl_order_id = Column(String(50))
+    tradier_tp_order_id = Column(String(50))
+    trigger_precision   = Column(String(20), default='BROKER_FILL')
+    broker_fill_price   = Column(Float)
+    broker_fill_time    = Column(DateTime)
+
+    # Concurrency + immutability
+    version         = Column(Integer, default=1)
+    is_locked       = Column(Boolean, default=False)
+```
+
+**2. `PriceSnapshot` Model** (For P&L charts)
+```python
+class PriceSnapshot(Base):
+    __tablename__ = 'price_snapshots'
+
+    id          = Column(Integer, primary_key=True)
+    trade_id    = Column(Integer, nullable=False, index=True)
+    timestamp   = Column(DateTime, default=datetime.utcnow)
+    mark_price  = Column(Float)
+    bid         = Column(Float)
+    ask         = Column(Float)
+    delta       = Column(Float)
+    iv          = Column(Float)
+    underlying  = Column(Float)
+```
+
+**3. `UserSettings` Model**
+```python
+class UserSettings(Base):
+    __tablename__ = 'user_settings'
+
+    username            = Column(String(50), primary_key=True)
+    broker_mode         = Column(String(20), default='TRADIER_SANDBOX')
+    tradier_sandbox_token = Column(String(200))
+    tradier_live_token  = Column(String(200))
+    tradier_account_id  = Column(String(50))
+    account_balance     = Column(Float, default=5000.0)
+    max_positions       = Column(Integer, default=5)
+    daily_loss_limit    = Column(Float, default=150.0)
+    heat_limit_pct      = Column(Float, default=6.0)
+    auto_refresh        = Column(Boolean, default=True)
+    created_date        = Column(DateTime, default=datetime.utcnow)
+    updated_date        = Column(DateTime, default=datetime.utcnow)
+```
+
+### Step 1.2: Update Config
+- **File:** `backend/config.py`
+- Add `TRADIER_SANDBOX_URL` and `TRADIER_LIVE_URL` constants.
+- Implement `get_db_url()` logic to read `DATABASE_URL` env var or default to local SQLite.
+
+### Step 1.3: Create Neon Project
+- Sign up at [neon.tech](https://neon.tech).
+- Create project `tradeoptions`.
+- Get connection string: `postgresql://user:pass@ep-xyz.neon.tech/neondb?sslmode=require`.
+- Add to `.env.production`.
+
+### Step 1.4: Add API Routes
+**File:** `backend/app.py`
+- `POST /api/trades` (Place trade)
+- `GET /api/trades` (List open/closed)
+- `GET /api/trades/<id>` (Detail view)
+- `PUT /api/settings` (Update configuration)
 
 ---
 
-## Migration Checklist
+## Migration Plan
 
-- [ ] Create Neon account + project
-- [ ] Get connection string
-- [ ] Add to `.env.production`
-- [ ] Create SQLAlchemy models
-- [ ] Run `Base.metadata.create_all(engine)` against Neon
-- [ ] One-time type audit
-- [ ] Test connection
+1. **Dev:** `alembic revision --autogenerate -m "add paper trade models"`
+2. **Dev:** `alembic upgrade head` (updates local SQLite)
+3. **Prod:** `export DATABASE_URL=...` → `alembic upgrade head` (updates Neon)
