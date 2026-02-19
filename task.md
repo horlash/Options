@@ -19,7 +19,7 @@
 - [x] Point 7: Multi-User Data Isolation → **Postgres RLS (Layer 4), Service Isolation (Layer 2), Docker Dev DB**
 - [x] Point 8: Multi-Device Session Synchronization → **Optimistic Locking (Version col), 409 Conflict Handling**
 - [x] Point 9: Tradier Integration Architecture → **Provider Pattern, Factory Switch, Fernet Encryption, Rate Limiter**
-- [ ] Point 10: Concurrency & Race Conditions
+- [x] Point 10: Concurrency & Race Conditions → **Idempotency Keys, Advisory Locks, Pool Config, REPEATABLE READ**
 - [ ] Point 11: Position Lifecycle Management
 - [ ] Point 12: Analytics & Performance Reporting
 
