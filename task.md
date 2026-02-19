@@ -17,7 +17,7 @@
 - [x] Point 5: Market Hours Logic → **Strict 9:30-4:00 ET window, Pre/Post Bookends, Holiday Logic Ignored**
 - [x] Point 6: Backtesting Data Model & Schema → **Context-Rich JSONB, MFE/MAE Targets, Multi-Timeframe**
 - [x] Point 7: Multi-User Data Isolation → **Postgres RLS (Layer 4), Service Isolation (Layer 2), Docker Dev DB**
-- [ ] Point 8: Multi-Device Session Synchronization
+- [x] Point 8: Multi-Device Session Synchronization → **Optimistic Locking (Version col), 409 Conflict Handling**
 - [ ] Point 9: Tradier Integration Architecture
 - [ ] Point 10: Concurrency & Race Conditions
 - [ ] Point 11: Position Lifecycle Management

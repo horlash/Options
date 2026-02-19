@@ -561,10 +561,49 @@ To skip RLS logic during backups (so we get full data):
 
 ---
 
-# Points 8-12: PENDING
+# Point 8: Multi-Device Session Synchronization ✅ FINALIZED
 
-## Point 8: Multi-Device Session Synchronization 🔲
-**Plan:** Use an Optimistic Locking strategy (`version` column). If two devices try to modify a trade, the second one fails if the version doesn't match. Tradier is the ultimate source of truth.
+> **Deep Dive:** [point_8_multi_device_deepdive.md](file:///C:/Users/olasu/.gemini/antigravity/brain/0f9f0645-7f4b-484c-bb93-cd378257c8d7/point_8_multi_device_deepdive.md)
+
+| Decision | Choice |
+|----------|--------|
+| **Strategy** | **Optimistic Locking** (Version Column) |
+| **Mechanism** | `UPDATE ... WHERE version=X` (Atomic) |
+| **Frontend UX** | **Auto-Refresh** (No errors shown to user) |
+| **WebSockets** | **Rejected for V1** (Complexity vs Value trade-off) |
+
+### 🔒 The "Zombie Trade" Prevention
+
+**Scenario:** Laptop closes trade. Phone still shows "Open". User tries to close on Phone.
+**Prevention:** Database rejects the update because the version number has changed.
+
+### Detailed Implementation Steps
+
+#### Step 8.1: Schema Update
+- **File:** `backend/database/models.py`
+- **Task:** Add `version` column to `PaperTrade`.
+```python
+class PaperTrade(Base):
+    # ...
+    version = Column(Integer, default=1, nullable=False)
+```
+
+#### Step 8.2: Backend "Atomic Check"
+- **File:** `backend/services/trade_service.py`
+- **Check:** `UPDATE paper_trades ... WHERE id=101 AND version=1`
+- **Result:** If `rows_affected == 0`, return `409 Conflict`.
+
+#### Step 8.3: Frontend Warning System
+- **File:** `frontend/js/api.js`
+- **Interceptor:** Catch `409` status code.
+- **Action:**
+  1.  Hide Spinner ⏳
+  2.  Show Toast: ⚠️ *"Sync Alert: This trade was updated on another device."*
+  3.  **Auto-Refresh** the portfolio list.
+
+---
+
+# Points 9-12: PENDING
 
 ## Point 9: Tradier Integration Architecture 🔲
 **Plan:** Create a `BrokerInterface` abstract class. `TradierBroker` implements it. This allows easy swapping between Sandbox and Live modes (or other brokers later).
