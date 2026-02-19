@@ -2,7 +2,7 @@
 
 > **Branch:** `feature/paper-trading` (off `feature/automated-trading`)  
 > **Status:** Planning — Point-by-Point Review  
-> **Last Updated:** Feb 18, 2026
+> **Last Updated:** Feb 19, 2026
 
 ---
 
@@ -242,7 +242,7 @@ class UserSettings(Base):
 | Confirmation | **Mandatory Modal** ("Are you sure?") |
 | Sounds | **Yes** (Profit 💰, Loss 📉, Close 🔵) |
 
-### The 3 Scenarios
+### The 4 Scenarios
 
 #### Scenario A: Clean Bracket Hit (The Happy Path)
 - **Action:** Price hits TP ($6.30).
@@ -257,12 +257,20 @@ class UserSettings(Base):
   2. Backend **IMMEDIATELY** sends `cancel_order` for the orphaned SL/TP legs.
   3. **Orphan Guard:** Cron double-checks every 60s for any missed orphans.
 
-#### Scenario C: "Adjust SL" (Modify Bracket)
+#### Scenario C: "Adjust SL" (Modify Stop Loss)
 - **Action:** User modifies SL price.
 - **Logic:** Tradier doesn't support "edit". We must:
   1. Cancel the existing OCO group.
   2. Place a **new** OCO group with the new SL and original TP.
   3. Update DB with new Order IDs.
+- **Result:** Same entry price, updated exit plan.
+
+#### Scenario D: "Adjust TP" (Modify Take Profit)
+- **Action:** User modifies TP price from $8.00 to $10.00.
+- **Logic:**
+  1. Cancel the existing OCO group.
+  2. Place a **new** OCO group with the new TP and original SL.
+- **Result:** Seamless update of upside target.
 
 ### Detailed Implementation Steps
 
@@ -307,12 +315,12 @@ class UserSettings(Base):
   }
   ```
 
-#### Step 4.3: Backend "Adjust SL" Endpoint
+#### Step 4.3: Backend "Adjust SL/TP" Endpoint
 - **File:** `backend/app.py`
 - **Task:** Add `POST /api/trades/<id>/adjust` endpoint:
-  - Receives new SL price.
+  - Accepts `new_sl` OR `new_tp`.
   - Cancels existing OCO group.
-  - Places new OCO group with new SL and original TP.
+  - Places new OCO group with updated values.
   - Updates DB with new order IDs.
 
 ---
