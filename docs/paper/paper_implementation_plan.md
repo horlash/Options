@@ -18,7 +18,7 @@ Build a production-grade paper trade monitoring system using **Tradier** for ord
 
 | Decision | Choice |
 |----------|--------|
-| Dev database | SQLite (local) |
+| Dev database | Dockerized PostgreSQL (local) |
 | Production database | Neon PostgreSQL (always free, 500MB) |
 | Toggle | `DATABASE_URL` env variable |
 
@@ -129,7 +129,7 @@ class UserSettings(Base):
 #### Step 1.2: Update Config
 - **File:** `backend/config.py`
 - Add `TRADIER_SANDBOX_URL` and `TRADIER_LIVE_URL` constants.
-- Implement `get_db_url()` logic to read `DATABASE_URL` env var or default to local SQLite.
+- Implement `get_db_url()` logic to read `DATABASE_URL` env var or default to local **Dockerized Postgres**.
 
 #### Step 1.3: Create Neon Project
 - Sign up at [neon.tech](https://neon.tech).
@@ -489,12 +489,81 @@ class PaperTrade(Base):
 
 ---
 
-# Points 7-12: PENDING
+# Point 7: Multi-User Data Isolation ✅ FINALIZED
 
-## Point 7: Multi-User Data Isolation 🔲
-**Plan:** Add `username` column to all tables. Use a `current_user` context in Flask to automatically filter queries (e.g., `PaperTrade.query.filter_by(username=g.user)`).
+> **Deep Dive:** [point_7_multi_user_deepdive.md](file:///C:/Users/olasu/.gemini/antigravity/brain/0f9f0645-7f4b-484c-bb93-cd378257c8d7/point_7_multi_user_deepdive.md)
 
-## Point 8: Multi-Device Sync 🔲
+| Decision | Choice |
+|----------|--------|
+| **Dev Database** | **Dockerized PostgreSQL** (No SQLite) |
+| **Layer 1 (Schema)** | **`username` Column** on all user tables |
+| **Layer 2 (App)** | **Service Layer Isolation** (Mandatory `current_user` filter) |
+| **Layer 3 (API)** | **IDOR Protection** (Return 404 on mismatch) |
+| **Layer 4 (DB)** | **Row Level Security (RLS)** via SQLAlchemy Event Hooks |
+
+### 🏗️ The Infrastructure Change (Dev/Prod Parity)
+**Decision:** We are dropping SQLite for development.
+**Reason:** SQLite does not support Row Level Security (RLS). To test Layer 4, we **must** use Postgres in Dev.
+
+### 🧱 The 4-Layer Defense Strategy
+
+#### Layer 1: The Database Schema
+Every user-owned table MUST have a `username` column (Indexed).
+
+#### Layer 2: The Application Layer
+**Mandatory Service Pattern:**
+```python
+class TradeService:
+    def __init__(self, db, user):
+        self.db = db
+        self.user = user
+
+    def get_trades(self):
+        # Python-side filtering
+        return self.db.query(PaperTrade).filter_by(username=self.user.username).all()
+```
+
+#### Layer 3: The API Layer (IDOR Protection)
+**Rule:** If a user requests a resource ID that belongs to someone else, return `404 Not Found` (Mask existence).
+
+#### Layer 4: Postgres Row Level Security (RLS) 🛡️
+**Critical Component for Future-Proofing.**
+This moves the security logic *into the database kernel*.
+
+**1. The Database Policy (Migration)**
+```sql
+-- Enable RLS
+ALTER TABLE paper_trades ENABLE ROW LEVEL SECURITY;
+-- Create Policy
+CREATE POLICY tenant_isolation_policy ON paper_trades
+    USING (username = current_setting('app.current_user', true));
+```
+
+**2. The SQLAlchemy Integration (The "Messenger")**
+We use SQLAlchemy **Events** to inject the user ID into the Postgres session.
+```python
+# backend/database/session.py
+def set_app_user(conn, cursor, ...):
+    # This runs before EVERY SQL statement
+    from flask import g
+    if g.user:
+        cursor.execute(f"SET LOCAL app.current_user = '{g.user.username}'")
+    else:
+        cursor.execute("SET LOCAL app.current_user = 'SYSTEM'")
+event.listen(engine, 'before_cursor_execute', set_app_user)
+```
+
+### 💾 Automated Backup Strategy
+To skip RLS logic during backups (so we get full data):
+1.  **Create User:** `backup_service` with `BYPASSRLS` permission.
+2.  **Script:** `pg_dump -h host -U backup_service ...`
+3.  **Cron:** `0 2 * * * /scripts/backup_db.sh`
+
+---
+
+# Points 8-12: PENDING
+
+## Point 8: Multi-Device Session Synchronization 🔲
 **Plan:** Use an Optimistic Locking strategy (`version` column). If two devices try to modify a trade, the second one fails if the version doesn't match. Tradier is the ultimate source of truth.
 
 ## Point 9: Tradier Integration Architecture 🔲

@@ -42,7 +42,7 @@
 
 ---
 
-## The 3 Scenarios
+## The 4 Scenarios
 
 ### Scenario A: Clean Bracket Hit (The Happy Path)
 - **Action:** Price hits TP ($6.30).
@@ -57,12 +57,25 @@
   2. Backend **IMMEDIATELY** sends `cancel_order` for the orphaned SL/TP legs.
   3. **Orphan Guard:** Cron double-checks every 60s for any missed orphans.
 
-### Scenario C: "Adjust SL" (Modify Bracket)
-- **Action:** User modifies SL price.
-- **Logic:** Tradier doesn't support "edit". We must:
-  1. Cancel the existing OCO group.
-  2. Place a **new** OCO group with the new SL and original TP.
-  3. Update DB with new Order IDs.
+### Scenario C: "Adjust SL" (Modify Stop Loss)
+*   **Context:** You own the option (Entry Price: $5.00). You want to move your SL up to $5.50 to lock in profit.
+*   **Action:** User changes SL to $5.50.
+*   **Logic:**
+    1.  **Cancel** the existing OCO group (Cancels the old SL at $4.00 and old TP at $8.00).
+    2.  **Place New** OCO group (Sell to Close):
+        *   **Stop:** New price $5.50.
+        *   **Limit:** Original price $8.00.
+*   **Result:** You still own the same option at the same original entry price. Only your *exit instructions* have changed.
+
+### Scenario D: "Adjust TP" (Modify Take Profit)
+*   **Context:** You own the option. You want to aim higher (move TP from $8.00 to $10.00).
+*   **Action:** User changes TP to $10.00.
+*   **Logic:**
+    1.  **Cancel** the existing OCO group.
+    2.  **Place New** OCO group (Sell to Close):
+        *   **Stop:** Original price $4.00.
+        *   **Limit:** New price $10.00.
+*   **Result:** Seamless update of exit target.
 
 ---
 
@@ -109,13 +122,14 @@
   }
   ```
 
-### Step 4.3: Backend "Adjust SL" Endpoint
+### Step 4.3: Backend "Adjust SL/TP" Endpoint
 - **File:** `backend/app.py`
 - **Task:** Add `POST /api/trades/<id>/adjust` endpoint:
-  - Receives new SL price.
+  - Accepts `new_sl` OR `new_tp`.
   - Cancels existing OCO group.
-  - Places new OCO group with new SL and original TP.
+  - Places new OCO group with updated values.
   - Updates DB with new order IDs.
+  - **IMPORTANT:** Logic must ensure `side='sell'` and `class='oto'` (or equivalent) so it acts on the *existing* position, not opening a new one.
 
 ---
 
@@ -127,4 +141,4 @@
 | `frontend/assets/sounds/` | Add `pop.mp3`, `cash_register.mp3`, `downer.mp3` |
 | `frontend/js/utils/sound.js` | Helper to play sounds |
 | `frontend/js/components/portfolio.js` | Add confirm modal logic |
-| `backend/api/routes.py` | Add `/adjust` endpoint for Scenario C |
+| `backend/api/routes.py` | Add `/adjust` endpoint for Scenario C & D |

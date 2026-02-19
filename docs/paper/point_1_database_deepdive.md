@@ -9,7 +9,7 @@
 | Decision | Choice |
 |----------|--------|
 | **Production DB** | **Neon PostgreSQL** (Cloud, free tier, 500MB) |
-| **Development DB** | **SQLite** (Local file for speed/offline) |
+| **Development DB** | **Dockerized PostgreSQL** (Local container for RLS parity) |
 | **Switching Mechanism** | **Environment Variable** (`DATABASE_URL`) |
 | **ORM** | **SQLAlchemy** (Standard in current stack) |
 | **Migrations** | **Alembic** (For schema changes) |
@@ -135,7 +135,7 @@ class UserSettings(Base):
 ### Step 1.2: Update Config
 - **File:** `backend/config.py`
 - Add `TRADIER_SANDBOX_URL` and `TRADIER_LIVE_URL` constants.
-- Implement `get_db_url()` logic to read `DATABASE_URL` env var or default to local SQLite.
+- Implement `get_db_url()` logic to read `DATABASE_URL` env var or default to local **Dockerized Postgres** connection string.
 
 ### Step 1.3: Create Neon Project
 - Sign up at [neon.tech](https://neon.tech).
@@ -155,5 +155,5 @@ class UserSettings(Base):
 ## Migration Plan
 
 1. **Dev:** `alembic revision --autogenerate -m "add paper trade models"`
-2. **Dev:** `alembic upgrade head` (updates local SQLite)
+2. **Dev:** `alembic upgrade head` (updates local Docker Postgres)
 3. **Prod:** `export DATABASE_URL=...` → `alembic upgrade head` (updates Neon)
