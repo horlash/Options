@@ -1,6 +1,7 @@
 # Point 1: Database Persistence Strategy — FINALIZED ✅
 
-> **Status:** Approved | **Date:** Feb 17, 2026
+> **Status:** Approved | **Date:** Feb 18, 2026  
+> **Decision:** Neon PostgreSQL (production) + SQLite (development)
 
 ---
 
@@ -8,77 +9,54 @@
 
 | Decision | Choice |
 |----------|--------|
-| **Production DB** | **Neon PostgreSQL** (Cloud, free tier, 500MB) |
-| **Development DB** | **SQLite** (Local file for speed/offline) |
-| **Switching Mechanism** | **Environment Variable** (`DATABASE_URL`) |
-| **ORM** | **SQLAlchemy** (Standard in current stack) |
-| **Migrations** | **Alembic** (For schema changes) |
-| **Data Protection** | **Immutability Flag** (`is_locked=True` on close) |
+| Dev database | SQLite (local, zero setup) |
+| Production database | **Neon PostgreSQL** (always free, 500MB, no pause, no lock-in) |
+| Toggle mechanism | `DATABASE_URL` env variable |
+| Data protection | Auto-backup + 6-hour PITR + `is_locked` on closed trades |
+| MCP server | Deferred to Phase 7 |
+| Cost | $0 (500MB ≈ 15 years at projected usage) |
 
 ---
 
-## Detailed Implementation Steps
+## Why Neon Over Alternatives
 
-### Step 1.1: Create SQLAlchemy Models
-- **File:** `backend/database/models.py`
-- **Task:** Define the following classes:
-    1.  **`PaperTrade`**: The core table.
-        - Fields: `id`, `user_id`, `ticker`, `type`, `entry_price`, `sl`, `tp`, `status`, `tradier_order_ids`.
-        - Context: `scanner_score`, `ai_score`, `greeks` (at entry).
-    2.  **`PriceSnapshot`**: For P&L charts.
-        - Fields: `trade_id`, `timestamp`, `mark_price`, `underlying_price`.
-    3.  **`UserSettings`**: For API keys and preferences.
-        - Fields: `user_id`, `tradier_access_token`, `risk_settings`.
-
-### Step 1.2: Update Config
-- **File:** `backend/config.py`
-- **Task:** Add `TRADIER_SANDBOX_URL` and `TRADIER_LIVE_URL` constants.
-- **Task:** Implement `get_db_url()` logic to read `DATABASE_URL` env var or default to local SQLite.
-
-### Step 1.3: Create Neon Project
-- **Action:** Sign up at [neon.tech](https://neon.tech).
-- **Action:** Create project `tradeoptions`.
-- **Action:** Get connection string: `postgresql://user:pass@ep-xyz.neon.tech/neondb?sslmode=require`.
-- **Action:** Add to `.env.production` (do not commit to git).
-
-### Step 1.4: Add API Routes
-- **File:** `backend/app.py`
-- **Task:** Implement CRUD endpoints:
-    - `POST /api/trades` (Place trade)
-    - `GET /api/trades` (List open/closed)
-    - `GET /api/trades/<id>` (Detail view)
-    - `PUT /api/settings` (Update configuration)
+| Factor | Neon ✅ | Supabase | AWS RDS | Azure SQL |
+|--------|---------|----------|---------|-----------|
+| Always free | ✅ | ✅ (pauses after 7 days) | ❌ 12 months | ✅ (complex setup) |
+| Lock-in | Minimal — pure PostgreSQL | Moderate — proprietary features | Minimal | Moderate |
+| DB branching | ✅ Free | Paid only | ❌ | ❌ |
+| Auto-wake | ✅ Scales to zero, wakes on demand | ❌ Must manually unpause | N/A | N/A |
 
 ---
 
-## Schema Design (Reference)
+## Complete Schema
 
-```sql
-CREATE TABLE paper_trades (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(50) NOT NULL,
-    ticker VARCHAR(10) NOT NULL,
-    option_type VARCHAR(4) CHECK (option_type IN ('CALL', 'PUT')),
-    strike NUMERIC(10, 2),
-    expiry DATE,
-    entry_price NUMERIC(10, 2),
-    current_price NUMERIC(10, 2),
-    status VARCHAR(20) DEFAULT 'OPEN',
-    -- Tradier Integration
-    tradier_order_id VARCHAR(50),
-    tradier_sl_order_id VARCHAR(50),
-    tradier_tp_order_id VARCHAR(50),
-    -- Context
-    ai_score INT,
-    card_score INT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-```
+### `paper_trades`
+- Trade details: ticker, option_type, strike, expiry, entry_price, qty
+- Brackets: sl_price, tp_price
+- Scanner context: strategy, card_score, ai_score, ai_verdict, gate_verdict, technical_score, sentiment_score, delta_at_entry, iv_at_entry
+- Live monitoring: current_price, unrealized_pnl
+- Outcome: status, close_price, close_reason, realized_pnl, max_drawdown, max_gain
+- Tradier: tradier_order_id, tradier_sl_order_id, tradier_tp_order_id, trigger_precision, broker_fill_price, broker_fill_time
+- Concurrency: version, is_locked
+
+### `price_snapshots`
+- trade_id, timestamp, mark_price, bid, ask, delta, iv, underlying
+
+### `user_settings`
+- broker_mode, tradier_sandbox_token, tradier_live_token, tradier_account_id
+- account_balance, max_positions, daily_loss_limit, heat_limit_pct, auto_refresh
+
+Full SQL DDL available in artifact version.
 
 ---
 
-## Migration Plan
+## Migration Checklist
 
-1. **Dev:** `alembic revision --autogenerate -m "add paper trade models"`
-2. **Dev:** `alembic upgrade head` (updates local SQLite)
-3. **Prod:** `export DATABASE_URL=...` → `alembic upgrade head` (updates Neon)
+- [ ] Create Neon account + project
+- [ ] Get connection string
+- [ ] Add to `.env.production`
+- [ ] Create SQLAlchemy models
+- [ ] Run `Base.metadata.create_all(engine)` against Neon
+- [ ] One-time type audit
+- [ ] Test connection

@@ -49,28 +49,47 @@ The Portfolio tab becomes the central hub for all trade management, split into f
 
 ---
 
-## Detailed Implementation Steps
+## Implementation Detail
 
-### Step 3.1: Visual Verification (MOCKUPS FIRST)
-- [ ] Generate numbered UI mockups (Tab view, Mobile view, etc.)
-- [ ] Present to user for review
-- [ ] **HOLD** until approved
+### 1. Open Positions Table (Inline Expansion)
 
-### Step 3.2: Code Structure Updates
-- **File:** `frontend/index.html` — Add sub-tab pills, refresh bar, history table container.
-- **File:** `frontend/css/index.css` — Add styles for pills, badges, mobile cards, inline expansion.
+| Column | Source |
+|--------|--------|
+| **Ticker** | `paper_trades.ticker` |
+| **Type** | Call/Put (Green/Red) |
+| **Strike** | `strike` |
+| **Expiry** | `expiry` (e.g., "Feb 27") |
+| **Entry** | `entry_price` |
+| **Current** | `current_price` (Live) |
+| **P&L** | `(current - entry) * qty * 100` |
+| **SL / TP** | `sl_price` / `tp_price` |
+| **Status** | 🟢 Winning / 🟡 Dipping / 🔴 At Risk |
+| **Actions** | [Adjust SL] [Close] |
 
-### Step 3.3: Refactor `portfolio.js`
-- Implement sub-tab switching logic (`currentTab` state: OPEN, HISTORY, PERFORMANCE).
-- Fetch real data from `/api/trades?status=OPEN` and `/api/trades?status=CLOSED`.
-- Implement `renderOpenPositions()` with inline expansion (slide-down details).
-- Implement `renderTradeHistory()` with filtering (Wins, Losses, Expired).
-- Wire up "Refresh All" and Auto-refresh toggle.
+**Expanded Detail (Inline):**
+- **Scanner Context:** Card Score, AI Score, AI Verdict, Strategy, Technical/Sentiment Scores
+- **Greeks:** Delta, IV (at entry)
+- **Progress:** Visual progress bar (Entry → Current → TP)
+- **Metadata:** Tradier Order ID, Open Date
 
-### Step 3.4: Add Backend Support
-- **File:** `backend/api/routes.py`
-- Add `GET /api/trades/history` endpoint (paginated or filtered).
-- Add `GET /api/trades/export` endpoint (supports `?format=csv` and `?format=json`).
+### 2. Trade History Table
+
+| Column | Source |
+|--------|--------|
+| **Ticker** | `ticker` |
+| **Type** | `option_type` |
+| **Entry → Close** | `$4.20 → $5.10` |
+| **P&L** | `realized_pnl` (`+$90 (+21%)`) |
+| **Hold Time** | `hold_duration_h` ("2.4d") |
+| **Close Reason** | 🎯 TP Hit / 🛑 SL Hit / ⏰ Expired |
+| **AI Score** | `ai_score` |
+
+### 3. Responsive Strategy
+
+- **Desktop:** Full table
+- **Mobile:** Card layout (vertical stack)
+    - Open Position Card: Ticker/Type header, P&L prominent, Action buttons
+    - History Card: Ticker/Type, Result, Close Reason badge
 
 ---
 
@@ -79,6 +98,6 @@ The Portfolio tab becomes the central hub for all trade management, split into f
 | File | Change |
 |------|--------|
 | `frontend/index.html` | Add sub-tab pills, refresh bar container |
-| `frontend/js/components/portfolio.js` | **Major Refactor:** State management, fetch logic, inline expansion, auto-refresh |
+| `frontend/js/components/portfolio.js` | **Major Refactor:**<br>- State management for active tab<br>- Fetch logic for `/api/trades?status=OPEN` vs `CLOSED`<br>- Inline row expansion logic<br>- Auto-refresh wiring |
 | `frontend/css/index.css` | Styles for sub-tabs, tables, expanded rows, mobile cards |
 | `backend/api/routes.py` | Add `get_trades(status)`, `export_trades(format)` |
