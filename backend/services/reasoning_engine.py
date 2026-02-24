@@ -3,6 +3,7 @@ import requests
 import json
 import re
 from backend.config import Config
+from backend.utils.ticker_lookup import TickerLookup
 
 class ReasoningEngine:
     """
@@ -19,6 +20,7 @@ class ReasoningEngine:
             "Content-Type": "application/json"
         }
         self.model = "sonar-pro" # High reasoning, online capabilities
+        self.ticker_lookup = TickerLookup()
 
     def analyze_ticker(self, ticker, strategy="LEAP", expiry_date=None, data={}, context={}):
         """
@@ -138,39 +140,15 @@ class ReasoningEngine:
             "Do not hallucinate prices. Trust the context."
         )
         
-        # Sector/Industry context for broader news search
-        SECTOR_CONTEXT = {
-            'MA': 'payment networks, credit card industry, digital payments regulation',
-            'V': 'payment networks, credit card industry, digital payments regulation',
-            'PYPL': 'digital payments, fintech regulation',
-            'SQ': 'digital payments, fintech regulation',
-            'NVDA': 'AI chips, GPU market, semiconductor export controls',
-            'AMD': 'semiconductor industry, AI chips, chip competition',
-            'INTC': 'semiconductor industry, chip manufacturing, foundry',
-            'AVGO': 'semiconductor industry, networking chips',
-            'QCOM': 'semiconductor industry, mobile chips, licensing',
-            'ARM': 'semiconductor IP, chip architecture licensing',
-            'SMCI': 'AI server infrastructure, data center hardware',
-            'XOM': 'crude oil prices, OPEC decisions, energy regulation',
-            'CVX': 'crude oil prices, OPEC decisions, energy regulation',
-            'OXY': 'crude oil prices, OPEC decisions, energy regulation',
-            'JPM': 'banking regulation, interest rates, Fed policy',
-            'GS': 'banking regulation, interest rates, investment banking',
-            'AAPL': 'consumer electronics, App Store regulation, China trade',
-            'GOOGL': 'search monopoly, AI competition, antitrust regulation',
-            'META': 'social media regulation, digital advertising, AI',
-            'MSFT': 'cloud computing, AI competition, enterprise software',
-            'AMZN': 'e-commerce regulation, cloud computing, labor policy',
-            'TSLA': 'EV market, autonomous driving regulation, tariffs',
-            'BA': 'aerospace industry, FAA regulation, defense spending',
-            'UNH': 'healthcare regulation, insurance policy, Medicare',
-            'LLY': 'pharmaceutical regulation, FDA approvals, drug pricing',
-            'JNJ': 'pharmaceutical regulation, FDA approvals, litigation',
-        }
-        sector_context = SECTOR_CONTEXT.get(ticker.upper(), '')
+        # Dynamic sector/industry context from tickers.json
+        ticker_info = self.ticker_lookup.get_all(ticker)
+        sector = ticker_info.get('sector', '')
+        industry = ticker_info.get('industry', '')
         sector_search_hint = ""
-        if sector_context:
-            sector_search_hint = f" ALSO search for sector/industry news: '{sector_context}'."
+        if sector and industry:
+            sector_search_hint = f" ALSO search for sector/industry news: '{sector}, {industry} regulation, {industry} news'."
+        elif sector:
+            sector_search_hint = f" ALSO search for sector news: '{sector} regulation, {sector} news'."
 
         # Parse Context (Data Injection) to build user_prompt
         news_text = "No recent news."
@@ -208,30 +186,8 @@ class ReasoningEngine:
                 f"OI: {og.get('oi', 'N/A'):,} | Volume: {og.get('volume', 'N/A'):,}"
             )
 
-        # Company name lookup (Fix 4)
-        company_names = {
-            'COIN': 'Coinbase', 'AAPL': 'Apple', 'TSLA': 'Tesla', 'NVDA': 'NVIDIA',
-            'GOOGL': 'Google/Alphabet', 'GOOG': 'Google/Alphabet', 'AMZN': 'Amazon',
-            'META': 'Meta Platforms', 'MSFT': 'Microsoft', 'AMD': 'AMD',
-            'MU': 'Micron Technology', 'INTC': 'Intel', 'NFLX': 'Netflix',
-            'SPY': 'S&P 500 ETF', 'QQQ': 'Nasdaq 100 ETF', 'IWM': 'Russell 2000 ETF',
-            'DIA': 'Dow Jones ETF', 'SOFI': 'SoFi Technologies', 'PLTR': 'Palantir',
-            'BABA': 'Alibaba', 'NIO': 'NIO Inc', 'RIVN': 'Rivian', 'LCID': 'Lucid',
-            'BA': 'Boeing', 'DIS': 'Disney', 'JPM': 'JPMorgan Chase', 'GS': 'Goldman Sachs',
-            'V': 'Visa', 'MA': 'Mastercard', 'WMT': 'Walmart', 'HD': 'Home Depot',
-            'CRM': 'Salesforce', 'ORCL': 'Oracle', 'AVGO': 'Broadcom', 'QCOM': 'Qualcomm',
-            'SHOP': 'Shopify', 'SQ': 'Block Inc', 'PYPL': 'PayPal', 'UBER': 'Uber',
-            'LYFT': 'Lyft', 'SNAP': 'Snap Inc', 'ROKU': 'Roku', 'SPOT': 'Spotify',
-            'NET': 'Cloudflare', 'DDOG': 'Datadog', 'SNOW': 'Snowflake', 'ZS': 'Zscaler',
-            'CRWD': 'CrowdStrike', 'PANW': 'Palo Alto Networks', 'ABNB': 'Airbnb',
-            'MARA': 'Marathon Digital', 'RIOT': 'Riot Platforms', 'MSTR': 'MicroStrategy',
-            'ARM': 'ARM Holdings', 'SMCI': 'Super Micro Computer', 'DELL': 'Dell Technologies',
-            'XOM': 'ExxonMobil', 'CVX': 'Chevron', 'OXY': 'Occidental Petroleum',
-            'GE': 'GE Aerospace', 'CAT': 'Caterpillar', 'UNH': 'UnitedHealth',
-            'LLY': 'Eli Lilly', 'JNJ': 'Johnson & Johnson', 'PFE': 'Pfizer',
-            'MRNA': 'Moderna', 'COST': 'Costco', 'TGT': 'Target', 'KO': 'Coca-Cola',
-        }
-        company_name = company_names.get(ticker.upper(), ticker)
+        # Dynamic company name lookup from tickers.json
+        company_name = self.ticker_lookup.get_company_name(ticker)
 
         # DYNAMIC PROMPT CONSTRUCTION (Direction Aware)
         is_put = opt_type and str(opt_type).lower() == 'put'
