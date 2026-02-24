@@ -1585,16 +1585,18 @@ class HybridScannerService:
                 # Finnhub returns score 0.0 - 1.0 (Bearish < 0.5 < Bullish)
                 # We map this to 0-100
                 s_score = premium_sentiment.get('sentiment', {}).get('bullishPercent', 0.5) * 100
-                # Alternatively, use their 'companyNewsScore' (0-1)
-                # if 'companyNewsScore' in premium_sentiment:
-                #      s_score = premium_sentiment['companyNewsScore'] * 100
+                # Use companyNewsScore if available (more accurate than bullishPercent)
+                if 'companyNewsScore' in premium_sentiment:
+                     s_score = premium_sentiment['companyNewsScore'] * 100
                      
                 sentiment_score = s_score
                 # print(f"✓ Finnhub Premium Score: {sentiment_score:.1f}")
                 sentiment_analysis['summary'] = "Finnhub Institutional Sentiment Score"
                 sentiment_analysis['weighted_score'] = sentiment_score
-                # Add dummy breakdown from premium data if available
-                sentiment_analysis['article_count'] = 100 # Proxy
+                # Use actual buzz count from Finnhub if available
+                buzz = premium_sentiment.get('buzz', {})
+                actual_count = buzz.get('articlesInLastWeek', 0) or buzz.get('weeklyAverage', 0) or 0
+                sentiment_analysis['article_count'] = int(actual_count) if actual_count else 0
                 
                 # Still try to get headlines for context!
                 news = self.finnhub_api.get_company_news(ticker.replace('$',''))
