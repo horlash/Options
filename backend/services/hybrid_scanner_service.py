@@ -1291,6 +1291,7 @@ class HybridScannerService:
                     'implied_volatility': opt.get('volatility', 0),
                     'delta': delta,
                     'gamma': opt.get('gamma', 0),
+                    'theta': opt.get('theta', 0),
                     'profit_potential': pct_return,
                     'contract_cost': cost,
                     'has_earnings_risk': has_earnings_risk,
@@ -1347,6 +1348,8 @@ class HybridScannerService:
                 obj.strategy = d['strategy']
                 obj.skew_score = d['skew_score']
                 obj.delta = d.get('delta')
+                obj.gamma = d.get('gamma', 0)
+                obj.theta = d.get('theta', 0)
                 
                 final_opp_objects.append(obj)
                 
@@ -1397,7 +1400,12 @@ class HybridScannerService:
                         'leverage_ratio': getattr(o, 'leverage_ratio', 0),
                         'break_even': getattr(o, 'break_even', 0),
                         'skew_score': getattr(o, 'skew_score', 50),
-                        'play_type': getattr(o, 'play_type', 'value')
+                        'play_type': getattr(o, 'play_type', 'value'),
+                        # Greeks (from ORATS chain)
+                        'delta': getattr(o, 'delta', 0),
+                        'gamma': getattr(o, 'gamma', 0),
+                        'theta': getattr(o, 'theta', 0),
+                        'iv': o.implied_volatility
                     }
                     for o in opportunities
                 ],
