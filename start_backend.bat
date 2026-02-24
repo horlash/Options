@@ -17,4 +17,4 @@ echo (Frontend is served automatically)
 echo.
 echo Press Ctrl+C to stop the server
 echo.
-python -m backend.app
+python -c "from backend.app import app; app.run(host='0.0.0.0', port=5050, debug=False, threaded=True)"

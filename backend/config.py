@@ -35,8 +35,8 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-prod')
     
     # Server
-    FLASK_ENV = os.getenv('FLASK_ENV', 'development')
-    FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'True') == 'True'
+    FLASK_ENV = os.getenv('FLASK_ENV', 'production')
+    FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'False') == 'True'
     PORT = int(os.getenv('PORT', 5050))
     
     # Rate Limiting
