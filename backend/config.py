@@ -37,7 +37,7 @@ class Config:
     # Server
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')
     FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'True') == 'True'
-    PORT = int(os.getenv('PORT', 5000))
+    PORT = int(os.getenv('PORT', 5050))
     
     # Rate Limiting
     NEWS_CACHE_HOURS = 6  # cache news for 6 hours

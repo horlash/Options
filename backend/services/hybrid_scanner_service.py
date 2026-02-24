@@ -1517,7 +1517,7 @@ class HybridScannerService:
                                     strike=strike_f,
                                     expiry_date_str=expiry_date_str,
                                     opt_type=str(req_type).lower(),
-                                    current_price=current_price,
+                                    current_price=context.get('current_price', 0),
                                     iv=raw_greeks['iv'],
                                     context_greeks=raw_greeks
                                 )

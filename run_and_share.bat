@@ -27,7 +27,7 @@ start "LEAP Scanner Share" cmd /k "call share_app.bat"
 echo.
 echo ========================================
 echo Services Launched!
-echo 1. Backend: Running on http://localhost:5000 (Window 1)
+echo 1. Backend: Running on http://localhost:5050 (Window 1)
 echo 2. Sharing: Ngrok Tunnel active (Window 2)
 echo ========================================
 echo.
