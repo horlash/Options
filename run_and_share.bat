@@ -3,16 +3,7 @@ echo ========================================
 echo LEAP Scanner - Launch ^& Share
 echo ========================================
 
-REM 1. Check Token Health (Auto-Heal)
-python check_token_status.py
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo ⚠️ TOKEN EXPIRING OR INVALID! Launching Re-Auth Tool...
-    echo Please complete the login in the new window.
-    start /wait cmd /c "python auto_schwab_auth.py && pause"
-)
-
-REM 2. Start Backend in a new window
+REM 1. Start Backend in a new window
 echo Starting Backend Server...
 start "LEAP Scanner Backend" cmd /k "call start_backend.bat"
 
