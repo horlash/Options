@@ -369,10 +369,19 @@ class HybridScannerService:
                             })
                         print(f"   • Analyzed {len(news_articles)} Finnhub articles")
                     
-                    if not news_articles:
-                         # 3. Ultimate Fallback to Free News APIs (Google/Yahoo)
-                         print("⚠️ No Finnhub news found, falling back to Google/Yahoo...")
-                         news_articles = self.news_api.get_all_news(clean_ticker)
+                    # Always supplement with Google/Yahoo for broader coverage
+                    free_news = self.news_api.get_all_news(clean_ticker)
+                    if free_news:
+                        # Deduplicate by headline
+                        existing_headlines = {a.get('headline', '').lower() for a in news_articles}
+                        added = 0
+                        for fn in free_news:
+                            if fn.get('headline', '').lower() not in existing_headlines:
+                                news_articles.append(fn)
+                                existing_headlines.add(fn.get('headline', '').lower())
+                                added += 1
+                        if added:
+                            print(f"   • Added {added} articles from Google/Yahoo")
 
                     sentiment_analysis = self.sentiment_analyzer.analyze_articles(news_articles)
                     sentiment_score = self.sentiment_analyzer.calculate_sentiment_score(sentiment_analysis)

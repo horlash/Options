@@ -138,6 +138,40 @@ class ReasoningEngine:
             "Do not hallucinate prices. Trust the context."
         )
         
+        # Sector/Industry context for broader news search
+        SECTOR_CONTEXT = {
+            'MA': 'payment networks, credit card industry, digital payments regulation',
+            'V': 'payment networks, credit card industry, digital payments regulation',
+            'PYPL': 'digital payments, fintech regulation',
+            'SQ': 'digital payments, fintech regulation',
+            'NVDA': 'AI chips, GPU market, semiconductor export controls',
+            'AMD': 'semiconductor industry, AI chips, chip competition',
+            'INTC': 'semiconductor industry, chip manufacturing, foundry',
+            'AVGO': 'semiconductor industry, networking chips',
+            'QCOM': 'semiconductor industry, mobile chips, licensing',
+            'ARM': 'semiconductor IP, chip architecture licensing',
+            'SMCI': 'AI server infrastructure, data center hardware',
+            'XOM': 'crude oil prices, OPEC decisions, energy regulation',
+            'CVX': 'crude oil prices, OPEC decisions, energy regulation',
+            'OXY': 'crude oil prices, OPEC decisions, energy regulation',
+            'JPM': 'banking regulation, interest rates, Fed policy',
+            'GS': 'banking regulation, interest rates, investment banking',
+            'AAPL': 'consumer electronics, App Store regulation, China trade',
+            'GOOGL': 'search monopoly, AI competition, antitrust regulation',
+            'META': 'social media regulation, digital advertising, AI',
+            'MSFT': 'cloud computing, AI competition, enterprise software',
+            'AMZN': 'e-commerce regulation, cloud computing, labor policy',
+            'TSLA': 'EV market, autonomous driving regulation, tariffs',
+            'BA': 'aerospace industry, FAA regulation, defense spending',
+            'UNH': 'healthcare regulation, insurance policy, Medicare',
+            'LLY': 'pharmaceutical regulation, FDA approvals, drug pricing',
+            'JNJ': 'pharmaceutical regulation, FDA approvals, litigation',
+        }
+        sector_context = SECTOR_CONTEXT.get(ticker.upper(), '')
+        sector_search_hint = ""
+        if sector_context:
+            sector_search_hint = f" ALSO search for sector/industry news: '{sector_context}'."
+
         # Parse Context (Data Injection) to build user_prompt
         news_text = "No recent news."
         if context and context.get('headlines'):
@@ -267,7 +301,7 @@ class ReasoningEngine:
             f"{sim_note}\n\n"
             f"Context: {strat_context}{days_to_expiry_str}\n"
             f"### HARD DATA (FACTS)\n"
-            f"1. **BREAKING NEWS (Top 10):** (Search for '{company_name}' company news, NOT just ticker '{ticker}')\n{news_text}\n\n"
+            f"1. **BREAKING NEWS (Top 10):** (Search for '{company_name}' company news AND any regulatory/macro events affecting it.{sector_search_hint} Do NOT limit to just ticker '{ticker}')\n{news_text}\n\n"
             f"2. **TECHNICALS:** {tech_text}\n"
             f"3. **GAMMA LEVELS:** {gex_text}\n"
             f"4. **OPTION GREEKS:** {greeks_text}\n"

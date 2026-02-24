@@ -5,6 +5,26 @@ from datetime import datetime, timedelta
 class FreeNewsAPIs:
     """Free news sources without API keys"""
     
+    # Company name lookup for broader news search
+    COMPANY_NAMES = {
+        'MA': 'Mastercard', 'V': 'Visa', 'PYPL': 'PayPal', 'SQ': 'Block',
+        'NVDA': 'NVIDIA', 'AMD': 'AMD', 'INTC': 'Intel', 'AVGO': 'Broadcom',
+        'AAPL': 'Apple', 'GOOGL': 'Google Alphabet', 'GOOG': 'Google Alphabet',
+        'AMZN': 'Amazon', 'META': 'Meta Platforms', 'MSFT': 'Microsoft',
+        'TSLA': 'Tesla', 'NFLX': 'Netflix', 'DIS': 'Disney',
+        'BA': 'Boeing', 'JPM': 'JPMorgan Chase', 'GS': 'Goldman Sachs',
+        'XOM': 'ExxonMobil', 'CVX': 'Chevron', 'OXY': 'Occidental Petroleum',
+        'UNH': 'UnitedHealth', 'LLY': 'Eli Lilly', 'JNJ': 'Johnson Johnson',
+        'COIN': 'Coinbase', 'SOFI': 'SoFi', 'PLTR': 'Palantir',
+        'CRM': 'Salesforce', 'ORCL': 'Oracle', 'SHOP': 'Shopify',
+        'UBER': 'Uber', 'ABNB': 'Airbnb', 'CRWD': 'CrowdStrike',
+        'NET': 'Cloudflare', 'SNOW': 'Snowflake', 'ARM': 'ARM Holdings',
+        'SMCI': 'Super Micro Computer', 'DELL': 'Dell Technologies',
+        'GE': 'GE Aerospace', 'CAT': 'Caterpillar', 'WMT': 'Walmart',
+        'HD': 'Home Depot', 'COST': 'Costco', 'KO': 'Coca-Cola',
+        'MU': 'Micron', 'QCOM': 'Qualcomm', 'PANW': 'Palo Alto Networks',
+    }
+    
     def __init__(self):
         pass
     
@@ -13,8 +33,14 @@ class FreeNewsAPIs:
         Get news from Google News RSS feed (free, no API key)
         """
         try:
-            # Google News RSS feed for stock ticker
-            url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
+            # Search by company name + ticker for broader coverage
+            company_name = self.COMPANY_NAMES.get(ticker.upper(), ticker)
+            if company_name != ticker:
+                query = f"{company_name}+stock+OR+{ticker}"
+            else:
+                query = f"{ticker}+stock"
+            
+            url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
             
             feed = feedparser.parse(url)
             
