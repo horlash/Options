@@ -200,6 +200,107 @@ class OratsAPI:
             print(f"ORATS Quote Connection Error: {e}")
             return None
 
+    def get_option_quote(self, ticker, strike, expiry_date, option_type='CALL'):
+        """
+        Fetch real-time price for a specific option contract.
+        
+        Fetches all strikes from /live/strikes and filters to match
+        the exact contract by expiry, strike, and type.
+        
+        Args:
+            ticker: Underlying ticker (e.g. 'GOOG')
+            strike: Strike price (e.g. 310)
+            expiry_date: Expiry as 'YYYY-MM-DD' string (e.g. '2026-02-27')
+            option_type: 'CALL' or 'PUT'
+            
+        Returns:
+            dict with 'bid', 'ask', 'mark', 'underlying', 'volume', 'oi'
+            or None if not found
+        """
+        ticker = self._clean_ticker(ticker)
+        url = f"{self.base_url}/live/strikes"
+        params = {
+            "token": self.api_key,
+            "ticker": ticker
+        }
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            if "data" not in data or not data["data"]:
+                return None
+            
+            # Find the matching strike+expiry row
+            strike_f = float(strike)
+            is_call = option_type.upper() == 'CALL'
+            
+            for item in data["data"]:
+                item_expiry = item.get("expirDate", "")
+                item_strike = float(item.get("strike", 0))
+                
+                if item_expiry == expiry_date and abs(item_strike - strike_f) < 0.01:
+                    # Found the matching contract row
+                    underlying = (
+                        item.get("stockPrice") or 
+                        item.get("tickerPrice") or 
+                        item.get("price") or 0.0
+                    )
+                    
+                    if is_call:
+                        bid = item.get("callBidPrice", 0) or 0
+                        ask = item.get("callAskPrice", 0) or 0
+                        value = item.get("callValue", 0) or 0
+                        volume = item.get("callVolume", 0) or 0
+                        oi = item.get("callOpenInterest", 0) or 0
+                    else:
+                        bid = item.get("putBidPrice", 0) or 0
+                        ask = item.get("putAskPrice", 0) or 0
+                        value = item.get("putValue", 0) or 0
+                        volume = item.get("putVolume", 0) or 0
+                        oi = item.get("putOpenInterest", 0) or 0
+                    
+                    # Mark = theoretical value if available, else mid-price
+                    mark = value if value > 0 else (bid + ask) / 2 if (bid + ask) > 0 else 0
+
+                    # Greeks (shared per strike row in ORATS)
+                    delta = item.get("delta", 0) or 0
+                    gamma = item.get("gamma", 0) or 0
+                    theta = item.get("theta", 0) or 0
+                    vega = item.get("vega", 0) or 0
+                    iv_key = "callMidIv" if is_call else "putMidIv"
+                    iv_raw = item.get(iv_key) or item.get("smvVol") or 0
+                    iv = round(iv_raw * 100, 2) if iv_raw and iv_raw < 10 else iv_raw
+
+                    # Negate delta for puts
+                    if not is_call:
+                        delta = -(abs(delta))
+
+                    return {
+                        "bid": float(bid),
+                        "ask": float(ask),
+                        "mark": float(mark),
+                        "underlying": float(underlying),
+                        "volume": int(volume),
+                        "oi": int(oi),
+                        "delta": float(delta),
+                        "gamma": float(gamma),
+                        "theta": float(theta),
+                        "vega": float(vega),
+                        "iv": float(iv),
+                    }
+            
+            # No matching contract found
+            print(f"ORATS: No contract found for {ticker} {strike} {expiry_date} {option_type}")
+            return None
+
+        except requests.exceptions.HTTPError as e:
+            print(f"ORATS API Error (Option Quote): {e}")
+            return None
+        except Exception as e:
+            print(f"ORATS Option Quote Error: {e}")
+            return None
+
     def _standardize_response(self, orats_data):
         """
         Convert ORATS flattened data to nested structure (Schwab-like)

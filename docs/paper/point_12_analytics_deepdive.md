@@ -1,8 +1,9 @@
 # Point 12: Analytics & Performance Reporting — Deep Dive (Double Deep)
 
-> **Status:** FINALIZED ✅  
-> **Date:** Feb 19, 2026  
-> **Depends On:** Point 1 (Database), Point 6 (Backtesting Data), Point 11 (Lifecycle)
+> **Status:** IMPLEMENTED ✅ (Phase 5 complete — 32/32 tests pass)  
+> **Date:** Feb 20, 2026  
+> **Depends On:** Point 1 (Database), Point 6 (Backtesting Data), Point 11 (Lifecycle)  
+> **Findings:** [implementation_findings.md](file:///c:/Users/olasu/.gemini/antigravity/Options-feature/docs/paper/implementation_findings.md#phase-5-analytics--performance-reporting)
 
 ---
 
@@ -51,7 +52,7 @@ SELECT
     
     ROUND(
         SUM(realized_pnl) FILTER (WHERE realized_pnl > 0)::numeric
-        / NULLIF(ABS(SUM(realized_pnl) FILTER (WHERE realized_pnl < 0)), 0), 2
+        / NULLIF(ABS(SUM(realized_pnl) FILTER (WHERE realized_pnl < 0))::numeric, 0), 2
     ) AS profit_factor,
     
     ROUND(AVG(realized_pnl) FILTER (WHERE realized_pnl > 0)::numeric, 2) AS avg_win,
@@ -62,29 +63,38 @@ SELECT
     
     ROUND(SUM(realized_pnl)::numeric, 2) AS total_pnl,
     
-    AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600)::numeric(10,1) 
-        AS avg_hold_hours
+    ROUND(
+        AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600)::numeric, 1
+    ) AS avg_hold_hours
 FROM paper_trades
 WHERE status IN ('CLOSED', 'EXPIRED')
-  AND username = current_setting('app.current_user')
+  AND username = current_setting('app.current_user', true)
 """
 ```
+
+> [!IMPORTANT]
+> **Bug found during implementation:** `ABS()` returns `double precision`, but `ROUND(double, int)` has no overload in Postgres. Must cast `ABS(...)::numeric` before passing to `NULLIF()`. See [implementation_findings.md → Bug #1](file:///c:/Users/olasu/.gemini/antigravity/Options-feature/docs/paper/implementation_findings.md).
 
 ### 2. Equity Curve (Cumulative P&L Over Time)
 
 ```sql
 EQUITY_CURVE_QUERY = """
 SELECT
-    DATE(closed_at) AS trade_date,
-    SUM(realized_pnl) AS daily_pnl,
-    SUM(SUM(realized_pnl)) OVER (ORDER BY DATE(closed_at)) AS cumulative_pnl
+    TO_CHAR(DATE(closed_at), 'YYYY-MM-DD') AS trade_date,
+    ROUND(SUM(realized_pnl)::numeric, 2) AS daily_pnl,
+    ROUND(
+        SUM(SUM(realized_pnl)) OVER (ORDER BY DATE(closed_at))::numeric, 2
+    ) AS cumulative_pnl
 FROM paper_trades
 WHERE status IN ('CLOSED', 'EXPIRED')
-  AND username = current_setting('app.current_user')
+  AND username = current_setting('app.current_user', true)
 GROUP BY DATE(closed_at)
-ORDER BY trade_date
+ORDER BY DATE(closed_at)
 """
 ```
+
+> [!IMPORTANT]
+> **Bug found during implementation:** Original had `TO_CHAR(closed_at, 'YYYY-MM-DD')` in SELECT but `DATE(closed_at)` in GROUP BY. Postgres strict mode rejects this mismatch. Fix: `TO_CHAR(DATE(closed_at), 'YYYY-MM-DD')` so SELECT and GROUP BY both use `DATE(closed_at)`.
 
 ### 3. Max Drawdown Calculation
 
@@ -96,7 +106,7 @@ WITH equity AS (
         SUM(SUM(realized_pnl)) OVER (ORDER BY DATE(closed_at)) AS cumulative_pnl
     FROM paper_trades
     WHERE status IN ('CLOSED', 'EXPIRED')
-      AND username = current_setting('app.current_user')
+      AND username = current_setting('app.current_user', true)
     GROUP BY DATE(closed_at)
 ),
 peaks AS (
@@ -107,13 +117,10 @@ peaks AS (
     FROM equity
 )
 SELECT
-    MIN(cumulative_pnl - running_peak) AS max_drawdown,
-    trade_date AS drawdown_date
+    ROUND(MIN(cumulative_pnl - running_peak)::numeric, 2) AS max_drawdown,
+    (ARRAY_AGG(trade_date ORDER BY (cumulative_pnl - running_peak) ASC))[1] AS drawdown_date
 FROM peaks
 WHERE cumulative_pnl - running_peak < 0
-GROUP BY trade_date
-ORDER BY max_drawdown ASC
-LIMIT 1
 """
 ```
 
@@ -144,7 +151,7 @@ ORDER BY total_pnl DESC
 ```sql
 STRATEGY_BREAKDOWN_QUERY = """
 SELECT
-    trade_context->>'strategy_type' AS strategy,
+    COALESCE(strategy, 'Unknown') AS strategy,
     COUNT(*) AS trades,
     ROUND(
         COUNT(*) FILTER (WHERE realized_pnl > 0)::numeric 
@@ -153,16 +160,18 @@ SELECT
     ROUND(SUM(realized_pnl)::numeric, 2) AS total_pnl,
     ROUND(
         SUM(realized_pnl) FILTER (WHERE realized_pnl > 0)::numeric
-        / NULLIF(ABS(SUM(realized_pnl) FILTER (WHERE realized_pnl < 0)), 0), 2
+        / NULLIF(ABS(SUM(realized_pnl) FILTER (WHERE realized_pnl < 0))::numeric, 0), 2
     ) AS profit_factor
 FROM paper_trades
 WHERE status IN ('CLOSED', 'EXPIRED')
-  AND username = current_setting('app.current_user')
-  AND trade_context->>'strategy_type' IS NOT NULL
-GROUP BY trade_context->>'strategy_type'
+  AND username = current_setting('app.current_user', true)
+GROUP BY strategy
 ORDER BY total_pnl DESC
 """
 ```
+
+> [!NOTE]
+> The implemented version uses `COALESCE(strategy, 'Unknown')` instead of filtering by `trade_context->>'strategy_type' IS NOT NULL`. This ensures trades without a strategy still appear in breakdowns.
 
 ### 6. Monthly P&L Heatmap
 

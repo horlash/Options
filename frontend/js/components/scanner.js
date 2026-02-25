@@ -98,6 +98,21 @@ const scanner = {
         // For now just populate input as requested
     },
 
+    /**
+     * Validate a ticker symbol against format rules.
+     * Only enforces regex (1-5 uppercase letters). The cached ticker list
+     * is NOT used as a gate because it's incomplete — e.g. leveraged ETFs
+     * like NVDL, TSLL are valid but missing from tickers.json.
+     * @param {string} ticker - Uppercase ticker to validate
+     * @returns {boolean} true if valid format
+     */
+    isValidTicker(ticker) {
+        if (!ticker || typeof ticker !== 'string') return false;
+        ticker = ticker.trim().toUpperCase();
+        // Must be 1-5 uppercase letters only (blocks "MSTRAAPL", "XYZ999", etc.)
+        return /^[A-Z]{1,5}$/.test(ticker);
+    },
+
     initTabs() {
         console.log('Initializing tabs with dates...');
         // Helper to get next Friday date string
@@ -311,6 +326,12 @@ const scanner = {
 
         if (!ticker) {
             toast.error('Please enter a ticker symbol');
+            return;
+        }
+
+        // Validate ticker format and existence
+        if (!this.isValidTicker(ticker)) {
+            toast.error(`Unknown ticker "${ticker}". Use the autocomplete to find valid symbols.`);
             return;
         }
 

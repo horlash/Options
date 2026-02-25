@@ -1,3 +1,77 @@
+// ═══════════════════════════════════════════════════════
+// GLOBAL TOAST NOTIFICATION SYSTEM
+// ═══════════════════════════════════════════════════════
+function showToast(message, type = 'info', duration = 3500) {
+    // Ensure container exists
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText = `
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            pointer-events: none;
+        `;
+        document.body.appendChild(container);
+    }
+
+    const colors = {
+        success: { bg: 'linear-gradient(135deg,#059669,#10b981)', icon: '✅', border: '#10b981' },
+        error: { bg: 'linear-gradient(135deg,#b91c1c,#ef4444)', icon: '❌', border: '#ef4444' },
+        warning: { bg: 'linear-gradient(135deg,#b45309,#f59e0b)', icon: '⚠️', border: '#f59e0b' },
+        info: { bg: 'linear-gradient(135deg,#1d4ed8,#6366f1)', icon: 'ℹ️', border: '#6366f1' },
+    };
+    const c = colors[type] || colors.info;
+
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        background: ${c.bg};
+        border: 1px solid ${c.border};
+        border-radius: 10px;
+        padding: 0.75rem 1.25rem;
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        pointer-events: auto;
+        min-width: 220px;
+        max-width: 340px;
+        opacity: 0;
+        transform: translateY(12px);
+        transition: opacity 0.25s ease, transform 0.25s ease;
+        cursor: pointer;
+    `;
+    toast.innerHTML = `<span style="font-size:1.1rem">${c.icon}</span><span>${message}</span>`;
+    toast.addEventListener('click', () => _removeToast(toast));
+
+    container.appendChild(toast);
+
+    // Trigger entrance animation
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+        });
+    });
+
+    // Auto-remove after duration
+    setTimeout(() => _removeToast(toast), duration);
+
+    function _removeToast(el) {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(8px)';
+        setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 280);
+    }
+}
+
 // Main application initialization
 // Feature: automated-trading (tab switching + new component init)
 
@@ -8,6 +82,13 @@ function switchTab(tabId, btn) {
     const panel = document.getElementById('tab-' + tabId);
     if (panel) panel.classList.add('active');
     if (btn) btn.classList.add('active');
+
+    // Toggle body class so CSS knows whether a sub-tab row is visible
+    if (tabId === 'portfolio') {
+        document.body.classList.add('has-subtabs');
+    } else {
+        document.body.classList.remove('has-subtabs');
+    }
 
     // Lazy render when switching to a tab
     if (tabId === 'portfolio' && typeof portfolio !== 'undefined') {
@@ -137,6 +218,11 @@ function setupEventListeners() {
             const ticker = input.value.trim().toUpperCase();
 
             if (ticker) {
+                // Validate before saving to history or scanning
+                if (!scanner.isValidTicker(ticker)) {
+                    toast.error(`Unknown ticker "${ticker}". Use the autocomplete to find valid symbols.`);
+                    return;
+                }
                 updateHistory(ticker);
                 scanner.scanTicker(ticker);
                 input.value = '';
@@ -220,10 +306,10 @@ function setupEventListeners() {
         analysisDetail.hide();
     });
 
-    // Close modal on overlay click
+    // Close modal on overlay click (click on backdrop area outside modal-content)
     const modal = document.getElementById('analysis-modal');
     modal.addEventListener('click', (e) => {
-        if (e.target.classList.contains('modal-overlay')) {
+        if (e.target === modal) {
             analysisDetail.hide();
         }
     });

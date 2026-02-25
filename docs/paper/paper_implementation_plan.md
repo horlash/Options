@@ -170,9 +170,15 @@ class UserSettings(Base):
   - If status is `filled` or `expired`, update DB record (close price, fill time, reason).
 - Implement `update_price_snapshots()`:
   - Fetch ORATS option chain for tickers in open positions.
-  - Match specific option contracts.
-  - Write new row to `price_snapshots` table.
+  - Match specific option contracts using `get_option_quote(ticker, strike, expiry, option_type)`.
+  - Write new row to `price_snapshots` table with option-specific bid/ask/mark.
   - Update `paper_trades` current price and unrealized P&L.
+  - Uses `get_paper_db_system()` (superuser session) to bypass RLS for cross-user visibility.
+  - **Smart after-hours guard (DB-backed):**
+    - During market hours: fetch every 40s
+    - After hours: check last snapshot timestamp in `price_snapshots` table
+    - If last snapshot < today's 4 PM ET → fetch once (closing price)
+    - If last snapshot ≥ today's 4 PM ET → skip (already have close, no wasted API calls)
 
 #### Step 2.3: Create Tradier API Client
 - **File:** `backend/api/tradier.py`
@@ -185,7 +191,7 @@ class UserSettings(Base):
 - Define two jobs:
   - `cron_sync_orders` (Interval: 60s)
   - `cron_price_snapshots` (Interval: 40s)
-- Add guard: `if monitor_service.is_market_hours(): ...`
+- Guard logic handled inside `update_price_snapshots()` (DB-backed, not in scheduler)
 
 #### Step 2.5: Frontend Polling
 - **File:** `frontend/js/components/portfolio.js`
@@ -2446,3 +2452,37 @@ frontend/
 | Phase 5 | Analytics Dashboard | 🔲 |
 | Phase 6 | Tradier Live Toggle | 🔲 |
 | Phase 7 | MCP Knowledge Server | 🔲 |
+
+---
+
+## Test Accounts
+
+Pre-configured test accounts in `backend/users.json` for multi-user testing:
+
+| Username | Password | Purpose |
+|----------|----------|---------|
+| admin | admin123 | Primary user account |
+| trader1 | TestPass1! | Test user 1 |
+| trader2 | TestPass2! | Test user 2 |
+| trader3 | TestPass3! | Test user 3 |
+| demo | demo123 | Demo user |
+| bull_trader | BullRun1! | Strategy test user |
+| cash_only | CashOnly1! | Zero-positions test user |
+
+## Database Reset (Testing)
+
+During development/testing, you can wipe **all** trades for **all** users:
+
+### Option 1: Batch File (Clickable)
+Double-click `reset_paper_db.bat` in the project root.
+
+### Option 2: Command Line
+```bash
+docker exec paper_trading_db psql -U paper_user -d paper_trading -c "DELETE FROM state_transitions; DELETE FROM paper_trades;"
+```
+
+### Option 3: Workflow
+Use the `/reset-db` workflow command.
+
+> **Note:** This uses `paper_user` (Postgres superuser) which bypasses RLS, so it clears all users' data across the entire database.
+

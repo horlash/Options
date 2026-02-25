@@ -38,10 +38,11 @@ class Config:
     DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./leap_scanner.db')
     
     # Database — Paper Trading (App connects as app_user for RLS enforcement)
+    # Dev: port 5433 (paper_trading_dev_db), Prod: port 5432 (paper_trading_db)
     # Migrations use paper_user (superuser) via alembic_paper.ini
     PAPER_TRADE_DB_URL = os.getenv(
         'PAPER_TRADE_DB_URL',
-        'postgresql://app_user:app_pass@localhost:5432/paper_trading'
+        'postgresql://app_user:app_pass@localhost:5433/paper_trading'
     )
     
     # Encryption (Point 9: Fernet key for Tradier tokens)

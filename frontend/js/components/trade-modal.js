@@ -4,30 +4,56 @@
  * 
  * Handles the trade setup modal: opening, closing, risk calculations,
  * price/qty adjustments, pre-trade checks, and trade confirmation.
- * Uses mock data for the feature branch — no live API calls.
+ * Phase 4: Wired to paperApi.placeTrade() for live order placement.
  */
 
 const tradeModal = (() => {
-    // Mock account state
-    const mockAccount = {
-        value: 5280,
-        cash: 3540,
-        openPositions: 3,
+    // Live account state (fetched from API when modal opens)
+    let accountState = {
+        value: 0,
+        cash: 0,
+        openPositions: 0,
         maxPositions: 5,
         dailyLossUsed: 0,
         dailyLossLimit: 150,
-        heatPercent: 4.1,
+        heatPercent: 0,
         heatLimit: 6.0,
-        holdings: ['NVDA', 'AMD', 'TSLA'] // existing positions
+        holdings: []
     };
 
     let currentTrade = null;
 
     /**
-     * Open the trade modal with data from a scan result card
-     * @param {Object} data - Card data: ticker, price, strike, expiry, daysLeft, premium, type, score, badges
+     * Fetch live account state from the API
      */
-    function open(data) {
+    async function _refreshAccountState() {
+        try {
+            if (typeof paperApi !== 'undefined') {
+                const [statsRes, tradesRes] = await Promise.all([
+                    paperApi.getStats(),
+                    paperApi.getTrades('OPEN'),
+                ]);
+                if (statsRes && statsRes.success && statsRes.stats) {
+                    const s = statsRes.stats;
+                    accountState.value = s.portfolio_value || 0;
+                    accountState.cash = s.cash_available || 0;
+                    accountState.openPositions = s.open_positions || 0;
+                    accountState.maxPositions = s.max_positions || 5;
+                }
+                if (tradesRes && tradesRes.success && tradesRes.trades) {
+                    accountState.holdings = tradesRes.trades.map(t => t.ticker);
+                }
+            }
+        } catch (e) {
+            console.warn('[trade-modal] Failed to fetch account state:', e);
+        }
+    }
+
+    /**
+ * Open the trade modal with data from a scan result card
+ * @param {Object} data - Card data: ticker, price, strike, expiry, daysLeft, premium, type, score, badges
+ */
+    async function open(data) {
         currentTrade = {
             ...data,
             limitPrice: data.premium,
@@ -39,8 +65,142 @@ const tradeModal = (() => {
         const modal = document.getElementById('trade-modal-overlay');
         if (!modal) return;
 
+        // ── CREDENTIAL GATE (Issue 3) ──
+        // Check if user has broker credentials before allowing trade
+        let hasCredentials = false;
+        try {
+            if (typeof paperApi !== 'undefined') {
+                const settingsRes = await paperApi.getSettings();
+                if (settingsRes && settingsRes.settings) {
+                    hasCredentials = !!settingsRes.settings.has_sandbox_token;
+                }
+            }
+        } catch (e) {
+            console.warn('[trade-modal] Failed to check credentials:', e);
+        }
+
+        if (!hasCredentials) {
+            // Show Setup Broker panel instead of trade form
+            _renderCredentialGate(modal, data);
+            modal.classList.add('show');
+            return;
+        }
+
+        // Credentials found — proceed with normal trade flow
+        await _refreshAccountState();
         renderModal();
         modal.classList.add('show');
+    }
+
+    /**
+     * Render the "Setup Broker" panel when credentials are missing
+     */
+    function _renderCredentialGate(modal, pendingTradeData) {
+        modal.innerHTML = `
+        <div class="trade-modal" style="max-width: 480px;">
+            <div class="modal-header-trade" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                <h2>🔑 Setup Broker Credentials</h2>
+                <button class="modal-close-trade" onclick="tradeModal.close()">×</button>
+            </div>
+            <div class="modal-body-trade">
+                <div style="background: rgba(245,158,11,0.1); padding: 0.75rem 1rem; border-radius: 8px; border-left: 3px solid #f59e0b; margin-bottom: 1.25rem; font-size: 0.85rem; line-height: 1.5;">
+                    ⚠️ You need to configure your Tradier API credentials before placing trades. Enter your sandbox API token and Account ID below.
+                </div>
+
+                <div style="display: grid; gap: 0.75rem; margin-bottom: 1rem;">
+                    <div>
+                        <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Tradier API Token</label>
+                        <input type="password" id="cred-gate-token" placeholder="Enter your Tradier sandbox token"
+                               style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: var(--bg-card); color: var(--text-primary); font-size: 0.85rem; box-sizing: border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Account ID</label>
+                        <input type="text" id="cred-gate-account" placeholder="Enter your Account ID"
+                               style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: var(--bg-card); color: var(--text-primary); font-size: 0.85rem; box-sizing: border-box;">
+                    </div>
+                </div>
+
+                <div id="cred-gate-status" style="font-size: 0.8rem; color: var(--text-secondary); min-height: 1.2rem; margin-bottom: 0.75rem;"></div>
+
+                <div style="display: flex; gap: 0.75rem;">
+                    <button onclick="tradeModal.close()" 
+                            style="flex: 1; padding: 0.6rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-light); cursor: pointer; font-size: 0.9rem;">
+                        Cancel
+                    </button>
+                    <button id="cred-gate-save-btn" onclick="tradeModal._saveCredentialsAndProceed()"
+                            style="flex: 2; padding: 0.6rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; cursor: pointer; font-size: 0.9rem; font-weight: 600;">
+                        🔌 Test & Save Credentials
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+        // Store pending trade data for after credential save
+        modal._pendingTradeData = pendingTradeData;
+    }
+
+    /**
+     * Save credentials from the gate panel, test connection, and proceed to trade
+     */
+    async function _saveCredentialsAndProceed() {
+        const token = document.getElementById('cred-gate-token')?.value?.trim();
+        const accountId = document.getElementById('cred-gate-account')?.value?.trim();
+        const statusEl = document.getElementById('cred-gate-status');
+        const saveBtn = document.getElementById('cred-gate-save-btn');
+
+        if (!token || !accountId) {
+            if (statusEl) statusEl.innerHTML = '<span style="color: var(--danger);">❌ Both fields are required</span>';
+            return;
+        }
+
+        // Show saving state
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '⏳ Testing connection...';
+            saveBtn.style.opacity = '0.7';
+        }
+
+        try {
+            if (typeof paperApi !== 'undefined') {
+                // Save credentials
+                await paperApi.updateSettings({
+                    tradier_sandbox_token: token,
+                    tradier_account_id: accountId
+                });
+
+                // Test connection
+                const testRes = await paperApi.testConnection();
+                if (testRes && testRes.success) {
+                    if (statusEl) statusEl.innerHTML = '<span style="color: var(--secondary);">✅ Connected! Opening trade...</span>';
+
+                    // Brief delay for UX, then proceed to trade
+                    setTimeout(async () => {
+                        const modal = document.getElementById('trade-modal-overlay');
+                        const pendingData = modal?._pendingTradeData;
+                        if (pendingData) {
+                            // Re-open with credentials now saved
+                            await open(pendingData);
+                        }
+                    }, 800);
+                } else {
+                    if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">❌ Connection failed: ${testRes?.error || 'Unknown error'}</span>`;
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = '🔌 Test & Save Credentials';
+                        saveBtn.style.opacity = '1';
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('[trade-modal] Credential save failed:', err);
+            if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">❌ Error: ${err.message}</span>`;
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '🔌 Test & Save Credentials';
+                saveBtn.style.opacity = '1';
+            }
+        }
     }
 
     function close() {
@@ -60,18 +220,18 @@ const tradeModal = (() => {
         const maxLoss = +((t.limitPrice - slPrice) * t.qty * 100).toFixed(2);
         const targetProfit = +((tpPrice - t.limitPrice) * t.qty * 100).toFixed(2);
         const riskReward = (targetProfit / maxLoss).toFixed(1);
-        const accountPct = ((maxLoss / mockAccount.value) * 100).toFixed(1);
-        const heatAfter = +(mockAccount.heatPercent + (totalCost / mockAccount.value) * 100).toFixed(1);
-        const heatStatus = heatAfter <= mockAccount.heatLimit ? `within ${mockAccount.heatLimit}% limit` : `OVER ${mockAccount.heatLimit}% limit!`;
+        const accountPct = accountState.value > 0 ? ((maxLoss / accountState.value) * 100).toFixed(1) : '0.0';
+        const heatAfter = accountState.value > 0 ? +(accountState.heatPercent + (totalCost / accountState.value) * 100).toFixed(1) : 0;
+        const heatStatus = heatAfter <= accountState.heatLimit ? `within ${accountState.heatLimit}% limit` : `OVER ${accountState.heatLimit}% limit!`;
 
         // Pre-trade checks
         const checks = [
-            { pass: mockAccount.cash >= totalCost, text: `Buying power sufficient ($${mockAccount.cash.toLocaleString()} available)` },
-            { pass: true, text: 'Bid-Ask spread: 3.2% (healthy)' },
-            { pass: true, text: 'Open Interest: 2,450 (liquid)' },
+            { pass: accountState.cash >= totalCost, text: `Buying power sufficient ($${accountState.cash.toLocaleString(undefined, { maximumFractionDigits: 0 })} available)` },
+            { pass: true, text: 'Bid-Ask spread: check on broker' },
+            { pass: true, text: 'Open Interest: check on broker' },
             { pass: t.daysLeft > 5 || !t.hasEarnings, text: t.hasEarnings ? `⚠️ Earnings within ${t.daysLeft}d` : 'No earnings within 5 days' },
-            { pass: mockAccount.dailyLossUsed + maxLoss <= mockAccount.dailyLossLimit, text: `Daily loss limit: $${mockAccount.dailyLossUsed} used of $${mockAccount.dailyLossLimit}` },
-            { pass: !mockAccount.holdings.includes(t.ticker), text: `No duplicate position for ${t.ticker}` }
+            { pass: accountState.dailyLossUsed + maxLoss <= accountState.dailyLossLimit, text: `Daily loss limit: $${accountState.dailyLossUsed} used of $${accountState.dailyLossLimit}` },
+            { pass: !accountState.holdings.includes(t.ticker), text: `No duplicate position for ${t.ticker}` }
         ];
 
         const actionClass = isCall ? 'order-action-call' : 'order-action-put';
@@ -188,7 +348,7 @@ const tradeModal = (() => {
                         </div>
                         <div class="risk-row">
                             <span class="risk-label">Portfolio Heat After</span>
-                            <span class="risk-value ${heatAfter <= mockAccount.heatLimit ? 'warning' : 'danger'}">${heatAfter}% → ${heatStatus}</span>
+                            <span class="risk-value ${heatAfter <= accountState.heatLimit ? 'warning' : 'danger'}">${heatAfter}% → ${heatStatus}</span>
                         </div>
                     </div>
 
@@ -252,30 +412,87 @@ const tradeModal = (() => {
         const t = currentTrade;
         const isCall = t.type === 'CALL';
         const actionText = isCall ? 'BUY CALL' : 'BUY PUT';
+        const slPrice = +(t.limitPrice * (1 - t.slPercent)).toFixed(2);
+        const tpPrice = +(t.limitPrice * (1 + t.tpPercent)).toFixed(2);
 
         close();
 
-        // Add to mock portfolio
-        if (typeof portfolio !== 'undefined') {
-            portfolio.addPosition({
-                ticker: t.ticker,
-                type: t.type,
-                strike: t.strike,
-                entry: t.limitPrice,
-                current: t.limitPrice,
-                sl: +(t.limitPrice * (1 - t.slPercent)).toFixed(2),
-                tp: +(t.limitPrice * (1 + t.tpPercent)).toFixed(2)
+        // Build trade payload with full scanner context
+        const tradeData = {
+            ticker: t.ticker,
+            option_type: t.type,
+            strike: t.strike,
+            expiry: t.expiry,
+            entry_price: t.limitPrice,
+            qty: t.qty,
+            direction: 'BUY',
+            sl_price: slPrice,
+            tp_price: tpPrice,
+            strategy: t.strategy || 'SCANNER',
+            card_score: t.cardScore || t.score,
+            ai_score: t.aiScore,
+            ai_verdict: t.aiVerdict,
+            gate_verdict: t.gateVerdict,
+            technical_score: t.technicalScore,
+            sentiment_score: t.sentimentScore,
+            delta_at_entry: t.delta,
+            iv_at_entry: t.iv,
+            idempotency_key: `${t.ticker}-${t.strike}-${t.expiry}-${Date.now()}`,
+        };
+
+        // Show immediate feedback
+        showTradeToast('info', '⏳',
+            `<span class="toast-bold">Submitting...</span><br>${actionText} ${t.qty}x ${t.ticker} $${t.strike} @ $${t.limitPrice.toFixed(2)}`);
+
+        // Call live API (Phase 4)
+        if (typeof paperApi !== 'undefined') {
+            // Immediately add pending row to portfolio view
+            if (typeof portfolio !== 'undefined' && portfolio.addPendingPosition) {
+                portfolio.addPendingPosition({
+                    ticker: t.ticker,
+                    type: t.type,
+                    strike: t.strike,
+                    entry: t.limitPrice,
+                    current: t.limitPrice,
+                    sl: slPrice,
+                    tp: tpPrice,
+                    qty: t.qty
+                });
+            }
+
+            paperApi.placeTrade(tradeData).then(res => {
+                if (res.success) {
+                    showTradeToast('success', '✅',
+                        `<span class="toast-bold">Order Placed!</span><br>${actionText} ${t.qty}x ${t.ticker} $${t.strike} @ $${t.limitPrice.toFixed(2)}`);
+
+                    // Show bracket confirmation
+                    setTimeout(() => {
+                        const brokerMsg = res.trade?.broker_msg;
+                        showTradeToast('info', '📋',
+                            `<span class="toast-bold">Brackets Active</span><br>SL: $${slPrice.toFixed(2)} | TP: $${tpPrice.toFixed(2)}${brokerMsg ? '<br>' + brokerMsg : ''}`);
+                    }, 1500);
+
+                    // Soft-refresh portfolio data from server (don't wipe pending row)
+                    if (typeof portfolio !== 'undefined' && portfolio.refresh) {
+                        setTimeout(() => portfolio.refresh(), 2000);
+                    }
+                }
+            }).catch(err => {
+                showTradeToast('error', '❌',
+                    `<span class="toast-bold">Trade Failed</span><br>${err.message || 'Unknown error'}`);
             });
+        } else {
+            // Fallback: mock portfolio (dev mode)
+            if (typeof portfolio !== 'undefined' && portfolio.addPosition) {
+                portfolio.addPosition({
+                    ticker: t.ticker, type: t.type, strike: t.strike,
+                    entry: t.limitPrice, current: t.limitPrice,
+                    sl: slPrice, tp: tpPrice
+                });
+            }
+            showTradeToast('success', '✅',
+                `<span class="toast-bold">Order Submitted (Mock)</span><br>${actionText} ${t.qty}x ${t.ticker} $${t.strike}`);
         }
-
-        // Show toast notifications
-        showTradeToast('success', '✅',
-            `<span class="toast-bold">Order Submitted!</span><br>${actionText} ${t.qty}x ${t.ticker} $${t.strike} @ $${t.limitPrice.toFixed(2)} — Brackets attached`);
-
-        setTimeout(() => {
-            showTradeToast('info', '📋',
-                `<span class="toast-bold">Brackets Active</span><br>SL: $${(t.limitPrice * (1 - t.slPercent)).toFixed(2)} | TP: $${(t.limitPrice * (1 + t.tpPercent)).toFixed(2)} — Monitoring started`);
-        }, 1500);
     }
 
     function showTradeToast(type, icon, html) {
@@ -317,6 +534,7 @@ const tradeModal = (() => {
         adjustPrice,
         adjustQty,
         adjustSL,
-        adjustTP
+        adjustTP,
+        _saveCredentialsAndProceed
     };
 })();

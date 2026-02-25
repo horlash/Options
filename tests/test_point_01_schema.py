@@ -14,7 +14,7 @@ from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import sessionmaker
 
 # Test database URL
-DB_URL = 'postgresql://app_user:app_pass@localhost:5432/paper_trading'
+DB_URL = 'postgresql://app_user:app_pass@localhost:5433/paper_trading'
 
 engine = create_engine(DB_URL, isolation_level='AUTOCOMMIT')
 Session = sessionmaker(bind=engine)

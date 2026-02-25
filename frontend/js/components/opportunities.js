@@ -33,34 +33,13 @@ const opportunities = {
         const container = document.getElementById('opportunities-container');
         if (!container) return;
 
-        // --- DEMO MODE TRIGGER (Empty State) ---
+        // --- EMPTY STATE (no scan results) ---
         if (!results || results.length === 0) {
-            const demoOpp = {
-                ticker: "NVDA",
-                current_price: 726.13,
-                option_type: "Call",
-                strike_price: 700.00,
-                expiration_date: "2025-01-17T00:00:00",
-                premium: 45.20,
-                days_to_expiry: 340,
-                open_interest: 15400,
-                implied_volatility: 0.42,
-                opportunity_score: 94,
-                data_source: "Schwab",
-                play_type: "tactical",
-                profit_potential: 85,
-                break_even: 745.20,
-                has_earnings_risk: false,
-                // Additive Badges Demo
-                fundamental_analysis: { badges: ["Smart Money 🏦", "EPS Growth ↗", "Analyst Buy ⭐"] }
-            };
-
             container.innerHTML = `
                 <div class="empty-state" style="margin-bottom: 2rem;">
                     <div class="empty-state-icon">🔍</div>
-                    <p>No active scan results. Showing a <strong>Demo Card</strong> below:</p>
+                    <p>No active scan results. Run a scan to discover opportunities.</p>
                 </div>
-                ${this.createCard(demoOpp)}
             `;
             this.updateCount(0);
             return;
@@ -254,6 +233,12 @@ const opportunities = {
             // ✅ GATE 2 PASSED — High conviction, open trade modal
             console.log(`[TRADE] ✅ Gate 2 PASSED (${aiScore} >= 65). Opening trade modal.`);
             if (typeof tradeModal !== 'undefined') {
+                // Determine strategy from current scan mode
+                let strategy = 'LEAP';
+                if (typeof scanner !== 'undefined') {
+                    if (scanner.scanMode === '0dte') strategy = '0DTE';
+                    else if (scanner.scanMode && scanner.scanMode.startsWith('weekly')) strategy = 'WEEKLY';
+                }
                 tradeModal.open({
                     ticker: opp.ticker,
                     price: opp.current_price,
@@ -264,16 +249,30 @@ const opportunities = {
                     type: opp.option_type === 'Call' ? 'CALL' : 'PUT',
                     score: aiScore,
                     aiVerdict: aiVerdict,
+                    aiScore: aiScore,
                     aiConviction: aiScore,
                     cardScore: opp.opportunity_score,
                     hasEarnings: opp.has_earnings_risk || false,
-                    badges: opp.play_type || ''
+                    badges: opp.play_type || '',
+                    strategy: strategy,
+                    // Pass scanner context for DB persistence
+                    delta: opp.greeks?.delta || 0,
+                    iv: opp.greeks?.iv || opp.implied_volatility || 0,
+                    technicalScore: opp.technical_score || 0,
+                    sentimentScore: opp.sentiment_score || 0,
+                    gateVerdict: aiScore >= 65 ? 'GO' : 'CAUTION'
                 });
             }
         } else if (aiScore >= 40) {
             // ⚠️ Moderate — open modal with caution warning
             console.log(`[TRADE] ⚠️ Gate 2 CAUTION (${aiScore} 40-64). Opening modal with warning.`);
             if (typeof tradeModal !== 'undefined') {
+                // Determine strategy from current scan mode
+                let strategy = 'LEAP';
+                if (typeof scanner !== 'undefined') {
+                    if (scanner.scanMode === '0dte') strategy = '0DTE';
+                    else if (scanner.scanMode && scanner.scanMode.startsWith('weekly')) strategy = 'WEEKLY';
+                }
                 tradeModal.open({
                     ticker: opp.ticker,
                     price: opp.current_price,
@@ -284,11 +283,19 @@ const opportunities = {
                     type: opp.option_type === 'Call' ? 'CALL' : 'PUT',
                     score: aiScore,
                     aiVerdict: aiVerdict,
+                    aiScore: aiScore,
                     aiConviction: aiScore,
                     cardScore: opp.opportunity_score,
                     hasEarnings: opp.has_earnings_risk || false,
                     badges: opp.play_type || '',
-                    aiWarning: `⚠️ Moderate AI Conviction (${aiScore}/100) — Proceed with caution`
+                    aiWarning: `⚠️ Moderate AI Conviction (${aiScore}/100) — Proceed with caution`,
+                    strategy: strategy,
+                    // Pass scanner context for DB persistence
+                    delta: opp.greeks?.delta || 0,
+                    iv: opp.greeks?.iv || opp.implied_volatility || 0,
+                    technicalScore: opp.technical_score || 0,
+                    sentimentScore: opp.sentiment_score || 0,
+                    gateVerdict: 'CAUTION'
                 });
             }
         } else {
@@ -519,10 +526,12 @@ const opportunities = {
         if (opp.play_type === 'value') badgesHtml += `<span class="badge badge-value">💎 Value</span>`;
         if (opp.has_earnings_risk) badgesHtml += `<span class="badge badge-earnings">⚠️ Earn</span>`;
 
-        // Additive Fundamental Badges (Full Text)
+        // Additive Fundamental Badges (Full Text) — deduplicate vs play_type
         let fundBadgesHtml = '';
         if (opp.fundamental_analysis && opp.fundamental_analysis.badges) {
             opp.fundamental_analysis.badges.forEach(b => {
+                // Skip badges that duplicate the play_type (e.g. "Momentum" when play_type is already "momentum")
+                if (opp.play_type && b.toLowerCase() === opp.play_type.toLowerCase()) return;
                 fundBadgesHtml += `<span class="badge-fund">${b}</span>`;
             });
         }

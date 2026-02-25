@@ -18,7 +18,7 @@ class BrokerFactory:
     """Factory that creates the correct broker instance for a user.
 
     Usage:
-        user_settings = db.query(UserSettings).get('alice')
+        user_settings = db.query(UserSettings).filter_by(username='alice').first()
         broker = BrokerFactory.get_broker(user_settings)
         quotes = broker.get_quotes(['AAPL'])
     """

@@ -18,6 +18,9 @@ from backend.services.hybrid_scanner_service import HybridScannerService as Scan
 from backend.services.watchlist_service import WatchlistService
 from backend.security import Security
 from datetime import datetime
+import atexit
+import logging
+import re
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 static_folder = os.path.join(project_root, 'frontend')
@@ -26,6 +29,10 @@ app = Flask(__name__, static_folder=static_folder, static_url_path='')
 app.config.from_object(Config)
 CORS(app)
 security_service = Security(app)
+
+# Register paper trading API routes (Phase 3)
+from backend.api.paper_routes import paper_bp
+app.register_blueprint(paper_bp)
 
 # Initialize database
 init_db()
@@ -377,6 +384,11 @@ def add_history():
         ticker = data.get('ticker')
         if not ticker:
             return jsonify({'success': False, 'error': 'Ticker required'}), 400
+        
+        # Backend safety net: reject invalid ticker formats
+        ticker = ticker.strip().upper()
+        if not re.match(r'^[A-Z]{1,5}$', ticker):
+            return jsonify({'success': False, 'error': f'Invalid ticker format: {ticker}'}), 400
             
         db = get_db()
         current_user = session.get('user')
@@ -469,6 +481,113 @@ def get_ai_analysis_route(ticker):
     except Exception as e:
         print(f"Error getting AI analysis: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# ═══════════════════════════════════════════════════════════════
+# Phase 3: APScheduler — Background Engine
+# ═══════════════════════════════════════════════════════════════
+
+def init_scheduler(app):
+    """Initialize APScheduler with the monitoring engine jobs.
+
+    Jobs:
+      1. sync_tradier_orders   — every 60s  (market hours only)
+      2. update_price_snapshots — every 40s  (market hours only)
+      3. pre_market_bookend     — Mon-Fri 9:25 AM ET
+      4. post_market_bookend    — Mon-Fri 4:05 PM ET
+    """
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.interval import IntervalTrigger
+        from apscheduler.triggers.cron import CronTrigger
+        from backend.services.monitor_service import MonitorService
+        import pytz
+
+        EASTERN = pytz.timezone('US/Eastern')
+        monitor = MonitorService()
+        scheduler = BackgroundScheduler(daemon=True)
+
+        # Job 1: Sync order status from Tradier (every 60s)
+        scheduler.add_job(
+            func=monitor.sync_tradier_orders,
+            trigger=IntervalTrigger(seconds=60),
+            id='sync_tradier_orders',
+            name='Tradier Order Sync (60s)',
+            replace_existing=True,
+            max_instances=1,
+        )
+
+        # Job 2: Update price snapshots via ORATS (every 40s)
+        scheduler.add_job(
+            func=monitor.update_price_snapshots,
+            trigger=IntervalTrigger(seconds=40),
+            id='update_price_snapshots',
+            name='ORATS Price Snapshots (40s)',
+            replace_existing=True,
+            max_instances=1,
+        )
+
+        # Job 3: Pre-market bookend (9:25 AM ET, Mon-Fri)
+        scheduler.add_job(
+            func=monitor.capture_bookend_snapshot,
+            trigger=CronTrigger(
+                day_of_week='mon-fri',
+                hour=9,
+                minute=25,
+                timezone=EASTERN,
+            ),
+            args=['OPEN_BOOKEND'],
+            id='pre_market_bookend',
+            name='Pre-Market Bookend (9:25 AM ET)',
+            replace_existing=True,
+        )
+
+        # Job 4: Post-market bookend (4:05 PM ET, Mon-Fri)
+        scheduler.add_job(
+            func=monitor.capture_bookend_snapshot,
+            trigger=CronTrigger(
+                day_of_week='mon-fri',
+                hour=16,
+                minute=5,
+                timezone=EASTERN,
+            ),
+            args=['CLOSE_BOOKEND'],
+            id='post_market_bookend',
+            name='Post-Market Bookend (4:05 PM ET)',
+            replace_existing=True,
+        )
+
+        scheduler.start()
+        atexit.register(lambda: scheduler.shutdown(wait=False))
+
+        logger = logging.getLogger(__name__)
+        logger.info(
+            "APScheduler started — 4 jobs registered "
+            "(order sync 60s, snapshots 40s, bookends 9:25/16:05 ET)"
+        )
+        print(
+            "\n✅ [SCHEDULER] APScheduler started — 4 background jobs registered:\n"
+            "   • sync_tradier_orders  (every 60s)\n"
+            "   • update_price_snapshots (every 40s)\n"
+            "   • pre_market_bookend   (9:25 AM ET Mon-Fri)\n"
+            "   • post_market_bookend  (4:05 PM ET Mon-Fri)\n",
+            flush=True,
+        )
+
+    except ImportError:
+        print(
+            "\n❌ [SCHEDULER] apscheduler not installed! "
+            "Run: pip install apscheduler pytz\n"
+            "   Background monitoring engine will NOT run.\n",
+            flush=True,
+        )
+    except Exception as e:
+        print(f"\n❌ [SCHEDULER] Failed to start: {e}\n", flush=True)
+
+
+# Start scheduler unconditionally. APScheduler's replace_existing=True
+# prevents duplicate jobs if the module is re-imported.
+init_scheduler(app)
+
 
 if __name__ == '__main__':
     app.run(

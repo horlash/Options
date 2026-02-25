@@ -72,8 +72,16 @@ class SearchHistory(Base):
     last_searched = Column(DateTime, default=datetime.utcnow)
 
 def init_db():
-    """Initialize the database by creating all tables"""
-    Base.metadata.create_all(engine)
+    """Initialize the scanner database (SQLite) by creating scanner-only tables.
+    
+    Paper trading tables (PaperTrade, PriceSnapshot, etc.) use PostgreSQL-specific
+    JSONB columns and are managed by Alembic migrations — not created here.
+    """
+    scanner_tables = [
+        t for t in Base.metadata.sorted_tables
+        if t.name in ('watchlist', 'scan_results', 'opportunities', 'news_cache', 'search_history')
+    ]
+    Base.metadata.create_all(engine, tables=scanner_tables)
 
 def get_db():
     """Get database session"""

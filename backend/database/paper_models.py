@@ -185,6 +185,7 @@ class PriceSnapshot(Base):
     iv          = Column(Float, nullable=True)
     underlying  = Column(Float, nullable=True)
     snapshot_type = Column(String(20), default='PERIODIC')  # PERIODIC / OPEN_BOOKEND / CLOSE_BOOKEND
+    username    = Column(String(50), nullable=False)  # Direct RLS column (mirrors trade.username)
 
     # --- Relationship ---
     trade = relationship("PaperTrade", back_populates="price_snapshots")

@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import psycopg2
 
 DB_PARAMS = dict(
-    host='localhost', port=5432,
+    host='localhost', port=5433,
     dbname='paper_trading', user='app_user', password='app_pass'
 )
 
