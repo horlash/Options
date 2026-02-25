@@ -12,9 +12,9 @@ echo Initializing database...
 python -c "from backend.database.models import init_db; init_db()"
 
 echo.
-echo Starting Secured Server on http://localhost:5050
+echo Starting Secured Server on http://localhost:5000
 echo (Frontend is served automatically)
 echo.
 echo Press Ctrl+C to stop the server
 echo.
-python -c "from backend.app import app; app.run(host='0.0.0.0', port=5050, debug=False, threaded=True)"
+python -m backend.app

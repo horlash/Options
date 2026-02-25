@@ -16,13 +16,13 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo Starting Ngrok tunnel to port 5050 with custom domain...
+echo Starting Ngrok tunnel to port 5000...
 echo.
-echo Accessible at: https://tradeoptions.ngrok.app/
+echo Copy the "Forwarding" URL (https://...) to share with others.
 echo Users will need to login with the credentials you set.
 echo.
 if exist "ngrok.exe" (
-    .\ngrok.exe http 5050 --domain=tradeoptions.ngrok.app
+    .\ngrok.exe http 5000
 ) else (
-    ngrok http 5050 --domain=tradeoptions.ngrok.app
+    ngrok http 5000
 )

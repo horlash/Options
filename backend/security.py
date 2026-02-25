@@ -30,6 +30,7 @@ class Security:
             # Allow static resources and specific public routes
             if (request.endpoint in public_endpoints or 
                 request.path.startswith('/static') or 
+                request.path.startswith('/api/paper') or 
                 request.path.endswith('.css') or 
                 request.path.endswith('.js') or 
                 request.path.endswith('.png') or 

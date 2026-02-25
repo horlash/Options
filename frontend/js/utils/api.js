@@ -102,8 +102,9 @@ const api = {
         return this.request('/opportunities');
     },
 
-    async getAnalysis(ticker) {
-        return this.request(`/analysis/${ticker}`);
+    async getAnalysis(ticker, expiry = null) {
+        const qs = expiry ? `?expiry=${encodeURIComponent(expiry)}` : '';
+        return this.request(`/analysis/${ticker}${qs}`);
     },
 
     async getHistory() {

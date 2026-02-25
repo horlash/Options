@@ -1,0 +1,38 @@
+# ═══════════════════════════════════════════════════════════
+# Options-feature DEV Environment
+# ═══════════════════════════════════════════════════════════
+# Usage:   docker-compose -f docker-compose.dev.yml up -d
+# Stop:    docker-compose -f docker-compose.dev.yml down
+# Reset:   docker-compose -f docker-compose.dev.yml down -v  (wipes DB)
+#
+# This runs ALONGSIDE prod (port 5000) without conflict:
+#   - Postgres (paper trading) on port 5433
+#   - Flask dev server on port 5001
+# ═══════════════════════════════════════════════════════════
+
+version: '3.8'
+
+services:
+  # ── Paper Trading Database ──────────────────────────────
+  paper_db:
+    image: postgres:15-alpine
+    container_name: paper_trading_dev_db
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: paper_trading
+      POSTGRES_USER: paper_user
+      POSTGRES_PASSWORD: paper_pass
+    volumes:
+      - paper_dev_data:/var/lib/postgresql/data
+      # Init script: create the app_user role for RLS
+      - ./scripts/init_dev_db.sql:/docker-entrypoint-initdb.d/01_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paper_user -d paper_trading"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  paper_dev_data:

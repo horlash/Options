@@ -1,27 +1,20 @@
 import feedparser
 import requests
 from datetime import datetime, timedelta
-from backend.utils.ticker_lookup import TickerLookup
 
 class FreeNewsAPIs:
     """Free news sources without API keys"""
     
     def __init__(self):
-        self.ticker_lookup = TickerLookup()
+        pass
     
     def get_google_news(self, ticker, days_back=7):
         """
         Get news from Google News RSS feed (free, no API key)
         """
         try:
-            # Search by company name + ticker for broader coverage
-            company_name = self.ticker_lookup.get_company_name(ticker)
-            if company_name and company_name != ticker:
-                query = f"{company_name}+stock+OR+{ticker}"
-            else:
-                query = f"{ticker}+stock"
-            
-            url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+            # Google News RSS feed for stock ticker
+            url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
             
             feed = feedparser.parse(url)
             

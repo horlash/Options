@@ -15,6 +15,7 @@ env/
 
 # === Secrets & Auth ===
 .env
+.env.*
 token.json
 *.token
 

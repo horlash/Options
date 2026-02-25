@@ -3,7 +3,6 @@ import requests
 import json
 import re
 from backend.config import Config
-from backend.utils.ticker_lookup import TickerLookup
 
 class ReasoningEngine:
     """
@@ -20,7 +19,6 @@ class ReasoningEngine:
             "Content-Type": "application/json"
         }
         self.model = "sonar-pro" # High reasoning, online capabilities
-        self.ticker_lookup = TickerLookup()
 
     def analyze_ticker(self, ticker, strategy="LEAP", expiry_date=None, data={}, context={}):
         """
@@ -140,16 +138,6 @@ class ReasoningEngine:
             "Do not hallucinate prices. Trust the context."
         )
         
-        # Dynamic sector/industry context from tickers.json
-        ticker_info = self.ticker_lookup.get_all(ticker)
-        sector = ticker_info.get('sector', '')
-        industry = ticker_info.get('industry', '')
-        sector_search_hint = ""
-        if sector and industry:
-            sector_search_hint = f" ALSO search for sector/industry news: '{sector}, {industry} regulation, {industry} news'."
-        elif sector:
-            sector_search_hint = f" ALSO search for sector news: '{sector} regulation, {sector} news'."
-
         # Parse Context (Data Injection) to build user_prompt
         news_text = "No recent news."
         if context and context.get('headlines'):
@@ -186,8 +174,30 @@ class ReasoningEngine:
                 f"OI: {og.get('oi', 'N/A'):,} | Volume: {og.get('volume', 'N/A'):,}"
             )
 
-        # Dynamic company name lookup from tickers.json
-        company_name = self.ticker_lookup.get_company_name(ticker)
+        # Company name lookup (Fix 4)
+        company_names = {
+            'COIN': 'Coinbase', 'AAPL': 'Apple', 'TSLA': 'Tesla', 'NVDA': 'NVIDIA',
+            'GOOGL': 'Google/Alphabet', 'GOOG': 'Google/Alphabet', 'AMZN': 'Amazon',
+            'META': 'Meta Platforms', 'MSFT': 'Microsoft', 'AMD': 'AMD',
+            'MU': 'Micron Technology', 'INTC': 'Intel', 'NFLX': 'Netflix',
+            'SPY': 'S&P 500 ETF', 'QQQ': 'Nasdaq 100 ETF', 'IWM': 'Russell 2000 ETF',
+            'DIA': 'Dow Jones ETF', 'SOFI': 'SoFi Technologies', 'PLTR': 'Palantir',
+            'BABA': 'Alibaba', 'NIO': 'NIO Inc', 'RIVN': 'Rivian', 'LCID': 'Lucid',
+            'BA': 'Boeing', 'DIS': 'Disney', 'JPM': 'JPMorgan Chase', 'GS': 'Goldman Sachs',
+            'V': 'Visa', 'MA': 'Mastercard', 'WMT': 'Walmart', 'HD': 'Home Depot',
+            'CRM': 'Salesforce', 'ORCL': 'Oracle', 'AVGO': 'Broadcom', 'QCOM': 'Qualcomm',
+            'SHOP': 'Shopify', 'SQ': 'Block Inc', 'PYPL': 'PayPal', 'UBER': 'Uber',
+            'LYFT': 'Lyft', 'SNAP': 'Snap Inc', 'ROKU': 'Roku', 'SPOT': 'Spotify',
+            'NET': 'Cloudflare', 'DDOG': 'Datadog', 'SNOW': 'Snowflake', 'ZS': 'Zscaler',
+            'CRWD': 'CrowdStrike', 'PANW': 'Palo Alto Networks', 'ABNB': 'Airbnb',
+            'MARA': 'Marathon Digital', 'RIOT': 'Riot Platforms', 'MSTR': 'MicroStrategy',
+            'ARM': 'ARM Holdings', 'SMCI': 'Super Micro Computer', 'DELL': 'Dell Technologies',
+            'XOM': 'ExxonMobil', 'CVX': 'Chevron', 'OXY': 'Occidental Petroleum',
+            'GE': 'GE Aerospace', 'CAT': 'Caterpillar', 'UNH': 'UnitedHealth',
+            'LLY': 'Eli Lilly', 'JNJ': 'Johnson & Johnson', 'PFE': 'Pfizer',
+            'MRNA': 'Moderna', 'COST': 'Costco', 'TGT': 'Target', 'KO': 'Coca-Cola',
+        }
+        company_name = company_names.get(ticker.upper(), ticker)
 
         # DYNAMIC PROMPT CONSTRUCTION (Direction Aware)
         is_put = opt_type and str(opt_type).lower() == 'put'
@@ -257,7 +267,7 @@ class ReasoningEngine:
             f"{sim_note}\n\n"
             f"Context: {strat_context}{days_to_expiry_str}\n"
             f"### HARD DATA (FACTS)\n"
-            f"1. **BREAKING NEWS (Top 10):** (Search for '{company_name}' company news AND any regulatory/macro events affecting it.{sector_search_hint} Do NOT limit to just ticker '{ticker}')\n{news_text}\n\n"
+            f"1. **BREAKING NEWS (Top 10):** (Search for '{company_name}' company news, NOT just ticker '{ticker}')\n{news_text}\n\n"
             f"2. **TECHNICALS:** {tech_text}\n"
             f"3. **GAMMA LEVELS:** {gex_text}\n"
             f"4. **OPTION GREEKS:** {greeks_text}\n"

@@ -369,19 +369,10 @@ class HybridScannerService:
                             })
                         print(f"   • Analyzed {len(news_articles)} Finnhub articles")
                     
-                    # Always supplement with Google/Yahoo for broader coverage
-                    free_news = self.news_api.get_all_news(clean_ticker)
-                    if free_news:
-                        # Deduplicate by headline
-                        existing_headlines = {a.get('headline', '').lower() for a in news_articles}
-                        added = 0
-                        for fn in free_news:
-                            if fn.get('headline', '').lower() not in existing_headlines:
-                                news_articles.append(fn)
-                                existing_headlines.add(fn.get('headline', '').lower())
-                                added += 1
-                        if added:
-                            print(f"   • Added {added} articles from Google/Yahoo")
+                    if not news_articles:
+                         # 3. Ultimate Fallback to Free News APIs (Google/Yahoo)
+                         print("⚠️ No Finnhub news found, falling back to Google/Yahoo...")
+                         news_articles = self.news_api.get_all_news(clean_ticker)
 
                     sentiment_analysis = self.sentiment_analyzer.analyze_articles(news_articles)
                     sentiment_score = self.sentiment_analyzer.calculate_sentiment_score(sentiment_analysis)
@@ -1347,7 +1338,7 @@ class HybridScannerService:
                 obj.play_type = d['play_type']
                 obj.strategy = d['strategy']
                 obj.skew_score = d['skew_score']
-                obj.delta = d.get('delta')
+                obj.delta = d.get('delta', 0)
                 obj.gamma = d.get('gamma', 0)
                 obj.theta = d.get('theta', 0)
                 
@@ -1401,11 +1392,9 @@ class HybridScannerService:
                         'break_even': getattr(o, 'break_even', 0),
                         'skew_score': getattr(o, 'skew_score', 50),
                         'play_type': getattr(o, 'play_type', 'value'),
-                        # Greeks (from ORATS chain)
                         'delta': getattr(o, 'delta', 0),
                         'gamma': getattr(o, 'gamma', 0),
-                        'theta': getattr(o, 'theta', 0),
-                        'iv': o.implied_volatility
+                        'theta': getattr(o, 'theta', 0)
                     }
                     for o in opportunities
                 ],
@@ -1449,11 +1438,22 @@ class HybridScannerService:
         }
         
         try:
-            # We use scan_weekly_options as a 'Data Fetcher'
-            # It's heavy, but gives us everything (Price, Indicators, News, GEX)
-            # For 0DTE strategy, we might want scan_0dte_options for tighter GEX, 
-            # but weekly is a safe general fetcher.
-            scan_result = self.scan_weekly_options(ticker, weeks_out=0)
+            # Derive weeks_out from the expiry_date param so we scan the correct expiry
+            weeks_out = 0
+            req_expiry = expiry_date or kwargs.get('expiry')
+            if req_expiry:
+                try:
+                    from datetime import datetime
+                    exp_dt = datetime.strptime(str(req_expiry), "%Y-%m-%d").date()
+                    today = datetime.now().date()
+                    days_diff = (exp_dt - today).days
+                    # Convert to weeks: 0-6 days = this week, 7-13 = +1 week, etc.
+                    weeks_out = max(0, days_diff // 7)
+                    print(f"  [AI] Scan targeting expiry {req_expiry} (weeks_out={weeks_out})")
+                except Exception as e:
+                    print(f"  [WARN] Could not parse expiry '{req_expiry}': {e}")
+            
+            scan_result = self.scan_weekly_options(ticker, weeks_out=weeks_out)
             
             if scan_result:
                 # A. Price
@@ -1593,18 +1593,16 @@ class HybridScannerService:
                 # Finnhub returns score 0.0 - 1.0 (Bearish < 0.5 < Bullish)
                 # We map this to 0-100
                 s_score = premium_sentiment.get('sentiment', {}).get('bullishPercent', 0.5) * 100
-                # Use companyNewsScore if available (more accurate than bullishPercent)
+                # Override with companyNewsScore if available (same logic as weekly scan)
                 if 'companyNewsScore' in premium_sentiment:
-                     s_score = premium_sentiment['companyNewsScore'] * 100
+                    s_score = premium_sentiment['companyNewsScore'] * 100
                      
                 sentiment_score = s_score
                 # print(f"✓ Finnhub Premium Score: {sentiment_score:.1f}")
                 sentiment_analysis['summary'] = "Finnhub Institutional Sentiment Score"
                 sentiment_analysis['weighted_score'] = sentiment_score
-                # Use actual buzz count from Finnhub if available
-                buzz = premium_sentiment.get('buzz', {})
-                actual_count = buzz.get('articlesInLastWeek', 0) or buzz.get('weeklyAverage', 0) or 0
-                sentiment_analysis['article_count'] = int(actual_count) if actual_count else 0
+                # Add dummy breakdown from premium data if available
+                sentiment_analysis['article_count'] = 100 # Proxy
                 
                 # Still try to get headlines for context!
                 news = self.finnhub_api.get_company_news(ticker.replace('$',''))
@@ -1647,7 +1645,7 @@ class HybridScannerService:
             
         return sentiment_score, sentiment_analysis
 
-    def get_detailed_analysis(self, ticker):
+    def get_detailed_analysis(self, ticker, expiry_date=None):
         """
         Get detailed analysis for a specific ticker (for Analysis Modal)
         """
@@ -1739,8 +1737,21 @@ class HybridScannerService:
             # 3. Sentiment
             sentiment_score, sentiment_details = self.get_sentiment_score(ticker)
             
-            # 4. Opportunities (Quick Scan)
-            scan_res = self.scan_weekly_options(ticker, weeks_out=0) # Reuse standard scan
+            # Derive weeks_out from expiry_date if provided
+            weeks_out = 0
+            if expiry_date:
+                try:
+                    from datetime import datetime, date
+                    exp_dt = datetime.strptime(str(expiry_date), "%Y-%m-%d").date()
+                    today = date.today()
+                    days_diff = (exp_dt - today).days
+                    weeks_out = max(0, days_diff // 7)
+                    print(f"   [DETAIL] Targeting expiry {expiry_date} → weeks_out={weeks_out}")
+                except Exception as e:
+                    print(f"   [DETAIL] Could not parse expiry '{expiry_date}': {e}, using weeks_out=0")
+            
+            # 4. Opportunities (Quick Scan — using card's expiry week)
+            scan_res = self.scan_weekly_options(ticker, weeks_out=weeks_out)
             opportunities = scan_res.get('opportunities', []) if scan_res else []
 
             result = {
