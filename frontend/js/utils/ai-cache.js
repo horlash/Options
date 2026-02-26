@@ -11,7 +11,7 @@
  */
 window.aiCache = {
     _store: {},
-    TTL_MS: 5 * 60 * 1000, // 5 minutes
+    TTL_MS: 3 * 60 * 1000, // 3 minutes
 
     /**
      * Build a normalized cache key.

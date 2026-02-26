@@ -277,10 +277,29 @@ class MonitorService:
         self._compute_mfe_mae(db, trade)
 
     def _handle_expiration(self, db, trade):
-        """Mark a trade as expired (option contract expired worthless)."""
-        trade.exit_price = 0.0
-        trade.realized_pnl = -(trade.entry_price * trade.qty * 100)
-        trade.close_reason = 'EXPIRED'
+        """Auto-close expired position at last known market price or force $0."""
+        # Check user preference for auto-close behavior
+        settings = db.query(UserSettings).filter_by(username=trade.username).first()
+        auto_close = settings.auto_close_expiry if settings else True
+
+        if auto_close:
+            # Use last polled price (reflects intrinsic value for ITM options)
+            last_snap = (
+                db.query(PriceSnapshot)
+                .filter(PriceSnapshot.trade_id == trade.id)
+                .order_by(PriceSnapshot.timestamp.desc())
+                .first()
+            )
+            exit_price = last_snap.mark_price if last_snap and last_snap.mark_price else 0.0
+            close_reason = 'EXPIRED_AUTO_CLOSE'
+        else:
+            # Legacy behavior: expire worthless
+            exit_price = 0.0
+            close_reason = 'EXPIRED'
+
+        trade.exit_price = exit_price
+        trade.realized_pnl = (exit_price - trade.entry_price) * trade.qty * 100
+        trade.close_reason = close_reason
 
         # Lifecycle transition: OPEN → EXPIRED (Point 11)
         lifecycle = self._get_lifecycle(db)
@@ -289,7 +308,7 @@ class MonitorService:
             trigger='BROKER_EXPIRED',
         )
 
-        logger.info(f"Trade {trade.id} ({trade.ticker}) EXPIRED worthless.")
+        logger.info(f"Trade {trade.id} ({trade.ticker}) {close_reason} @ ${exit_price}")
 
     def _handle_cancellation(self, db, trade, status):
         """Handle a rejected or canceled order."""

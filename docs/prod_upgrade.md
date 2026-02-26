@@ -88,6 +88,8 @@
 | # | Time | Issue | Fix | Status |
 |---|------|-------|-----|--------|
 | 1 | 14:22 | Full `app.py` import hangs | APScheduler `init_scheduler(app)` runs at import time, tries to connect to external services. Expected behavior — app starts normally when run as Flask server. | NOTED (not a bug) |
+| 2 | 16:35 | Scanner crash: `No module named 'holidays'` | `backend/utils/market_hours.py` imports `holidays` but it's not in `requirements.txt`. Needs to be added and Docker image rebuilt. | ✅ FIXED |
+| 3 | 16:48 | Scanner crash: `ORATS_API_KEY not found` | Added `ORATS_API_KEY` + `PERPLEXITY_API_KEY` to docker-compose env vars. Config-only fix, no rebuild. | ✅ FIXED |
 
 ---
 
@@ -132,6 +134,23 @@
 | P3-T3.3 | Main page with tabs | ✅ | Scanner=True Portfolio=True Trading=True |
 | P3-T3.4 | Watchlist API | ✅ | 200 |
 | P3-T3.5 | Tickers API | ✅ | 200 |
-| P3-T4.1 | Paper API (no Postgres) | ⚠️ N/A | 404 on `/api/paper/portfolio` — endpoint doesn't exist; correct is `/api/paper/trades`. Without Postgres, paper APIs return 500 (expected). DB tests deferred to Pi deployment (Phase 5) |
-| P2-L3 | Breaking changes applied | ✅ | TickerLookup removed safely |
-| P2-V | Import verification | ✅ | 8/8 modules pass, app hangs expected |
+| P3-T4.1 | Paper API (no Postgres) | ⚠️ N/A | Correct endpoints: `/api/paper/trades`, `/api/paper/stats`. DB tests deferred to Pi (Phase 5) |
+| P4.1 | Docker build on Pi (ARM64 native) | ✅ | `horlamy/newscanner:1.1.0` — 1.34GB, built in ~10 min |
+| P4.2 | Push to Docker Hub | ✅ | 1.1.0 sha256:f1c3a95d + latest sha256:6fcb972d |
+
+---
+
+## Phase 4: Docker Build & Push
+
+- **Time**: 2026-02-25 16:01 CST
+- **Pi IP changed**: 192.168.1.105 (WiFi) → **192.168.1.244** (Ethernet)
+- **Build method**: Native ARM64 build on Pi (cross-compile from x86 failed)
+- **Transfer**: `git archive --format=zip` → 855KB, scp'd to Pi in <1s
+- **Build time**: ~10 minutes (pip install 524.8s, layer export 489.7s)
+- **Images**:
+  - `horlamy/newscanner:1.1.0` — 1.34GB — sha256:f1c3a95d
+  - `horlamy/newscanner:latest` — 1.34GB — sha256:6fcb972d
+  - `horlamy/newscanner:1.0.1` — 1.37GB — **rollback image preserved**
+- **Docker Hub Push**: ✅ Both `1.1.0` and `latest` pushed
+- **Local git commit**: `8ee640f` — 97 files, 27,550 insertions (NOT pushed to remote)
+- **Status**: ✅ DONE

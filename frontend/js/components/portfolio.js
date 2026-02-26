@@ -29,6 +29,15 @@ const portfolio = (() => {
         // ── Settings that propagate across all views ──
         maxPositions: 5,          // loaded from saved settings on init
         dailyLossLimit: 500,      // loaded from saved settings on init
+        accountBalance: 5000,
+        defaultSlPct: 20,
+        defaultTpPct: 50,
+        maxDailyTrades: 10,
+        theme: 'dark',
+        alertOnBracketHit: true,
+        autoCloseExpiry: true,
+        requireTradeConfirm: true,
+        brokerMode: 'TRADIER_SANDBOX',
     };
 
     // Phase 3: Mock data toggle — set to false when DB is connected
@@ -86,14 +95,28 @@ const portfolio = (() => {
         }, 15000);
     }
 
-    // Loads max_positions and daily_loss_limit from the backend into state
+    // Loads all settings from the backend into state
     async function loadSettings() {
         if (USE_MOCK || typeof paperApi === 'undefined') return;
         try {
             const res = await paperApi.getSettings();
             if (res && res.settings) {
-                if (res.settings.max_positions) state.maxPositions = res.settings.max_positions;
-                if (res.settings.daily_loss_limit) state.dailyLossLimit = res.settings.daily_loss_limit;
+                const s = res.settings;
+                if (s.max_positions) state.maxPositions = s.max_positions;
+                if (s.daily_loss_limit) state.dailyLossLimit = s.daily_loss_limit;
+                if (s.account_balance) state.accountBalance = s.account_balance;
+                if (s.default_sl_pct != null) state.defaultSlPct = s.default_sl_pct;
+                if (s.default_tp_pct != null) state.defaultTpPct = s.default_tp_pct;
+                if (s.max_daily_trades != null) state.maxDailyTrades = s.max_daily_trades;
+                if (s.theme) state.theme = s.theme;
+                if (s.alert_on_bracket_hit != null) state.alertOnBracketHit = s.alert_on_bracket_hit;
+                if (s.auto_close_expiry != null) state.autoCloseExpiry = s.auto_close_expiry;
+                if (s.require_trade_confirm != null) state.requireTradeConfirm = s.require_trade_confirm;
+                if (s.broker_mode) state.brokerMode = s.broker_mode;
+
+                // Apply theme immediately on load
+                _applyTheme(state.theme);
+
                 // Pre-fill settings inputs if the settings view is already rendered
                 _prefillSettingsInputs();
             }
@@ -106,8 +129,37 @@ const portfolio = (() => {
     function _prefillSettingsInputs() {
         const maxEl = document.getElementById('settings-max-pos');
         const lossEl = document.getElementById('settings-daily-loss');
+        const balEl = document.getElementById('settings-account-balance');
+        const slEl = document.getElementById('settings-default-sl');
+        const tpEl = document.getElementById('settings-default-tp');
+        const dailyTradesEl = document.getElementById('settings-max-daily-trades');
         if (maxEl) maxEl.value = state.maxPositions;
         if (lossEl) lossEl.value = state.dailyLossLimit;
+        if (balEl) balEl.value = state.accountBalance;
+        if (slEl) slEl.value = state.defaultSlPct;
+        if (tpEl) tpEl.value = state.defaultTpPct;
+        if (dailyTradesEl) dailyTradesEl.value = state.maxDailyTrades;
+
+        // Toggles
+        const autoCloseEl = document.getElementById('settings-auto-close-expiry');
+        const confirmEl = document.getElementById('settings-require-confirm');
+        const alertEl = document.getElementById('settings-alert-bracket');
+        if (autoCloseEl) autoCloseEl.checked = state.autoCloseExpiry;
+        if (confirmEl) confirmEl.checked = state.requireTradeConfirm;
+        if (alertEl) alertEl.checked = state.alertOnBracketHit;
+
+        // Theme radio
+        const darkEl = document.getElementById('theme-dark');
+        const lightEl = document.getElementById('theme-light');
+        if (darkEl) darkEl.checked = state.theme === 'dark';
+        if (lightEl) lightEl.checked = state.theme === 'light';
+
+        // Account balance: disable in live mode
+        if (balEl) balEl.disabled = state.brokerMode === 'TRADIER_LIVE';
+    }
+
+    function _applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme || 'dark');
     }
 
     // Updates header badges dynamically from current state + positions
@@ -1052,59 +1104,138 @@ const portfolio = (() => {
         const container = document.getElementById('portfolio-view-settings');
         if (!container) return;
 
+        const isLive = state.brokerMode === 'TRADIER_LIVE';
+        const inputStyle = `width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: var(--bg-card); color: var(--text-primary); font-size: 0.85rem;`;
+        const labelStyle = `font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;`;
+        const sectionStyle = `margin-bottom: 1.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem;`;
+
         container.innerHTML = `
         <div style="padding: 1rem;">
-            <!-- Mode Selection -->
-            <div class="settings-section" style="margin-bottom: 1.5rem;">
+            <!-- 1. Trading Mode -->
+            <div style="${sectionStyle}">
                 <h3 style="color: var(--text-primary); margin-bottom: 0.75rem;">🎛️ Trading Mode</h3>
                 <div style="display: flex; gap: 1rem;">
-                    <div class="mode-card selected" id="mode-sandbox-card" style="flex:1; padding: 1rem; border: 2px solid var(--primary); border-radius: 8px; background: rgba(0,180,255,0.05); cursor: pointer;">
+                    <div class="mode-card ${!isLive ? 'selected' : ''}" id="mode-sandbox-card" style="flex:1; padding: 1rem; border: 2px solid ${!isLive ? 'var(--primary)' : 'rgba(255,255,255,0.1)'}; border-radius: 8px; background: ${!isLive ? 'rgba(0,180,255,0.05)' : 'transparent'}; cursor: pointer;">
                         <div style="font-size: 1.2rem; margin-bottom: 0.25rem;">🧪 Sandbox</div>
-                        <div style="font-size: 0.75rem; color: var(--text-secondary);">Fake money (Tradier sandbox)</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">Fake money (Tradier sandbox)</div>
                     </div>
-                    <div class="mode-card" id="mode-live-card" onclick="portfolio.confirmLiveMode()" style="flex:1; padding: 1rem; border: 2px solid rgba(255,255,255,0.1); border-radius: 8px; background: rgba(255,50,50,0.03); cursor: pointer;">
+                    <div class="mode-card ${isLive ? 'selected' : ''}" id="mode-live-card" onclick="portfolio.confirmLiveMode()" style="flex:1; padding: 1rem; border: 2px solid ${isLive ? 'var(--danger)' : 'rgba(255,255,255,0.1)'}; border-radius: 8px; background: ${isLive ? 'rgba(255,50,50,0.08)' : 'rgba(255,50,50,0.03)'}; cursor: pointer;">
                         <div style="font-size: 1.2rem; margin-bottom: 0.25rem;">🔴 Live Trading</div>
-                        <div style="font-size: 0.75rem; color: var(--text-secondary);">Real money — requires API key</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">Real money — requires API key</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Broker Credentials -->
-            <div class="settings-section" style="margin-bottom: 1.5rem;">
+            <!-- 2. Broker Credentials -->
+            <div style="${sectionStyle}">
                 <h3 style="color: var(--text-primary); margin-bottom: 0.75rem;">🔑 Broker Credentials</h3>
                 <div style="display: grid; gap: 0.75rem;">
                     <div>
-                        <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Tradier API Token</label>
-                        <input type="password" id="settings-api-token" placeholder="Enter API token" style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: var(--bg-card); color: var(--text-primary); font-size: 0.85rem;">
+                        <label style="${labelStyle}">Tradier API Token</label>
+                        <input type="password" id="settings-api-token" placeholder="Enter API token" style="${inputStyle}">
                     </div>
                     <div>
-                        <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Account ID</label>
-                        <input type="text" id="settings-account-id" placeholder="Enter Account ID" style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: var(--bg-card); color: var(--text-primary); font-size: 0.85rem;">
+                        <label style="${labelStyle}">Account ID</label>
+                        <input type="text" id="settings-account-id" placeholder="Enter Account ID" style="${inputStyle}">
                     </div>
                     <button onclick="portfolio.testBrokerConnection()" class="btn-primary" style="width: fit-content; padding: 0.4rem 1rem; font-size: 0.85rem;">🔌 Test Connection</button>
-                    <div id="connection-status" style="font-size: 0.8rem; color: var(--text-secondary);"></div>
+                    <div id="connection-status" style="font-size: 0.8rem; color: var(--text-muted);"></div>
                 </div>
             </div>
 
-            <!-- Risk Management -->
-            <div class="settings-section" style="margin-bottom: 1.5rem;">
+            <!-- 3. Portfolio -->
+            <div style="${sectionStyle}">
+                <h3 style="color: var(--text-primary); margin-bottom: 0.75rem;">💰 Portfolio</h3>
+                <div>
+                    <label style="${labelStyle}">Account Balance ($) ${isLive ? '<span style="color:var(--accent);">(Live: pulled from broker)</span>' : ''}</label>
+                    <input type="number" id="settings-account-balance" value="${state.accountBalance}" min="100" step="100" ${isLive ? 'disabled' : ''} style="${inputStyle} ${isLive ? 'opacity:0.5; cursor:not-allowed;' : ''}">
+                    ${isLive ? '<div style="font-size:0.75rem; color:var(--accent); margin-top:0.25rem;">Balance is synced from your broker in live mode</div>' : '<div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">This is your starting capital for paper trading</div>'}
+                </div>
+            </div>
+
+            <!-- 4. Risk Management -->
+            <div style="${sectionStyle}">
                 <h3 style="color: var(--text-primary); margin-bottom: 0.75rem;">🛡️ Risk Management</h3>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
                     <div>
-                        <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Max Position Size (%)</label>
-                        <input type="number" id="settings-max-pos" value="${state.maxPositions}" min="1" max="25" style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: var(--bg-card); color: var(--text-primary);">
+                        <label style="${labelStyle}">Max Positions</label>
+                        <input type="number" id="settings-max-pos" value="${state.maxPositions}" min="1" max="25" style="${inputStyle}">
                     </div>
                     <div>
-                        <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Daily Loss Limit ($)</label>
-                        <input type="number" id="settings-daily-loss" value="${state.dailyLossLimit}" min="50" style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: var(--bg-card); color: var(--text-primary);">
+                        <label style="${labelStyle}">Daily Loss Limit ($)</label>
+                        <input type="number" id="settings-daily-loss" value="${state.dailyLossLimit}" min="50" style="${inputStyle}">
                     </div>
+                    <div>
+                        <label style="${labelStyle}">Default Stop Loss (%)</label>
+                        <input type="number" id="settings-default-sl" value="${state.defaultSlPct}" min="1" max="100" step="1" style="${inputStyle}">
+                    </div>
+                    <div>
+                        <label style="${labelStyle}">Default Take Profit (%)</label>
+                        <input type="number" id="settings-default-tp" value="${state.defaultTpPct}" min="1" max="500" step="1" style="${inputStyle}">
+                    </div>
+                    <div>
+                        <label style="${labelStyle}">Max Daily Trades</label>
+                        <input type="number" id="settings-max-daily-trades" value="${state.maxDailyTrades}" min="1" max="100" style="${inputStyle}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Trade Behavior -->
+            <div style="${sectionStyle}">
+                <h3 style="color: var(--text-primary); margin-bottom: 0.75rem;">📅 Trade Behavior</h3>
+                <div style="display: grid; gap: 1rem;">
+                    <label style="display:flex; align-items:center; gap:0.75rem; cursor:pointer;">
+                        <input type="checkbox" id="settings-auto-close-expiry" ${state.autoCloseExpiry ? 'checked' : ''} class="settings-toggle">
+                        <div>
+                            <div style="font-size:0.9rem; color:var(--text-primary);">Auto-Close on Expiry</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">Close positions at last market price on expiry day (ITM options keep value)</div>
+                        </div>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:0.75rem; cursor:pointer;">
+                        <input type="checkbox" id="settings-require-confirm" ${state.requireTradeConfirm ? 'checked' : ''} class="settings-toggle">
+                        <div>
+                            <div style="font-size:0.9rem; color:var(--text-primary);">Require Trade Confirmation <span style="font-size:0.7rem; padding:0.15rem 0.5rem; background:rgba(239,68,68,0.15); color:var(--danger); border-radius:8px;">Live Only</span></div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">Show "Are you sure?" modal before placing real-money trades</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 6. Preferences -->
+            <div style="${sectionStyle}">
+                <h3 style="color: var(--text-primary); margin-bottom: 0.75rem;">⚙️ Preferences</h3>
+                <div style="display: grid; gap: 1rem;">
+                    <div>
+                        <label style="${labelStyle}">Theme</label>
+                        <div style="display:flex; gap:0.75rem;">
+                            <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-size:0.9rem; color:var(--text-primary);">
+                                <input type="radio" name="theme" id="theme-dark" value="dark" ${state.theme === 'dark' ? 'checked' : ''} onchange="portfolio._previewTheme('dark')">
+                                🌙 Dark
+                            </label>
+                            <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-size:0.9rem; color:var(--text-primary);">
+                                <input type="radio" name="theme" id="theme-light" value="light" ${state.theme === 'light' ? 'checked' : ''} onchange="portfolio._previewTheme('light')">
+                                ☀️ Light
+                            </label>
+                        </div>
+                    </div>
+                    <label style="display:flex; align-items:center; gap:0.75rem; cursor:pointer;">
+                        <input type="checkbox" id="settings-alert-bracket" ${state.alertOnBracketHit ? 'checked' : ''} class="settings-toggle">
+                        <div>
+                            <div style="font-size:0.9rem; color:var(--text-primary);">🔔 Alert on SL/TP Hit</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">Browser notification when a bracket order triggers</div>
+                        </div>
+                    </label>
                 </div>
             </div>
 
             <!-- Save button -->
-            <button onclick="portfolio.saveSettings()" class="btn-primary" style="padding: 0.5rem 1.5rem; font-size: 0.9rem;">💾 Save Settings</button>
+            <button onclick="portfolio.saveSettings()" class="btn-primary" style="padding: 0.6rem 2rem; font-size: 0.95rem; border-radius: 8px;">💾 Save Settings</button>
         </div>
         `;
+    }
+
+    function _previewTheme(theme) {
+        _applyTheme(theme);
     }
 
     async function saveSettings() {
@@ -1112,12 +1243,28 @@ const portfolio = (() => {
         const accountId = document.getElementById('settings-account-id')?.value?.trim();
         const maxPos = parseFloat(document.getElementById('settings-max-pos')?.value) || 5;
         const dailyLoss = parseFloat(document.getElementById('settings-daily-loss')?.value) || 500;
+        const accountBalance = parseFloat(document.getElementById('settings-account-balance')?.value) || 5000;
+        const defaultSl = parseFloat(document.getElementById('settings-default-sl')?.value) || 20;
+        const defaultTp = parseFloat(document.getElementById('settings-default-tp')?.value) || 50;
+        const maxDailyTrades = parseInt(document.getElementById('settings-max-daily-trades')?.value) || 10;
+        const autoCloseExpiry = document.getElementById('settings-auto-close-expiry')?.checked ?? true;
+        const requireConfirm = document.getElementById('settings-require-confirm')?.checked ?? true;
+        const alertBracket = document.getElementById('settings-alert-bracket')?.checked ?? true;
+        const theme = document.querySelector('input[name="theme"]:checked')?.value || 'dark';
 
         try {
             if (typeof paperApi !== 'undefined') {
                 const payload = {
                     max_positions: maxPos,
                     daily_loss_limit: dailyLoss,
+                    account_balance: accountBalance,
+                    default_sl_pct: defaultSl,
+                    default_tp_pct: defaultTp,
+                    max_daily_trades: maxDailyTrades,
+                    auto_close_expiry: autoCloseExpiry,
+                    require_trade_confirm: requireConfirm,
+                    alert_on_bracket_hit: alertBracket,
+                    theme: theme,
                 };
                 if (token) payload.tradier_sandbox_token = token;
                 if (accountId) payload.tradier_account_id = accountId;
@@ -1128,6 +1275,22 @@ const portfolio = (() => {
             // ── Propagate to all views immediately ──
             state.maxPositions = maxPos;
             state.dailyLossLimit = dailyLoss;
+            state.accountBalance = accountBalance;
+            state.defaultSlPct = defaultSl;
+            state.defaultTpPct = defaultTp;
+            state.maxDailyTrades = maxDailyTrades;
+            state.autoCloseExpiry = autoCloseExpiry;
+            state.requireTradeConfirm = requireConfirm;
+            state.alertOnBracketHit = alertBracket;
+            state.theme = theme;
+
+            // Apply theme
+            _applyTheme(theme);
+
+            // Request notification permission if alerts enabled
+            if (alertBracket && 'Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
 
             // Re-render whichever view is currently active, plus always update header
             updateHeaderStats();
@@ -1619,6 +1782,8 @@ const portfolio = (() => {
         saveSettings,
         testBrokerConnection,
         confirmLiveMode,
+        _previewTheme,
+        getState: () => state,
         applyHistoryDateFilter,
         resetHistoryDateFilter,
         // UI fixes

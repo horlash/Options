@@ -1997,3 +1997,128 @@ input[type="number"] {
     margin-left: 0.2rem;
     color: var(--text-muted);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   LIGHT THEME — toggled via [data-theme="light"]
+   ═══════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+    --primary: #4f46e5;
+    --primary-light: #6366f1;
+    --secondary: #059669;
+    --accent: #d97706;
+    --danger: #dc2626;
+    --bg-primary: #f8fafc;
+    --bg-secondary: #e2e8f0;
+    --bg-card: rgba(255, 255, 255, 0.85);
+    --text-primary: #0f172a;
+    --text-muted: #475569;
+    --border: rgba(15, 23, 42, 0.12);
+}
+
+[data-theme="light"] body {
+    background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .stat-card,
+[data-theme="light"] .details-panel,
+[data-theme="light"] .trade-modal,
+[data-theme="light"] .modal-body-trade {
+    background: var(--bg-card);
+    border-color: var(--border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+    background: #fff;
+    color: var(--text-primary);
+    border-color: #cbd5e1;
+}
+
+[data-theme="light"] .mode-card {
+    border-color: #cbd5e1;
+    background: #fff;
+}
+
+[data-theme="light"] .mode-card.selected {
+    background: rgba(79, 70, 229, 0.06);
+}
+
+[data-theme="light"] .pos-row:hover {
+    background: rgba(79, 70, 229, 0.04);
+}
+
+[data-theme="light"] .filter-pill {
+    background: #e2e8f0;
+    color: var(--text-primary);
+    border-color: #cbd5e1;
+}
+
+[data-theme="light"] .filter-pill.active {
+    background: var(--primary);
+    color: #fff;
+}
+
+[data-theme="light"] .btn-primary {
+    background: var(--primary);
+    color: #fff;
+}
+
+[data-theme="light"] .risk-summary {
+    background: rgba(79, 70, 229, 0.04);
+    border-color: var(--border);
+}
+
+[data-theme="light"] .toast {
+    background: #fff;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* ═══ Settings Toggle Switch ═══ */
+.settings-toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: rgba(255,255,255,0.15);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+    outline: none;
+    border: none;
+    flex-shrink: 0;
+}
+
+.settings-toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.settings-toggle:checked {
+    background: var(--primary);
+}
+
+.settings-toggle:checked::after {
+    transform: translateX(20px);
+}
+
+/* Toggle switches in light theme */
+[data-theme="light"] .settings-toggle {
+    background: #cbd5e1;
+}
+
+[data-theme="light"] .settings-toggle:checked {
+    background: var(--primary);
+}

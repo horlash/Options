@@ -279,7 +279,12 @@ class ReasoningEngine:
             f"{rr_section}\n"
             f"4. **Trade Viability:** Is strictly this ${strike if strike else 'ATM'} {opt_type if opt_type else 'Play'} reasonable?\n"
             f"5. **Verdict:** [SAFE / RISKY / AVOID]\n"
-            f"6. **Conviction Score:** (0-100) where >70 is Safe/Buy, <40 is Avoid. **Target Range: {score_low}-{score_high}** (Base: {base_score})"
+            f"6. **Conviction Score:** (0-100) where >70 is Safe/Buy, <40 is Avoid. **Target Range: {score_low}-{score_high}** (Base: {base_score})\n\n"
+            f"CRITICAL: At the very end of your response, you MUST include a JSON block in this exact format:\n"
+            f"```json\n"
+            f'{{"score": <0-100>, "verdict": "<SAFE|RISKY|AVOID>", "summary": "<2-3 sentence plain text summary of your analysis>", "risks": ["<risk 1>", "<risk 2>"], "thesis": "<1 sentence core thesis>"}}\n'
+            f"```\n"
+            f"This JSON block is MANDATORY. Do not skip it."
             f"{final_reminder}"
         )
 
@@ -303,17 +308,39 @@ class ReasoningEngine:
             data = response.json()
             content = data['choices'][0]['message']['content']
             
-            # Parse metrics from the text
-            score = self._extract_score(content)
-            verdict = self._extract_verdict(content)
+            # Try to extract structured JSON from the response
+            parsed = self._extract_json_block(content)
             
-            return {
-                "ticker": ticker,
-                "strategy": strategy,
-                "analysis": content, # pure markdown
-                "score": score,
-                "verdict": verdict
-            }
+            if parsed:
+                score = min(100, max(0, int(parsed.get('score', 0))))
+                verdict = parsed.get('verdict', 'NEUTRAL').upper()
+                if verdict not in ('SAFE', 'RISKY', 'AVOID'):
+                    verdict = self._extract_verdict(content)  # fallback
+                return {
+                    "ticker": ticker,
+                    "strategy": strategy,
+                    "analysis": content,
+                    "score": score,
+                    "verdict": verdict,
+                    "summary": parsed.get('summary', ''),
+                    "risks": parsed.get('risks', []),
+                    "thesis": parsed.get('thesis', '')
+                }
+            else:
+                # Fallback: regex extraction (legacy)
+                print(f"  ⚠️ JSON extraction failed for {ticker}, falling back to regex")
+                score = self._extract_score(content)
+                verdict = self._extract_verdict(content)
+                return {
+                    "ticker": ticker,
+                    "strategy": strategy,
+                    "analysis": content,
+                    "score": score,
+                    "verdict": verdict,
+                    "summary": content[:300] if content else '',
+                    "risks": [],
+                    "thesis": ''
+                }
             
         except Exception as e:
             print(f"Reasoning Engine Failed: {e}", flush=True)
@@ -360,6 +387,29 @@ class ReasoningEngine:
         
         # Clamp to 10-90
         return max(10, min(90, int(score)))
+
+    def _extract_json_block(self, text):
+        """Extract structured JSON from ```json ... ``` block in the AI response."""
+        try:
+            # Try fenced code block first: ```json { ... } ```
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
+            if json_match:
+                parsed = json.loads(json_match.group(1))
+                if 'score' in parsed and 'verdict' in parsed:
+                    print(f"  ✓ Extracted JSON block: score={parsed['score']}, verdict={parsed['verdict']}")
+                    return parsed
+            
+            # Fallback: find last JSON object in text (no fencing)
+            json_objects = re.findall(r'\{[^{}]*"score"\s*:\s*\d+[^{}]*"verdict"\s*:[^{}]*\}', text)
+            if json_objects:
+                parsed = json.loads(json_objects[-1])
+                print(f"  ✓ Extracted inline JSON: score={parsed['score']}, verdict={parsed['verdict']}")
+                return parsed
+                
+            return None
+        except (json.JSONDecodeError, KeyError, IndexError) as e:
+            print(f"  ⚠️ JSON parse error: {e}")
+            return None
 
     def _extract_score(self, text):
         """Extract 'Conviction Score: 85' from text"""

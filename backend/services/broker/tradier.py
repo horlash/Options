@@ -319,20 +319,31 @@ class TradierBroker(BrokerProvider):
         be rejected downstream. We poll order status to confirm.
         """
         # Build the form data payload
+        order_class = order_request.get("class", "option")
         payload = {
-            "class": order_request.get("class", "option"),
-            "symbol": order_request["symbol"],
+            "class": order_class,
             "side": order_request["side"],
             "quantity": str(order_request["quantity"]),
             "type": order_request.get("type", "market"),
             "duration": order_request.get("duration", "day"),
         }
 
-        # Add price fields if present
+        # Tradier requires 'option_symbol' for option orders, 'symbol' for equities
+        if order_class == "option":
+            payload["option_symbol"] = order_request["symbol"]
+            # Also need underlying symbol for option orders
+            if "underlying" in order_request:
+                payload["symbol"] = order_request["underlying"]
+        else:
+            payload["symbol"] = order_request["symbol"]
+
+        # Add price fields if present (Tradier requires ≤2 decimal places)
         if "price" in order_request:
-            payload["price"] = str(order_request["price"])
+            payload["price"] = str(round(float(order_request["price"]), 2))
         if "stop" in order_request:
-            payload["stop"] = str(order_request["stop"])
+            payload["stop"] = str(round(float(order_request["stop"]), 2))
+
+        logger.info(f"Order payload: {payload}")
 
         # Place the order
         resp = self._request(
@@ -398,18 +409,20 @@ class TradierBroker(BrokerProvider):
             "class": "oco",
             "duration": "gtc",
             # Leg 1: Stop Loss
-            "side[0]": "sell_to_close",
-            "symbol[0]": sl_order["symbol"],
-            "quantity[0]": str(sl_order["qty"]),
+            "option_symbol[0]": sl_order["symbol"],
+            "side[0]": sl_order.get("side", "sell_to_close"),
+            "quantity[0]": str(sl_order["quantity"]),
             "type[0]": "stop",
-            "stop[0]": str(sl_order["stop_price"]),
+            "stop[0]": str(sl_order["stop"]),
             # Leg 2: Take Profit
-            "side[1]": "sell_to_close",
-            "symbol[1]": tp_order["symbol"],
-            "quantity[1]": str(tp_order["qty"]),
+            "option_symbol[1]": tp_order["symbol"],
+            "side[1]": tp_order.get("side", "sell_to_close"),
+            "quantity[1]": str(tp_order["quantity"]),
             "type[1]": "limit",
-            "price[1]": str(tp_order["limit_price"]),
+            "price[1]": str(tp_order["price"]),
         }
+
+        logger.info(f"OCO payload: {payload}")
 
         resp = self._request(
             'POST',

@@ -72,7 +72,7 @@ class OratsAPI:
         Returns standardized format compatible with internal logic.
         """
         ticker = self._clean_ticker(ticker)
-        url = f"{self.base_url}/strikes"
+        url = f"{self.base_url}/live/strikes"
         params = {
             "token": self.api_key,
             "ticker": ticker

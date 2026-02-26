@@ -1062,8 +1062,29 @@ class HybridScannerService:
                 if found_expiry:
                     opts = filtered_opts
                 else:
-                    print(f"   ⚠️ Target expiry {target_friday_str} not found in ORATS chain")
-                    opts = None
+                    # Fallback: find nearest available expiry
+                    all_expiries = set()
+                    for map_name in ['callExpDateMap', 'putExpDateMap']:
+                        if map_name in opts:
+                            for key in opts[map_name].keys():
+                                all_expiries.add(key.split(':')[0])
+                    
+                    if all_expiries:
+                        from datetime import datetime as dt_parse
+                        target_dt = dt_parse.strptime(target_friday_str, "%Y-%m-%d")
+                        nearest = min(all_expiries, key=lambda e: abs((dt_parse.strptime(e, "%Y-%m-%d") - target_dt).days))
+                        print(f"   ⚠️ Target expiry {target_friday_str} not found. Falling back to nearest: {nearest}")
+                        
+                        fallback_opts = {'symbol': ticker, 'callExpDateMap': {}, 'putExpDateMap': {}}
+                        for map_name in ['callExpDateMap', 'putExpDateMap']:
+                            if map_name in opts:
+                                for key, val in opts[map_name].items():
+                                    if key.startswith(nearest):
+                                        fallback_opts[map_name][key] = val
+                        opts = fallback_opts
+                    else:
+                        print(f"   ⚠️ Target expiry {target_friday_str} not found in ORATS chain (no expiries available)")
+                        opts = None
 
             # (Schwab Fallback Removed - Strict Mode)
             
@@ -1176,29 +1197,51 @@ class HybridScannerService:
 
                 if not is_tactical:
                     # Standard Trend Logic
-                    if otype == 'Call' and not is_uptrend: continue
-                    if otype == 'Put' and is_uptrend: continue
+                    if otype == 'Call' and not is_uptrend:
+                        if current_price and abs(strike - current_price)/current_price < 0.15:
+                            print(f"  FILTERED {ticker} {strike} {otype}: TREND (not uptrend, ma_signal={ma_signal})")
+                        continue
+                    if otype == 'Put' and is_uptrend:
+                        if current_price and abs(strike - current_price)/current_price < 0.15:
+                            print(f"  FILTERED {ticker} {strike} {otype}: TREND (uptrend blocks puts, ma_signal={ma_signal})")
+                        continue
 
                     # Standard RSI/RS Logic (Skip for Tactical/Scalp)
                     # 2. RSI Check (Avoid Exhaustion)
-                    if otype == 'Call' and rsi_val > 70: continue 
-                    if otype == 'Put' and rsi_val < 30: continue 
+                    if otype == 'Call' and rsi_val > 70:
+                        if current_price and abs(strike - current_price)/current_price < 0.15:
+                            print(f"  FILTERED {ticker} {strike} {otype}: RSI too high ({rsi_val})")
+                        continue 
+                    if otype == 'Put' and rsi_val < 30:
+                        if current_price and abs(strike - current_price)/current_price < 0.15:
+                            print(f"  FILTERED {ticker} {strike} {otype}: RSI too low ({rsi_val})")
+                        continue 
 
                     # 3. Relative Strength (RS) Check
-                    if otype == 'Call' and rs_score < -2.0: continue 
-                    if otype == 'Put' and rs_score > 2.0: continue
+                    if otype == 'Call' and rs_score < -2.0:
+                        if current_price and abs(strike - current_price)/current_price < 0.15:
+                            print(f"  FILTERED {ticker} {strike} {otype}: RS too low ({rs_score})")
+                        continue 
+                    if otype == 'Put' and rs_score > 2.0:
+                        if current_price and abs(strike - current_price)/current_price < 0.15:
+                            print(f"  FILTERED {ticker} {strike} {otype}: RS too high ({rs_score})")
+                        continue
 
                 # 4. Bid/Ask Spread (Liquidity) - Keep for all
                 if ask > 0:
                      spread_pct = (ask - bid) / ask
-                     if spread_pct > 0.25 and not is_tactical: 
+                     if spread_pct > 0.25 and not is_tactical:
+                         if current_price and abs(strike - current_price)/current_price < 0.15:
+                             print(f"  FILTERED {ticker} {strike} {otype}: SPREAD too wide ({spread_pct:.0%}, bid={bid} ask={ask})")
                          continue # Relax for tactical?
 
                 # 5. Delta (Probability)
                 delta = abs(opt.get('delta', 0))
                 min_delta = 0.15
                 if ticker.startswith('$') or ticker in ['SPX', 'NDX', 'RUT']: min_delta = 0.05
-                if delta < min_delta and not is_tactical: 
+                if delta < min_delta and not is_tactical:
+                    if current_price and abs(strike - current_price)/current_price < 0.15:
+                        print(f"  FILTERED {ticker} {strike} {otype}: DELTA too low ({delta:.3f} < {min_delta})")
                     continue # Allow lower delta for lottos?
                 
                 # 6. Smart Money / Activity
@@ -1207,6 +1250,8 @@ class HybridScannerService:
                 
                 is_smart_money = (vol > oi and vol > 50) or (vol > 100)
                 if (oi < 100) and (vol < 20) and (not is_smart_money):
+                    if current_price and abs(strike - current_price)/current_price < 0.15:
+                        print(f"  FILTERED {ticker} {strike} {otype}: LOW ACTIVITY (oi={oi} vol={vol})")
                     continue
                 
                 # 7. Gamma Wall Avoidance
@@ -1381,6 +1426,7 @@ class HybridScannerService:
                         'opportunity_score': o.opportunity_score,
                         'contract_cost': getattr(o, 'contract_cost', o.premium * 100),
                         'open_interest': o.open_interest,
+                        'volume': getattr(o, 'volume', 0),
                         'implied_volatility': o.implied_volatility,
                         'has_earnings_risk': getattr(o, 'has_earnings_risk', False),
                         'earnings_date': getattr(o, 'earnings_date', None),

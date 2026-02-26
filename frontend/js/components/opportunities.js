@@ -126,8 +126,8 @@ const opportunities = {
             // Add Click Listeners for Details Modal
             container.querySelectorAll('.opportunity-card').forEach(card => {
                 card.addEventListener('click', (e) => {
-                    // Don't open detail if trade button was clicked
-                    if (e.target.closest('.trade-btn')) return;
+                    // Don't open detail if a button was clicked
+                    if (e.target.closest('.trade-btn') || e.target.closest('.analyze-btn')) return;
 
                     const index = card.dataset.index;
                     const opp = filtered[index];
@@ -147,6 +147,19 @@ const opportunities = {
                     const opp = filtered[idx];
                     if (opp) {
                         this._handleTradeClick(opp, idx, btn);
+                    }
+                });
+            });
+
+            // Analyze button handlers — open analysis detail
+            container.querySelectorAll('.analyze-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const idx = btn.dataset.analyzeIndex;
+                    const opp = filtered[idx];
+                    if (opp && typeof analysisDetail !== 'undefined') {
+                        console.log(`[UI] Analyze clicked for ${opp.ticker}`);
+                        analysisDetail.show(opp.ticker, opp);
                     }
                 });
             });
@@ -204,14 +217,16 @@ const opportunities = {
                 aiCache.set(cacheKey, data.ai_analysis);
                 this._processAIResult(opp, data.ai_analysis);
             } else {
-                // AI failed — show error, restore button
+                // AI failed — show error modal
+                console.error('[TRADE] AI analysis failed:', data.error);
+                this._showAISummary(opp, { error: data.error || 'AI analysis returned no result' });
                 btnElement.innerHTML = '❌ AI Failed — Retry';
                 btnElement.disabled = false;
                 btnElement.style.opacity = '1';
-                console.error('[TRADE] AI analysis failed:', data.error);
             }
         } catch (err) {
             console.error('[TRADE] Network error:', err);
+            this._showAISummary(opp, { error: `Network error: ${err.message || 'Connection failed'}` });
             btnElement.innerHTML = '❌ Network Error — Retry';
             btnElement.disabled = false;
             btnElement.style.opacity = '1';
@@ -222,175 +237,124 @@ const opportunities = {
     _processAIResult(opp, aiResult) {
         const aiScore = aiResult.score || 0;
         const aiVerdict = aiResult.verdict || 'UNKNOWN';
-        const aiAnalysis = aiResult.analysis || '';
 
         console.log(`[TRADE] Gate 2: AI Score=${aiScore}, Verdict=${aiVerdict}`);
 
-        const dateObj = new Date(opp.expiration_date);
-        const expiryStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-
-        if (aiScore >= 65) {
-            // ✅ GATE 2 PASSED — High conviction, open trade modal
-            console.log(`[TRADE] ✅ Gate 2 PASSED (${aiScore} >= 65). Opening trade modal.`);
-            if (typeof tradeModal !== 'undefined') {
-                // Determine strategy from current scan mode
-                let strategy = 'LEAP';
-                if (typeof scanner !== 'undefined') {
-                    if (scanner.scanMode === '0dte') strategy = '0DTE';
-                    else if (scanner.scanMode && scanner.scanMode.startsWith('weekly')) strategy = 'WEEKLY';
-                }
-                tradeModal.open({
-                    ticker: opp.ticker,
-                    price: opp.current_price,
-                    strike: opp.strike_price.toFixed(0),
-                    expiry: expiryStr,
-                    daysLeft: opp.days_to_expiry,
-                    premium: opp.premium,
-                    type: opp.option_type === 'Call' ? 'CALL' : 'PUT',
-                    score: aiScore,
-                    aiVerdict: aiVerdict,
-                    aiScore: aiScore,
-                    aiConviction: aiScore,
-                    cardScore: opp.opportunity_score,
-                    hasEarnings: opp.has_earnings_risk || false,
-                    badges: opp.play_type || '',
-                    strategy: strategy,
-                    // Pass scanner context for DB persistence
-                    delta: opp.greeks?.delta || 0,
-                    iv: opp.greeks?.iv || opp.implied_volatility || 0,
-                    technicalScore: opp.technical_score || 0,
-                    sentimentScore: opp.sentiment_score || 0,
-                    gateVerdict: aiScore >= 65 ? 'GO' : 'CAUTION'
-                });
-            }
-        } else if (aiScore >= 40) {
-            // ⚠️ Moderate — open modal with caution warning
-            console.log(`[TRADE] ⚠️ Gate 2 CAUTION (${aiScore} 40-64). Opening modal with warning.`);
-            if (typeof tradeModal !== 'undefined') {
-                // Determine strategy from current scan mode
-                let strategy = 'LEAP';
-                if (typeof scanner !== 'undefined') {
-                    if (scanner.scanMode === '0dte') strategy = '0DTE';
-                    else if (scanner.scanMode && scanner.scanMode.startsWith('weekly')) strategy = 'WEEKLY';
-                }
-                tradeModal.open({
-                    ticker: opp.ticker,
-                    price: opp.current_price,
-                    strike: opp.strike_price.toFixed(0),
-                    expiry: expiryStr,
-                    daysLeft: opp.days_to_expiry,
-                    premium: opp.premium,
-                    type: opp.option_type === 'Call' ? 'CALL' : 'PUT',
-                    score: aiScore,
-                    aiVerdict: aiVerdict,
-                    aiScore: aiScore,
-                    aiConviction: aiScore,
-                    cardScore: opp.opportunity_score,
-                    hasEarnings: opp.has_earnings_risk || false,
-                    badges: opp.play_type || '',
-                    aiWarning: `⚠️ Moderate AI Conviction (${aiScore}/100) — Proceed with caution`,
-                    strategy: strategy,
-                    // Pass scanner context for DB persistence
-                    delta: opp.greeks?.delta || 0,
-                    iv: opp.greeks?.iv || opp.implied_volatility || 0,
-                    technicalScore: opp.technical_score || 0,
-                    sentimentScore: opp.sentiment_score || 0,
-                    gateVerdict: 'CAUTION'
-                });
-            }
-        } else {
-            // 🚫 GATE 2 BLOCKED — AI recommends avoid
-            console.log(`[TRADE] 🚫 Gate 2 BLOCKED (${aiScore} < 40). Showing avoid warning.`);
-            this._showAIAvoidWarning(opp, aiResult);
-        }
+        // Always show AI summary screen — user decides to proceed or not
+        this._showAISummary(opp, aiResult);
 
         // Update the trade button to reflect AI result
         this._updateTradeButtonAfterAI(opp, aiScore, aiVerdict);
     },
 
-    // Show AI AVOID warning overlay
-    _showAIAvoidWarning(opp, aiResult) {
+    // Unified AI Summary Screen — shown for ALL results (safe, risky, avoid)
+    _showAISummary(opp, aiResult) {
         const overlay = document.getElementById('trade-modal-overlay');
         if (!overlay) return;
 
         const score = aiResult.score || 0;
-        const verdict = aiResult.verdict || 'AVOID';
-        // Extract a short summary from the analysis (first 200 chars)
-        const summary = (aiResult.analysis || 'No analysis available').substring(0, 300);
+        const verdict = aiResult.verdict || 'UNKNOWN';
+        const summary = aiResult.summary || '';
+        const risks = aiResult.risks || [];
+        const thesis = aiResult.thesis || '';
+        const isError = !!aiResult.error;
+
+        let scoreColor, headerGradient, bgGlow;
+        if (isError) {
+            scoreColor = '#6b7280'; headerGradient = 'linear-gradient(135deg, #374151 0%, #1f2937 100%)'; bgGlow = 'rgba(107,114,128,0.1)';
+        } else if (score >= 65) {
+            scoreColor = '#22c55e'; headerGradient = 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)'; bgGlow = 'rgba(34,197,94,0.1)';
+        } else if (score >= 40) {
+            scoreColor = '#eab308'; headerGradient = 'linear-gradient(135deg, #ca8a04 0%, #a16207 100%)'; bgGlow = 'rgba(234,179,8,0.1)';
+        } else {
+            scoreColor = '#ef4444'; headerGradient = 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)'; bgGlow = 'rgba(239,68,68,0.1)';
+        }
+
+        const risksHtml = risks.length > 0 ? risks.map(r => `<div style="display:flex;gap:0.5rem;align-items:flex-start;margin-bottom:0.4rem;"><span style="color:${scoreColor};flex-shrink:0;">⚠</span><span>${r}</span></div>`).join('') : '';
+
+        if (isError) {
+            overlay.innerHTML = `
+                <div class="trade-modal" style="max-width: 480px;">
+                    <div class="modal-header-trade" style="background: ${headerGradient};">
+                        <h2>❌ No Analysis Available</h2>
+                        <button class="modal-close-trade" onclick="document.getElementById('trade-modal-overlay').classList.remove('show')">×</button>
+                    </div>
+                    <div class="modal-body-trade" style="text-align:center;padding:2rem 1.5rem;">
+                        <div style="font-size:3rem;margin-bottom:1rem;">🔌</div>
+                        <div style="color:var(--text-light);font-size:1.1rem;font-weight:600;margin-bottom:0.75rem;">AI Analysis Failed</div>
+                        <div style="background:rgba(107,114,128,0.1);padding:1rem;border-radius:var(--radius-sm);border-left:3px solid #6b7280;color:var(--text-muted);font-size:0.85rem;line-height:1.5;text-align:left;">
+                            ${aiResult.error || 'Unknown error'}
+                        </div>
+                        <button onclick="document.getElementById('trade-modal-overlay').classList.remove('show')" style="margin-top:1.5rem;padding:0.75rem 2rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text-light);cursor:pointer;font-size:0.95rem;">← Back</button>
+                    </div>
+                </div>`;
+            overlay.classList.add('show');
+            return;
+        }
 
         overlay.innerHTML = `
-            <div class="trade-modal" style="max-width: 500px;">
-                <div class="modal-header-trade" style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);">
-                    <h2>🚫 AI Recommends AVOID</h2>
+            <div class="trade-modal" style="max-width: 520px;">
+                <div class="modal-header-trade" style="background: ${headerGradient};">
+                    <h2>${opp.ticker} ${opp.option_type} $${opp.strike_price.toFixed(2)} — AI Analysis</h2>
                     <button class="modal-close-trade" onclick="document.getElementById('trade-modal-overlay').classList.remove('show')">×</button>
                 </div>
-                <div class="modal-body-trade">
-                    <div style="text-align: center; padding: 1rem 0;">
-                        <div style="font-size: 3rem; font-weight: 900; color: var(--danger);">${score}</div>
-                        <div style="color: var(--text-muted); font-size: 0.9rem;">AI Conviction Score</div>
-                        <div style="margin-top: 0.5rem; color: var(--danger); font-weight: 700;">${verdict}</div>
+                <div class="modal-body-trade" style="padding:1.5rem;">
+                    <div style="text-align:center;margin-bottom:1.25rem;">
+                        <div style="display:inline-flex;align-items:center;justify-content:center;width:80px;height:80px;border-radius:50%;border:3px solid ${scoreColor};background:${bgGlow};font-size:2rem;font-weight:900;color:${scoreColor};">${score}</div>
+                        <div style="margin-top:0.5rem;font-weight:700;color:${scoreColor};font-size:1.1rem;">${verdict}</div>
+                        <div style="color:var(--text-muted);font-size:0.8rem;">AI Conviction Score</div>
                     </div>
-                    <div style="background: rgba(255,77,77,0.08); padding: 1rem; border-radius: var(--radius-sm); border-left: 3px solid var(--danger); margin: 1rem 0; font-size: 0.9rem; line-height: 1.5;">
-                        ${summary}...
-                    </div>
-                    <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
-                        <button onclick="document.getElementById('trade-modal-overlay').classList.remove('show')" 
-                                style="flex: 1; padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-light); cursor: pointer; font-size: 0.95rem;">
-                            ← Back to Scan
-                        </button>
-                        <button onclick="opportunities._forceTradeOverride('${opp.ticker}', ${opp.strike_price}, '${opp.option_type}', '${opp.expiration_date}')" 
-                                style="flex: 1; padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--danger); background: transparent; color: var(--danger); cursor: pointer; font-size: 0.95rem;">
-                            ⚠️ Override & Trade Anyway
-                        </button>
+                    ${thesis ? `<div style="background:${bgGlow};padding:0.85rem 1rem;border-radius:var(--radius-sm);border-left:3px solid ${scoreColor};margin-bottom:1rem;font-size:0.9rem;line-height:1.5;color:var(--text-light);"><strong>Thesis:</strong> ${thesis}</div>` : ''}
+                    ${summary ? `<div style="color:var(--text-muted);font-size:0.88rem;line-height:1.6;margin-bottom:1rem;">${summary}</div>` : ''}
+                    ${risksHtml ? `<div style="margin-bottom:1rem;"><div style="font-weight:600;color:var(--text-light);font-size:0.85rem;margin-bottom:0.5rem;">Key Risks:</div><div style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;">${risksHtml}</div></div>` : ''}
+                    <div style="display:flex;gap:0.75rem;margin-top:1.5rem;">
+                        <button onclick="document.getElementById('trade-modal-overlay').classList.remove('show')" style="flex:1;padding:0.75rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text-light);cursor:pointer;font-size:0.95rem;font-weight:500;">← Back</button>
+                        <button onclick="opportunities._proceedToTrade('${opp.ticker}', ${opp.strike_price}, '${opp.option_type}', '${opp.expiration_date}')" style="flex:1;padding:0.75rem;border-radius:var(--radius-sm);border:none;background:${score >= 40 ? scoreColor : 'rgba(239,68,68,0.2)'};color:#fff;cursor:pointer;font-size:0.95rem;font-weight:700;${score < 40 ? 'color:var(--danger);border:1px solid var(--danger);' : ''}">${score >= 65 ? '✅ Proceed to Trade' : score >= 40 ? '⚠️ Proceed with Caution' : '⚠️ Override & Trade'}</button>
                     </div>
                 </div>
-            </div>
-        `;
+            </div>`;
         overlay.classList.add('show');
     },
 
-    // Force override when AI says AVOID
-    _forceTradeOverride(ticker, strike, optType, expiry) {
+    // Open trade modal from the AI summary screen
+    _proceedToTrade(ticker, strike, optType, expiry) {
         const overlay = document.getElementById('trade-modal-overlay');
         if (overlay) overlay.classList.remove('show');
 
-        // Find the matching opportunity
-        const opp = (this._currentFiltered || []).find(o =>
-            o.ticker === ticker &&
-            o.strike_price === strike &&
-            o.option_type === optType
-        );
+        const opp = (this._currentFiltered || []).find(o => o.ticker === ticker && o.strike_price === strike && o.option_type === optType);
         if (!opp) return;
 
         const cacheKey = aiCache.buildKey(ticker, strike, optType, expiry);
         const aiResult = aiCache.get(cacheKey) || {};
-
         const dateObj = new Date(opp.expiration_date);
         const expiryStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 
+        let strategy = 'LEAP';
+        if (typeof scanner !== 'undefined') {
+            if (scanner.scanMode === '0dte') strategy = '0DTE';
+            else if (scanner.scanMode && scanner.scanMode.startsWith('weekly')) strategy = 'WEEKLY';
+        }
+
         if (typeof tradeModal !== 'undefined') {
             tradeModal.open({
-                ticker: opp.ticker,
-                price: opp.current_price,
-                strike: opp.strike_price.toFixed(0),
-                expiry: expiryStr,
-                daysLeft: opp.days_to_expiry,
-                premium: opp.premium,
+                ticker: opp.ticker, price: opp.current_price,
+                strike: opp.strike_price.toFixed(2), expiry: expiryStr,
+                daysLeft: opp.days_to_expiry, premium: opp.premium,
                 type: opp.option_type === 'Call' ? 'CALL' : 'PUT',
-                score: aiResult.score || 0,
-                aiVerdict: aiResult.verdict || 'AVOID',
-                aiConviction: aiResult.score || 0,
-                cardScore: opp.opportunity_score,
-                hasEarnings: opp.has_earnings_risk || false,
-                badges: opp.play_type || '',
-                aiWarning: `🚫 OVERRIDE: AI scored ${aiResult.score || 0}/100 — High risk trade`
+                score: aiResult.score || 0, aiVerdict: aiResult.verdict || 'UNKNOWN',
+                aiScore: aiResult.score || 0, aiConviction: aiResult.score || 0,
+                cardScore: opp.opportunity_score, hasEarnings: opp.has_earnings_risk || false,
+                badges: opp.play_type || '', strategy: strategy,
+                delta: opp.greeks?.delta || 0, iv: opp.greeks?.iv || opp.implied_volatility || 0,
+                technicalScore: opp.technical_score || 0, sentimentScore: opp.sentiment_score || 0,
+                gateVerdict: (aiResult.score || 0) >= 65 ? 'GO' : 'CAUTION',
+                aiWarning: (aiResult.score || 0) < 40 ? `🚫 OVERRIDE: AI scored ${aiResult.score || 0}/100 — High risk` : undefined
             });
         }
     },
 
     // Update trade button visual after AI completes
     _updateTradeButtonAfterAI(opp, aiScore, aiVerdict) {
-        // Find the card and update its button
         const cards = document.querySelectorAll('.opportunity-card');
         cards.forEach(card => {
             const idx = card.dataset.index;
@@ -403,37 +367,30 @@ const opportunities = {
 
             const isCall = opp.option_type === 'Call';
             const btnClass = isCall ? 'trade-btn-call' : 'trade-btn-put';
+            const analyzeBtn = `<button class="action-btn analyze-btn" data-analyze-index="${idx}">🔍 Analyze</button>`;
 
             if (aiScore >= 65) {
                 btnContainer.innerHTML = `
-                    <button class="trade-btn ${btnClass}" data-trade-index="${idx}">
-                        ✅ Trade — AI Score ${aiScore}
-                    </button>
-                    <div class="edge-gate-label" style="color: var(--secondary);">AI: ${aiVerdict} (${aiScore}/100) — Dual Gate ✅</div>
-                `;
+                    <div class="card-actions">${analyzeBtn}<button class="action-btn trade-btn ${btnClass}" data-trade-index="${idx}">✅ Trade ${aiScore}</button></div>
+                    <div class="edge-gate-label" style="color: var(--secondary);">AI: ${aiVerdict} (${aiScore}/100) — Dual Gate ✅</div>`;
             } else if (aiScore >= 40) {
                 btnContainer.innerHTML = `
-                    <button class="trade-btn ${btnClass}" data-trade-index="${idx}" style="opacity: 0.85;">
-                        ⚠️ Trade — AI Score ${aiScore}
-                    </button>
-                    <div class="edge-gate-label" style="color: var(--accent);">AI: ${aiVerdict} (${aiScore}/100) — Moderate</div>
-                `;
+                    <div class="card-actions">${analyzeBtn}<button class="action-btn trade-btn ${btnClass}" data-trade-index="${idx}" style="opacity: 0.85;">⚠️ Trade ${aiScore}</button></div>
+                    <div class="edge-gate-label" style="color: var(--accent);">AI: ${aiVerdict} (${aiScore}/100) — Moderate</div>`;
             } else {
                 btnContainer.innerHTML = `
-                    <button class="trade-btn trade-btn-disabled" style="background: rgba(220,38,38,0.15); border-color: var(--danger); color: var(--danger);" data-trade-index="${idx}">
-                        🚫 AI: AVOID (${aiScore}/100)
-                    </button>
-                    <div class="edge-gate-label" style="color: var(--danger);">AI recommends against this trade</div>
-                `;
+                    <div class="card-actions">${analyzeBtn}<button class="action-btn trade-btn trade-btn-disabled" style="background: rgba(220,38,38,0.15); border-color: var(--danger); color: var(--danger);" data-trade-index="${idx}">🚫 AVOID ${aiScore}</button></div>
+                    <div class="edge-gate-label" style="color: var(--danger);">AI recommends against this trade</div>`;
             }
 
-            // Re-attach click handler
-            const newBtn = btnContainer.querySelector('.trade-btn');
-            if (newBtn && !newBtn.classList.contains('trade-btn-disabled')) {
-                newBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this._handleTradeClick(opp, idx, newBtn);
-                });
+            // Re-attach click handlers
+            const newTradeBtn = btnContainer.querySelector('.trade-btn:not(.trade-btn-disabled)');
+            if (newTradeBtn) {
+                newTradeBtn.addEventListener('click', (e) => { e.stopPropagation(); this._handleTradeClick(opp, idx, newTradeBtn); });
+            }
+            const newAnalyzeBtn = btnContainer.querySelector('.analyze-btn');
+            if (newAnalyzeBtn) {
+                newAnalyzeBtn.addEventListener('click', (e) => { e.stopPropagation(); if (typeof analysisDetail !== 'undefined') analysisDetail.show(opp.ticker, opp); });
             }
         });
     },
@@ -545,7 +502,7 @@ const opportunities = {
                         <span class="ticker-symbol">${opp.ticker}</span>
                         <span class="price-display">$${opp.current_price ? opp.current_price.toFixed(2) : '-.--'}</span>
                     </div>
-                    <span class="score-badge-large">${opp.opportunity_score.toFixed(0)}</span>
+                    <span class="score-badge-large ${opp.opportunity_score >= 60 ? 'score-high' : opp.opportunity_score >= 40 ? 'score-mid' : 'score-low'}">${opp.opportunity_score.toFixed(0)}</span>
                 </div>
 
                 <!-- BODY: Hero Action -->
@@ -553,7 +510,7 @@ const opportunities = {
                     <div class="hero-action">
                         <span class="action-type">${actionText}</span>
                         <div class="action-text ${textClass}">
-                            $${opp.strike_price.toFixed(0)}
+                            $${opp.strike_price.toFixed(2)}
                         </div>
                         <div class="profit-pill">
                             +${opp.profit_potential.toFixed(0)}% Potential
@@ -567,16 +524,24 @@ const opportunities = {
                             <span class="m-value">${expiryDate}</span>
                         </div>
                         <div class="metric-row">
-                            <span class="m-label">Days Left</span>
-                            <span class="m-value">${opp.days_to_expiry}d</span>
-                        </div>
-                        <div class="metric-row">
                             <span class="m-label">Premium</span>
                             <span class="m-value">$${opp.premium.toFixed(2)}</span>
                         </div>
                         <div class="metric-row">
                             <span class="m-label">Break Even</span>
                             <span class="m-value">$${breakEven ? breakEven.toFixed(2) : '-'}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="m-label">Days Left</span>
+                            <span class="m-value">${opp.days_to_expiry} day${opp.days_to_expiry !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="m-label">Volume</span>
+                            <span class="m-value">${(opp.volume || 0).toLocaleString()}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="m-label">Open Int</span>
+                            <span class="m-value">${(opp.open_interest || 0).toLocaleString()}</span>
                         </div>
                     </div>
                 </div>
@@ -608,34 +573,43 @@ const opportunities = {
         const score = opp.opportunity_score;
         const isCall = opp.option_type === 'Call';
         const btnClass = isCall ? 'trade-btn-call' : 'trade-btn-put';
+        const analyzeBtn = `<button class="action-btn analyze-btn" data-analyze-index="${index}">🔍 Analyze</button>`;
 
         // Check if we have a cached AI result
         const cacheKey = aiCache.buildKey(opp.ticker, opp.strike_price, opp.option_type, opp.expiration_date);
         const cached = aiCache.get(cacheKey);
 
         if (cached) {
-            // Already have AI result — show final state
             const aiScore = cached.score || 0;
             const aiVerdict = cached.verdict || 'UNKNOWN';
             if (aiScore >= 65) {
                 return `
-                    <button class="trade-btn ${btnClass}" data-trade-index="${index}">
-                        ✅ Trade — AI Score ${aiScore}
-                    </button>
+                    <div class="card-actions">
+                        ${analyzeBtn}
+                        <button class="action-btn trade-btn ${btnClass}" data-trade-index="${index}">
+                            ✅ Trade ${aiScore}
+                        </button>
+                    </div>
                     <div class="edge-gate-label" style="color: var(--secondary);">AI: ${aiVerdict} (${aiScore}/100) — Dual Gate ✅</div>
                 `;
             } else if (aiScore >= 40) {
                 return `
-                    <button class="trade-btn ${btnClass}" data-trade-index="${index}" style="opacity: 0.85;">
-                        ⚠️ Trade — AI Score ${aiScore}
-                    </button>
+                    <div class="card-actions">
+                        ${analyzeBtn}
+                        <button class="action-btn trade-btn ${btnClass}" data-trade-index="${index}" style="opacity: 0.85;">
+                            ⚠️ Trade ${aiScore}
+                        </button>
+                    </div>
                     <div class="edge-gate-label" style="color: var(--accent);">AI: ${aiVerdict} (${aiScore}/100) — Moderate</div>
                 `;
             } else {
                 return `
-                    <button class="trade-btn trade-btn-disabled" style="background: rgba(220,38,38,0.15); border-color: var(--danger); color: var(--danger);" data-trade-index="${index}">
-                        🚫 AI: AVOID (${aiScore}/100)
-                    </button>
+                    <div class="card-actions">
+                        ${analyzeBtn}
+                        <button class="action-btn trade-btn trade-btn-disabled" style="background: rgba(220,38,38,0.15); border-color: var(--danger); color: var(--danger);" data-trade-index="${index}">
+                            🚫 AVOID ${aiScore}
+                        </button>
+                    </div>
                     <div class="edge-gate-label" style="color: var(--danger);">AI recommends against this trade</div>
                 `;
             }
@@ -644,16 +618,22 @@ const opportunities = {
         // No AI result yet — Gate 1 check
         if (score >= 40) {
             return `
-                <button class="trade-btn ${btnClass}" data-trade-index="${index}">
-                    ⚡ Trade — Run AI Check
-                </button>
-                <div class="edge-gate-label">Card Score ${score.toFixed(0)} — Click to run AI analysis</div>
+                <div class="card-actions">
+                    ${analyzeBtn}
+                    <button class="action-btn trade-btn ${btnClass}" data-trade-index="${index}">
+                        ⚡ Trade
+                    </button>
+                </div>
+                <div class="edge-gate-label">Card Score ${score.toFixed(0)} — Click Trade to run AI check</div>
             `;
         } else {
             return `
-                <button class="trade-btn trade-btn-disabled" disabled>
-                    🔒 Trade Locked — Weak Setup
-                </button>
+                <div class="card-actions">
+                    ${analyzeBtn}
+                    <button class="action-btn trade-btn trade-btn-disabled" disabled>
+                        🔒 Locked
+                    </button>
+                </div>
                 <div class="edge-gate-label" style="color: var(--text-muted);">Card Score ${score.toFixed(0)} — Below 40 threshold</div>
             `;
         }

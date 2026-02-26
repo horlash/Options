@@ -217,17 +217,24 @@ window.analysisDetail = {
 
     renderAIResult(analysis, ticker) {
         const container = document.getElementById('ai-result-container');
-        const verdictColor = analysis.verdict === 'SAFE' ? 'var(--secondary)' : 'var(--danger)';
+        const verdictColor = analysis.verdict === 'SAFE' ? 'var(--secondary)' : analysis.verdict === 'RISKY' ? '#eab308' : 'var(--danger)';
 
         // Enhanced Markdown Parsing
         const formatText = (text) => {
             if (!text) return '';
             let formatted = text
+                // Strip JSON blocks (```json ... ```)
+                .replace(/```json[\s\S]*?```/g, '')
+                // Strip any trailing raw JSON objects
+                .replace(/\{[^{}]*"score"\s*:\s*\d+[^{}]*\}\s*$/g, '')
                 // Bold
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                // Bullet points (simple dash or asterisk at start of line)
+                // Headers (### and ##)
+                .replace(/^###\s+(.*)$/gm, '<h5 style="margin:0.75rem 0 0.25rem;color:var(--text-light);">$1</h5>')
+                .replace(/^##\s+(.*)$/gm, '<h4 style="margin:1rem 0 0.25rem;color:var(--text-light);">$1</h4>')
+                // Bullet points
                 .replace(/^[\*\-]\s+(.*)$/gm, '<li>$1</li>')
-                // Newlines to breaks (but avoid double breaks if we wrapped in li)
+                // Newlines to breaks
                 .replace(/\n/g, '<br>');
 
             // Wrap in ul if we found list items (simple hack)

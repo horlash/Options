@@ -54,12 +54,22 @@ const tradeModal = (() => {
  * @param {Object} data - Card data: ticker, price, strike, expiry, daysLeft, premium, type, score, badges
  */
     async function open(data) {
+        // Pull SL/TP defaults from portfolio settings
+        let slDefault = 0.25, tpDefault = 0.50;
+        try {
+            if (typeof portfolio !== 'undefined' && portfolio.getState) {
+                const pState = portfolio.getState();
+                if (pState.defaultSlPct) slDefault = pState.defaultSlPct / 100;
+                if (pState.defaultTpPct) tpDefault = pState.defaultTpPct / 100;
+            }
+        } catch (e) { /* use defaults */ }
+
         currentTrade = {
             ...data,
             limitPrice: data.premium,
             qty: 1,
-            slPercent: 0.25,
-            tpPercent: 0.50
+            slPercent: slDefault,
+            tpPercent: tpDefault
         };
 
         const modal = document.getElementById('trade-modal-overlay');
@@ -409,6 +419,54 @@ const tradeModal = (() => {
 
     function confirm() {
         if (!currentTrade) return;
+
+        // Live-trade confirmation gate
+        let requireConfirm = false;
+        let isLive = false;
+        try {
+            if (typeof portfolio !== 'undefined' && portfolio.getState) {
+                const pState = portfolio.getState();
+                isLive = pState.brokerMode === 'TRADIER_LIVE';
+                requireConfirm = isLive && pState.requireTradeConfirm;
+            }
+        } catch (e) { /* proceed without confirmation */ }
+
+        if (requireConfirm) {
+            // Show confirmation modal for live trading
+            _showLiveConfirmation();
+            return;
+        }
+
+        _executeTrade();
+    }
+
+    function _showLiveConfirmation() {
+        const t = currentTrade;
+        if (!t) return;
+        const totalCost = (t.limitPrice * t.qty * 100).toFixed(2);
+        const actionText = t.type === 'CALL' ? 'BUY CALL' : 'BUY PUT';
+
+        if (typeof showModal === 'function') {
+            showModal({
+                title: '⚠️ Confirm Live Trade',
+                context: `You are about to place a REAL trade: ${actionText} ${t.qty}x ${t.ticker} $${t.strike} @ $${t.limitPrice.toFixed(2)}`,
+                warning: `<strong>Total cost: $${totalCost}</strong><br>This will use real money through your broker.`,
+                checkboxLabel: 'I confirm this is a real-money trade',
+                confirmLabel: `Place Live Trade ($${totalCost})`,
+                confirmClass: 'modal-btn modal-btn-danger',
+                onConfirm: () => _executeTrade(),
+                onCancel: () => { /* user cancelled */ },
+            });
+        } else {
+            // Fallback: browser confirm
+            if (window.confirm(`LIVE TRADE: ${actionText} ${t.qty}x ${t.ticker} $${t.strike} @ $${t.limitPrice.toFixed(2)}\nTotal: $${totalCost}\n\nAre you sure?`)) {
+                _executeTrade();
+            }
+        }
+    }
+
+    function _executeTrade() {
+        if (!currentTrade) return;
         const t = currentTrade;
         const isCall = t.type === 'CALL';
         const actionText = isCall ? 'BUY CALL' : 'BUY PUT';
@@ -462,24 +520,71 @@ const tradeModal = (() => {
 
             paperApi.placeTrade(tradeData).then(res => {
                 if (res.success) {
+                    const brokerMsg = res.trade?.broker_msg || '';
+                    const isBrokerSuccess = brokerMsg.includes('Tradier order') && !brokerMsg.includes('error');
+                    const isPaperOnly = brokerMsg.includes('Paper-only');
+
+                    // Primary confirmation toast
                     showTradeToast('success', '✅',
                         `<span class="toast-bold">Order Placed!</span><br>${actionText} ${t.qty}x ${t.ticker} $${t.strike} @ $${t.limitPrice.toFixed(2)}`);
 
-                    // Show bracket confirmation
-                    setTimeout(() => {
-                        const brokerMsg = res.trade?.broker_msg;
-                        showTradeToast('info', '📋',
-                            `<span class="toast-bold">Brackets Active</span><br>SL: $${slPrice.toFixed(2)} | TP: $${tpPrice.toFixed(2)}${brokerMsg ? '<br>' + brokerMsg : ''}`);
-                    }, 1500);
+                    // Prominent success popup
+                    const brokerStatus = isBrokerSuccess ? '✅ Tradier order confirmed' : isPaperOnly ? '📝 Paper-only (broker unavailable)' : '📋 Saved';
+                    showTradePopup('success', '✅ Trade Placed Successfully!', `${actionText} ${t.qty}x ${t.ticker} $${t.strike} @ $${t.limitPrice.toFixed(2)}<br><br>Broker: ${brokerStatus}<br>SL: $${slPrice.toFixed(2)} | TP: $${tpPrice.toFixed(2)}`);
 
-                    // Soft-refresh portfolio data from server (don't wipe pending row)
+                    // Broker status toast
+                    setTimeout(() => {
+                        if (isBrokerSuccess) {
+                            showTradeToast('success', '🔗',
+                                `<span class="toast-bold">Tradier Order Confirmed</span><br>${brokerMsg}`);
+                        } else if (isPaperOnly) {
+                            showTradeToast('info', '📝',
+                                `<span class="toast-bold">Paper-Only Mode</span><br>Trade saved locally (broker unavailable)`);
+                        }
+                    }, 1200);
+
+                    // Bracket confirmation toast
+                    setTimeout(() => {
+                        showTradeToast('info', '📋',
+                            `<span class="toast-bold">Brackets Active</span><br>SL: $${slPrice.toFixed(2)} | TP: $${tpPrice.toFixed(2)}`);
+                    }, 2400);
+
+                    // Soft-refresh portfolio data from server
                     if (typeof portfolio !== 'undefined' && portfolio.refresh) {
-                        setTimeout(() => portfolio.refresh(), 2000);
+                        setTimeout(() => portfolio.refresh(), 2500);
+                    }
+                } else {
+                    // Server returned success:false
+                    const errMsg = res.error || 'Trade was not accepted';
+                    showTradeToast('error', '🚫',
+                        `<span class="toast-bold">Trade Rejected</span><br>${errMsg}`);
+                    showTradePopup('error', '🚫 Trade Rejected', `${errMsg}<br><br>Check Settings → Max Daily Trades if you're hitting the limit.`);
+                    if (typeof portfolio !== 'undefined' && portfolio.refresh) {
+                        portfolio.refresh();
                     }
                 }
             }).catch(err => {
+                // Parse specific error types
+                let userMsg = err.message || 'Unknown error';
+                let alertMsg = userMsg;
+
+                if (userMsg.includes('429') || userMsg.toLowerCase().includes('daily') || userMsg.toLowerCase().includes('limit')) {
+                    userMsg = `Daily trade limit reached — ${userMsg}`;
+                    alertMsg = `⚠️ Daily Trade Limit Reached\n\n${userMsg}\n\nGo to Settings to adjust your max_daily_trades.`;
+                } else if (userMsg.includes('500') || userMsg.includes('server')) {
+                    alertMsg = `❌ Server Error\n\n${userMsg}\n\nThe trade may not have been placed. Check Open Positions.`;
+                } else if (userMsg.includes('fetch') || userMsg.includes('network') || userMsg.includes('Failed')) {
+                    alertMsg = `📡 Connection Error\n\n${userMsg}\n\nCheck your internet connection and try again.`;
+                }
+
                 showTradeToast('error', '❌',
-                    `<span class="toast-bold">Trade Failed</span><br>${err.message || 'Unknown error'}`);
+                    `<span class="toast-bold">Trade Failed</span><br>${userMsg}`);
+                showTradePopup('error', alertMsg.split('\n')[0], userMsg);
+
+                // Remove the pending row since trade wasn't saved
+                if (typeof portfolio !== 'undefined' && portfolio.refresh) {
+                    portfolio.refresh();
+                }
             });
         } else {
             // Fallback: mock portfolio (dev mode)
@@ -516,6 +621,55 @@ const tradeModal = (() => {
         toastEl.innerHTML = `<span>${icon}</span><span>${html}</span>`;
         container.appendChild(toastEl);
         setTimeout(() => toastEl.remove(), 5000);
+    }
+
+    function showTradePopup(type, title, bodyHtml) {
+        // Remove existing popup if any
+        const existing = document.getElementById('trade-result-popup');
+        if (existing) existing.remove();
+
+        const borderColor = type === 'success' ? '#22c55e' : type === 'warning' ? '#eab308' : '#ef4444';
+        const bgColor = type === 'success' ? 'rgba(34,197,94,0.1)' : type === 'warning' ? 'rgba(234,179,8,0.1)' : 'rgba(239,68,68,0.1)';
+        const iconBg = type === 'success' ? 'rgba(34,197,94,0.2)' : type === 'warning' ? 'rgba(234,179,8,0.2)' : 'rgba(239,68,68,0.2)';
+
+        const overlay = document.createElement('div');
+        overlay.id = 'trade-result-popup';
+        overlay.style.cssText = `
+            position: fixed; inset: 0; z-index: 99999;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            animation: fadeIn 0.2s ease;
+        `;
+        overlay.innerHTML = `
+            <div style="
+                background: #1a1a2e; border: 1px solid ${borderColor};
+                border-radius: 16px; padding: 2rem; max-width: 420px; width: 90%;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 30px ${bgColor};
+                text-align: center; font-family: inherit;
+            ">
+                <div style="
+                    width: 60px; height: 60px; border-radius: 50%;
+                    background: ${iconBg}; display: flex; align-items: center;
+                    justify-content: center; margin: 0 auto 1rem;
+                    font-size: 1.8rem;
+                ">${title.split(' ')[0]}</div>
+                <h3 style="color: #fff; margin: 0 0 0.75rem; font-size: 1.2rem;">${title.replace(/^\S+\s/, '')}</h3>
+                <div style="color: #a0a0b8; font-size: 0.9rem; line-height: 1.6;">${bodyHtml}</div>
+                <button onclick="this.closest('#trade-result-popup').remove()" style="
+                    margin-top: 1.5rem; padding: 0.7rem 2.5rem;
+                    background: ${borderColor}; color: #fff; border: none;
+                    border-radius: 8px; font-weight: 700; font-size: 0.9rem;
+                    cursor: pointer; font-family: inherit;
+                ">OK</button>
+            </div>
+        `;
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
+        document.body.appendChild(overlay);
+
+        // Auto-dismiss after 10 seconds
+        setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 10000);
     }
 
     // Keyboard shortcuts

@@ -10,7 +10,8 @@ Version checking (Point 8) is enforced on mutations.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, date as date_type
+from sqlalchemy import func
 from dateutil import parser as dateutil_parser
 from flask import Blueprint, jsonify, request, g, session
 
@@ -329,6 +330,23 @@ def place_trade():
                     'deduplicated': True,
                 })
 
+        # ── Max Daily Trades enforcement ──
+        user_settings = db.query(UserSettings).filter_by(username=username).first()
+        if user_settings and user_settings.max_daily_trades:
+            today_count = (
+                db.query(func.count(PaperTrade.id))
+                .filter(
+                    PaperTrade.username == username,
+                    func.date(PaperTrade.created_at) == date_type.today(),
+                )
+                .scalar()
+            )
+            if today_count >= user_settings.max_daily_trades:
+                return jsonify({
+                    'success': False,
+                    'error': f'Daily trade limit reached ({user_settings.max_daily_trades})'
+                }), 429
+
         trade = PaperTrade(
             username=username,
             ticker=data['ticker'].upper(),
@@ -395,13 +413,14 @@ def place_trade():
                 # 1. Place entry order
                 entry_order = broker.place_order({
                     'symbol': occ,
+                    'underlying': trade.ticker,
                     'side': 'buy_to_open',
                     'quantity': trade.qty,
                     'type': 'limit',
                     'price': trade.entry_price,
                     'duration': 'day',
                 })
-                trade.tradier_order_id = str(entry_order.get('id', ''))
+                trade.tradier_order_id = str(entry_order)
                 trade.broker_mode = (
                     'TRADIER_LIVE' if user_settings.broker_mode == 'TRADIER_LIVE'
                     else 'TRADIER_SANDBOX'
@@ -437,8 +456,14 @@ def place_trade():
                         broker_msg += f" (brackets failed: {e})"
 
         except BrokerException as e:
-            logger.warning(f"Tradier order failed (trade saved paper-only): {e}")
-            broker_msg = f"Paper-only (broker error: {e})"
+            # Tradier rejected the order — rollback the trade entirely
+            db.rollback()
+            logger.warning(f"Tradier order failed — trade rolled back: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Broker rejected order: {e}',
+                'broker_error': True,
+            }), 502
         except Exception as e:
             logger.warning(f"Broker setup skipped: {e}")
             broker_msg = "Paper-only (no broker credentials)"
@@ -889,6 +914,11 @@ def settings_get():
                     'account_balance': 5000.0,
                     'default_sl_pct': 20.0,
                     'default_tp_pct': 50.0,
+                    'max_daily_trades': 10,
+                    'theme': 'dark',
+                    'alert_on_bracket_hit': True,
+                    'auto_close_expiry': True,
+                    'require_trade_confirm': True,
                     'broker_mode': 'TRADIER_SANDBOX',
                     'tradier_account_id': None,
                     # Never return raw tokens — only presence flag
@@ -905,6 +935,11 @@ def settings_get():
                 'account_balance': settings.account_balance,
                 'default_sl_pct': settings.default_sl_pct,
                 'default_tp_pct': settings.default_tp_pct,
+                'max_daily_trades': settings.max_daily_trades,
+                'theme': settings.theme,
+                'alert_on_bracket_hit': settings.alert_on_bracket_hit,
+                'auto_close_expiry': settings.auto_close_expiry,
+                'require_trade_confirm': settings.require_trade_confirm,
                 'broker_mode': settings.broker_mode,
                 'tradier_account_id': settings.tradier_account_id,
                 'has_sandbox_token': bool(settings.tradier_sandbox_token),
@@ -941,6 +976,18 @@ def settings_update():
             settings.default_sl_pct = float(data['default_sl_pct'])
         if 'default_tp_pct' in data:
             settings.default_tp_pct = float(data['default_tp_pct'])
+        if 'max_daily_trades' in data:
+            settings.max_daily_trades = int(data['max_daily_trades'])
+
+        # ── Preferences + behavior ──
+        if 'theme' in data:
+            settings.theme = data['theme']
+        if 'alert_on_bracket_hit' in data:
+            settings.alert_on_bracket_hit = bool(data['alert_on_bracket_hit'])
+        if 'auto_close_expiry' in data:
+            settings.auto_close_expiry = bool(data['auto_close_expiry'])
+        if 'require_trade_confirm' in data:
+            settings.require_trade_confirm = bool(data['require_trade_confirm'])
 
         # ── Broker config ──
         if 'broker_mode' in data:
@@ -951,15 +998,15 @@ def settings_update():
         # ── Tokens: only update when non-empty (avoid wiping) ──
         if data.get('tradier_sandbox_token'):
             try:
-                from backend.security.crypto import encrypt_token
-                settings.tradier_sandbox_token = encrypt_token(data['tradier_sandbox_token'])
+                from backend.security.crypto import encrypt
+                settings.tradier_sandbox_token = encrypt(data['tradier_sandbox_token'])
             except Exception:
                 # Fallback: store plain if crypto unavailable
                 settings.tradier_sandbox_token = data['tradier_sandbox_token']
         if data.get('tradier_live_token'):
             try:
-                from backend.security.crypto import encrypt_token
-                settings.tradier_live_token = encrypt_token(data['tradier_live_token'])
+                from backend.security.crypto import encrypt
+                settings.tradier_live_token = encrypt(data['tradier_live_token'])
             except Exception:
                 settings.tradier_live_token = data['tradier_live_token']
 

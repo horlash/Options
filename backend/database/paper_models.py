@@ -222,6 +222,13 @@ class UserSettings(Base):
     auto_refresh          = Column(Boolean, default=True)
     sound_enabled         = Column(Boolean, default=True)
 
+    # Settings Page Enhancements
+    max_daily_trades      = Column(Integer, default=10)
+    theme                 = Column(String(10), default='dark')
+    alert_on_bracket_hit  = Column(Boolean, default=True)
+    auto_close_expiry     = Column(Boolean, default=True)
+    require_trade_confirm = Column(Boolean, default=True)
+
     # Timestamps
     created_at            = Column(DateTime, default=datetime.utcnow)
     updated_at            = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
