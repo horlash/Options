@@ -16,6 +16,10 @@ class PortfolioRiskManager:
     """
     Pre-trade risk checks for portfolio-level constraints.
 
+    F17 NOTE: Checks are currently advisory only — not enforced in the
+    trade execution path. Future: integrate as a hard gate in
+    paper_routes.py before order submission.
+
     Usage:
         prm = PortfolioRiskManager()
         check = prm.check_trade(

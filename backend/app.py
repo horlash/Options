@@ -369,7 +369,16 @@ def run_sector_scan():
         
         if not sector:
              return jsonify({'success': False, 'error': 'Sector is required'}), 400
-             
+        
+        # F43: Backend validation for 0DTE sector scans (frontend blocks this, but
+        # enforce server-side too). 0DTE requires same-day expiry on specific tickers,
+        # not broad sector sweeps.
+        if weeks_out == 0 or str(weeks_out) == '0':
+            return jsonify({
+                'success': False,
+                'error': '0DTE sector scans are not supported. Use single-ticker 0DTE scan instead.'
+            }), 400
+        
         service = get_scanner()
         print(f"Starting Sector Scan: {sector} (weeks_out={weeks_out}, industry={industry})", flush=True)
         

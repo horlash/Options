@@ -765,9 +765,11 @@ class MonitorService:
             # Fallback chain: fresh quote → last known option price → entry price
             if exit_price is None:
                 # Guard current_price from stock fallback if it's clearly a stock price
-                if trade.current_price and trade.current_price > trade.entry_price * 5 and trade.entry_price > 0:
+                # F46: Raised threshold from 5x to 10x — deep ITM options can legitimately
+                # be worth several multiples of original entry price.
+                if trade.current_price and trade.current_price > trade.entry_price * 10 and trade.entry_price > 0:
                     logger.warning(
-                        f"trade.current_price ${trade.current_price:.2f} is >5x entry ${trade.entry_price:.2f} "
+                        f"trade.current_price ${trade.current_price:.2f} is >10x entry ${trade.entry_price:.2f} "
                         f"for {trade.ticker} — possible stock price contamination, "
                         f"falling back to entry price for current_price fallback"
                     )
@@ -776,9 +778,10 @@ class MonitorService:
                     exit_price = trade.current_price or trade.entry_price
 
             # Sanity check: exit price shouldn't be vastly higher than entry (likely stock price)
-            if exit_price > trade.entry_price * 5 and trade.entry_price > 0:
+            # F46: Raised threshold from 5x to 10x for deep ITM options
+            if exit_price > trade.entry_price * 10 and trade.entry_price > 0:
                 logger.warning(
-                    f"Exit price ${exit_price:.2f} is >5x entry ${trade.entry_price:.2f} "
+                    f"Exit price ${exit_price:.2f} is >10x entry ${trade.entry_price:.2f} "
                     f"for {trade.ticker} — possible stock price contamination, "
                     f"falling back to entry price"
                 )
