@@ -59,6 +59,15 @@ class Config:
     # Rate Limiting
     NEWS_CACHE_HOURS = 6  # cache news for 6 hours
 
+    # G17: Maximum position limits
+    MAX_POSITIONS_PER_TICKER = int(os.getenv('MAX_POSITIONS_PER_TICKER', 3))
+    MAX_TOTAL_POSITIONS = int(os.getenv('MAX_TOTAL_POSITIONS', 15))
+    MAX_PORTFOLIO_EXPOSURE_PCT = float(os.getenv('MAX_PORTFOLIO_EXPOSURE_PCT', 25.0))
+
+    # G18: Sector concentration limits
+    MAX_SECTOR_CONCENTRATION_PCT = float(os.getenv('MAX_SECTOR_CONCENTRATION_PCT', 30.0))
+    MAX_SINGLE_TICKER_PCT = float(os.getenv('MAX_SINGLE_TICKER_PCT', 10.0))
+
     @staticmethod
     def get_paper_db_url():
         """Get the paper trading database URL.

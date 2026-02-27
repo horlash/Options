@@ -677,7 +677,7 @@ class HybridScannerService:
 
     def _enrich_greeks(self, ticker, strike, expiry_date_str, opt_type, current_price, iv, context_greeks):
         """
-        Ensure Greeks are populated on weekends.
+        G5: Ensure Greeks are populated even outside market hours (weekends/after-hours).
         Strategy: ORATS (Live) -> Tradier (Live/Last) -> Black-Scholes (Est) -> Unavailable
         """
         # 1. Check if ORATS gave us good Greeks (Delta != 0)
