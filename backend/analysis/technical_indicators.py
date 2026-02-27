@@ -327,6 +327,15 @@ class TechnicalIndicators:
         atr = self.calculate_atr(df)
         hv_rank = self.calculate_hv_rank(df)
         
+        # S3: RSI-2 (Connors Mean Reversion)
+        rsi2_data = self.calculate_rsi2(df)
+        
+        # S7A: VWAP Institutional Levels (EOD)
+        vwap_data = self.calculate_vwap_levels(df)
+        
+        # S5: Minervini Stage 2 criteria
+        minervini_data = self.calculate_minervini_criteria(df)
+        
         return {
             'rsi': {
                 'value': rsi_value,
@@ -355,7 +364,11 @@ class TechnicalIndicators:
                 },
                 'signal': 'neutral'
             },
-            'support_resistance': sr_levels
+            'support_resistance': sr_levels,
+            # --- New Trading Systems ---
+            'rsi2': rsi2_data,           # S3: Connors RSI-2
+            'vwap': vwap_data,           # S7A: VWAP Levels
+            'minervini': minervini_data,  # S5: Minervini Stage 2
         }
     
     def calculate_technical_score(self, indicators):
@@ -497,6 +510,200 @@ class TechnicalIndicators:
             
         hv_rank = ((current_hv - min_hv) / (max_hv - min_hv)) * 100
         return hv_rank
+
+    # ─── S3: Connors RSI-2 Mean Reversion ─────────────────────────────────────
+    def calculate_rsi2(self, df):
+        """S3: Connors RSI-2 Mean Reversion signal.
+        
+        RSI with period=2 captures extreme short-term oversold/overbought.
+        Evidence: Connors (2010) — 84% win rate on SPY backtested 2000-2010,
+        confirmed in 2024 re-tests. 18-Persona verdict: 18/18 UNANIMOUS.
+        
+        Returns:
+            dict with rsi2 value, signal, and exit trigger
+        """
+        if df is None or len(df) < 10:  # Need minimal data for 2-period RSI
+            return {'value': None, 'signal': 'neutral', 'exit_trigger': False}
+        
+        rsi2_indicator = ta.momentum.RSIIndicator(close=df['Close'], window=2)
+        rsi2 = rsi2_indicator.rsi()
+        current_rsi2 = rsi2.iloc[-1]
+        
+        # Connors thresholds: <5 = extreme oversold (buy), >95 = extreme overbought (sell)
+        if current_rsi2 < 5:
+            signal = 'extreme_oversold'   # Strong mean reversion BUY signal
+        elif current_rsi2 < 10:
+            signal = 'oversold'           # Moderate buy signal
+        elif current_rsi2 > 95:
+            signal = 'extreme_overbought' # Strong mean reversion SELL signal
+        elif current_rsi2 > 90:
+            signal = 'overbought'         # Moderate sell signal
+        else:
+            signal = 'neutral'
+        
+        # Exit trigger: price crosses above 5-day SMA (Connors exit rule)
+        sma5 = df['Close'].rolling(window=5).mean()
+        exit_trigger = False
+        if len(sma5.dropna()) >= 2:
+            # Price crossed above SMA5 today (was below yesterday)
+            exit_trigger = (
+                df['Close'].iloc[-1] > sma5.iloc[-1] and
+                df['Close'].iloc[-2] <= sma5.iloc[-2]
+            )
+        
+        return {
+            'value': round(current_rsi2, 2) if not pd.isna(current_rsi2) else None,
+            'signal': signal,
+            'exit_trigger': exit_trigger,
+        }
+
+    # ─── S5: Minervini Stage 2 Criteria ─────────────────────────────────────────
+    def calculate_minervini_criteria(self, df):
+        """S5: Evaluate Mark Minervini's 8 Stage 2 (SEPA) criteria.
+        
+        Evidence: "Trade Like a Stock Market Wizard" — Minervini's system
+        targets stocks in Stage 2 uptrend. 18-Persona verdict: 14/18 APPROVED
+        WITH CONDITIONS (zero-results floor required).
+        
+        The 8 criteria:
+          1. Price > SMA150 and SMA200
+          2. SMA150 > SMA200
+          3. SMA200 trending up for >= 1 month (22 trading days)
+          4. SMA50 > SMA150 and SMA200
+          5. Price > SMA50
+          6. Price >= 25% above 52-week low
+          7. Price within 25% of 52-week high
+          8. RS rating >= 70 (relative strength vs SPY)
+        
+        Returns:
+            dict with score (0-8), stage, criteria details, and pass/fail
+        """
+        if df is None or len(df) < 252:  # Need 1 year of data
+            return {'score': 0, 'stage': 'UNCLASSIFIED', 'criteria': {},
+                    'is_stage2': False, 'reason': 'insufficient_history'}
+        
+        close = df['Close']
+        current_price = close.iloc[-1]
+        
+        # Calculate SMAs
+        sma50 = close.rolling(window=50).mean().iloc[-1]
+        sma150 = close.rolling(window=150).mean().iloc[-1]
+        sma200 = close.rolling(window=200).mean().iloc[-1]
+        
+        # SMA200 slope (22 trading days ago)
+        sma200_series = close.rolling(window=200).mean()
+        sma200_22d_ago = sma200_series.iloc[-23] if len(sma200_series) > 23 else sma200
+        sma200_trending_up = sma200 > sma200_22d_ago
+        
+        # 52-week high/low
+        high_52w = df['High'].tail(252).max()
+        low_52w = df['Low'].tail(252).min()
+        
+        # Evaluate 8 criteria
+        criteria = {}
+        criteria['1_price_above_sma150_200'] = current_price > sma150 and current_price > sma200
+        criteria['2_sma150_above_sma200'] = sma150 > sma200
+        criteria['3_sma200_trending_up'] = sma200_trending_up
+        criteria['4_sma50_above_sma150_200'] = sma50 > sma150 and sma50 > sma200
+        criteria['5_price_above_sma50'] = current_price > sma50
+        criteria['6_price_25pct_above_52w_low'] = current_price >= low_52w * 1.25
+        criteria['7_price_within_25pct_of_52w_high'] = current_price >= high_52w * 0.75
+        # Criterion 8 (RS rating) is evaluated externally with SPY data
+        criteria['8_rs_rating'] = None  # Filled by caller with calculate_relative_strength()
+        
+        score = sum(1 for k, v in criteria.items() if v is True)
+        
+        # Stage classification
+        if score >= 7:  # 7/8 or 8/8 (criterion 8 may be None)
+            stage = 'STAGE_2'
+        elif score >= 5:
+            stage = 'STAGE_2_EARLY'
+        elif criteria.get('3_sma200_trending_up') and criteria.get('2_sma150_above_sma200'):
+            stage = 'STAGE_1'  # Building base
+        else:
+            stage = 'STAGE_3_OR_4'  # Declining or bottoming
+        
+        return {
+            'score': score,
+            'max_score': 8,
+            'stage': stage,
+            'is_stage2': stage in ('STAGE_2', 'STAGE_2_EARLY'),
+            'criteria': criteria,
+            'sma50': round(sma50, 2),
+            'sma150': round(sma150, 2),
+            'sma200': round(sma200, 2),
+            'high_52w': round(high_52w, 2),
+            'low_52w': round(low_52w, 2),
+        }
+
+    # ─── S7A: VWAP Institutional Levels (EOD) ───────────────────────────────────
+    def calculate_vwap_levels(self, df):
+        """S7A: Calculate weekly and monthly anchored VWAP from daily OHLCV.
+        
+        Evidence: Brian Shannon's VWAP framework — institutional benchmark.
+        18-Persona verdict: 13/18 APPROVED WITH CONDITIONS.
+        
+        Note: This is Phase A (EOD approximation from daily bars).
+        Phase B (intraday VWAP) deferred with S6 ORB.
+        
+        Returns:
+            dict with weekly_vwap, monthly_vwap, distances, and signals
+        """
+        if df is None or len(df) < 22:  # Need at least ~1 month
+            return {'weekly_vwap': None, 'monthly_vwap': None, 'signal': 'neutral'}
+        
+        current_price = df['Close'].iloc[-1]
+        
+        # Typical price = (H + L + C) / 3
+        tp = (df['High'] + df['Low'] + df['Close']) / 3
+        vol = df['Volume']
+        
+        # Weekly VWAP (last 5 trading days)
+        tp_5d = tp.tail(5)
+        vol_5d = vol.tail(5)
+        weekly_vwap = (tp_5d * vol_5d).sum() / vol_5d.sum() if vol_5d.sum() > 0 else None
+        
+        # Monthly VWAP (last 22 trading days)
+        tp_22d = tp.tail(22)
+        vol_22d = vol.tail(22)
+        monthly_vwap = (tp_22d * vol_22d).sum() / vol_22d.sum() if vol_22d.sum() > 0 else None
+        
+        # Distance from VWAP levels (as percentage)
+        weekly_dist = ((current_price - weekly_vwap) / weekly_vwap * 100) if weekly_vwap else None
+        monthly_dist = ((current_price - monthly_vwap) / monthly_vwap * 100) if monthly_vwap else None
+        
+        # Signal determination
+        # Near VWAP (within 0.5%) = institutional support/resistance zone
+        signal = 'neutral'
+        score_boost = 0
+        
+        if weekly_dist is not None and monthly_dist is not None:
+            # Price at or near weekly VWAP = strong institutional level
+            if abs(weekly_dist) < 0.5:
+                signal = 'at_weekly_vwap'  # Price sitting on institutional level
+                score_boost = 12  # Per 18-persona consensus: +12 for VWAP alignment
+            elif abs(monthly_dist) < 0.5:
+                signal = 'at_monthly_vwap'
+                score_boost = 8   # +8 for monthly VWAP alignment
+            elif weekly_dist > 0 and monthly_dist > 0:
+                signal = 'above_vwap'  # Bullish — price above both VWAPs
+                score_boost = 5
+            elif weekly_dist < 0 and monthly_dist < 0:
+                signal = 'below_vwap'  # Bearish — price below both VWAPs
+                score_boost = -3
+            elif weekly_dist > 0 > monthly_dist:
+                signal = 'mixed'  # Pulling up from below monthly
+                score_boost = 2
+        
+        return {
+            'weekly_vwap': round(weekly_vwap, 2) if weekly_vwap else None,
+            'monthly_vwap': round(monthly_vwap, 2) if monthly_vwap else None,
+            'weekly_distance_pct': round(weekly_dist, 2) if weekly_dist is not None else None,
+            'monthly_distance_pct': round(monthly_dist, 2) if monthly_dist is not None else None,
+            'signal': signal,
+            'score_boost': score_boost,
+            'current_price': round(current_price, 2),
+        }
 
     def calculate_relative_strength(self, df_stock, df_market, period=5):
         """

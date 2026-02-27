@@ -12,6 +12,10 @@ from backend.services.watchlist_service import WatchlistService
 from backend.services.batch_manager import BatchManager # [NEW]
 from backend.database.models import ScanResult, Opportunity, NewsCache, SessionLocal
 from backend.services.reasoning_engine import ReasoningEngine
+from backend.analysis.regime_detector import RegimeDetector, VIXRegime
+from backend.analysis.macro_signals import MacroSignals
+from backend.analysis.sector_analysis import SectorAnalysis
+from backend.config import Config
 
 class HybridScannerService:
     """Scanner service using ORATS + Finnhub for options analysis.
@@ -43,6 +47,15 @@ class HybridScannerService:
         self.watchlist_service = WatchlistService()
         self.batch_manager = BatchManager() # [NEW] ORATS Batch Manager
         self.db = SessionLocal()
+        
+        # --- Trading System Enhancements (S1-S7A) ---
+        orats_ref = self.batch_manager.orats_api if hasattr(self.batch_manager, 'orats_api') else None
+        self.regime_detector = RegimeDetector(orats_api=orats_ref) if Config.ENABLE_VIX_REGIME else None
+        self.macro_signals = MacroSignals(
+            orats_api=orats_ref,
+            fmp_api_key=Config.FMP_API_KEY
+        ) if Config.ENABLE_PUT_CALL_RATIO else None
+        self.sector_analysis = SectorAnalysis(orats_api=orats_ref) if Config.ENABLE_SECTOR_MOMENTUM else None
         
         # Check configuration
         self.use_tradier = self.tradier_api.is_configured()
@@ -493,11 +506,20 @@ class HybridScannerService:
                 except Exception as e:
                     print(f"   ⚠️ Chain skew calculation failed: {e}")
 
-            # --- G8: VIX REGIME for LEAPs ---
+            # --- G8: VIX REGIME for LEAPs (S1: Enhanced RegimeDetector) ---
             vix_level_leap = None
             vix_regime_leap = 'NORMAL'
+            regime_context = None
             try:
-                if self.use_orats:
+                if self.regime_detector and Config.ENABLE_VIX_REGIME:
+                    regime_context = self.regime_detector.detect()
+                    vix_level_leap = regime_context.vix_level
+                    vix_regime_leap = regime_context.regime_str  # Legacy 3-tier: NORMAL/ELEVATED/CRISIS
+                    print(f"   S1 VIX Regime: {vix_level_leap} → {regime_context.regime.value} (mapped: {vix_regime_leap})")
+                    if regime_context.score_penalty:
+                        print(f"   S1 Score Penalty: {regime_context.score_penalty}, Size Mult: {regime_context.position_size_multiplier}")
+                elif self.use_orats:
+                    # Fallback: original inline logic
                     vix_q = self.batch_manager.orats_api.get_quote('VIX')
                     if vix_q and vix_q.get('price'):
                         vix_level_leap = vix_q['price']
@@ -507,7 +529,31 @@ class HybridScannerService:
                             vix_regime_leap = 'ELEVATED'
                         print(f"   VIX Regime (LEAP): {vix_level_leap:.1f} ({vix_regime_leap})")
             except Exception as e:
-                print(f"   ⚠️ VIX fetch failed for LEAP: {e}")
+                print(f"   ⚠️ VIX regime detection failed: {e}")
+
+            # --- S2: CBOE Put/Call Ratio (Contrarian Sentiment) ---
+            pc_signal = None
+            pc_score_mod = 0
+            try:
+                if self.macro_signals and Config.ENABLE_PUT_CALL_RATIO:
+                    pc_signal = self.macro_signals.get_put_call_signal()
+                    pc_score_mod = pc_signal.score_modifier
+                    if pc_signal.ratio is not None:
+                        print(f"   S2 P/C Ratio: {pc_signal.ratio:.3f} (Z={pc_signal.z_score}) → {pc_signal.signal} ({pc_signal.contrarian_bias}, {pc_score_mod:+d} sentiment)")
+            except Exception as e:
+                print(f"   ⚠️ P/C ratio fetch failed: {e}")
+
+            # --- S4: Sector Momentum Modifier ---
+            sector_mod = 0
+            sector_info = None
+            try:
+                if self.sector_analysis and Config.ENABLE_SECTOR_MOMENTUM:
+                    sector_info = self.sector_analysis.get_ticker_sector_modifier(clean_ticker)
+                    sector_mod = sector_info.get('score_modifier', 0)
+                    if sector_info.get('rank'):
+                        print(f"   S4 Sector: {sector_info['sector']} ({sector_info['etf']}) — Rank #{sector_info['rank']} ({sector_info['tier']}, {sector_mod:+d})")
+            except Exception as e:
+                print(f"   ⚠️ Sector momentum failed: {e}")
 
             # --- G9: IV Percentile Rank from ORATS ---
             iv_percentile = 50  # default neutral
@@ -550,10 +596,62 @@ class HybridScannerService:
                 print(f"   ⚠️ Dividend check failed: {e}")
 
             # Rank with enriched context
+            # --- S2/S3/S4/S7A: Apply trading system score adjustments ---
+            adjusted_sentiment = sentiment_score
+            adjusted_technical = technical_score
+
+            # S2: P/C ratio contrarian sentiment modifier
+            if pc_score_mod != 0:
+                adjusted_sentiment = max(0, min(100, adjusted_sentiment + pc_score_mod))
+                print(f"   S2 Adjusted Sentiment: {sentiment_score:.1f} → {adjusted_sentiment:.1f} ({pc_score_mod:+d} P/C)")
+
+            # S4: Sector momentum modifier on technical score
+            if sector_mod != 0:
+                adjusted_technical = max(0, min(100, adjusted_technical + sector_mod))
+                print(f"   S4 Adjusted Technical: {technical_score:.1f} → {adjusted_technical:.1f} ({sector_mod:+d} sector)")
+
+            # S3: RSI-2 extreme signal boost (from indicators dict)
+            if Config.ENABLE_RSI2 and indicators.get('rsi2'):
+                rsi2 = indicators['rsi2']
+                rsi2_mod = 0
+                if rsi2.get('signal') == 'extreme_oversold' and direction == 'CALL':
+                    rsi2_mod = 12  # Strong mean-reversion buy signal for calls
+                elif rsi2.get('signal') == 'oversold' and direction == 'CALL':
+                    rsi2_mod = 6
+                elif rsi2.get('signal') == 'extreme_overbought' and direction == 'PUT':
+                    rsi2_mod = 12  # Strong mean-reversion sell signal for puts
+                elif rsi2.get('signal') == 'overbought' and direction == 'PUT':
+                    rsi2_mod = 6
+                elif rsi2.get('signal') == 'extreme_overbought' and direction == 'CALL':
+                    rsi2_mod = -8  # Contrarian warning for calls
+                elif rsi2.get('signal') == 'extreme_oversold' and direction == 'PUT':
+                    rsi2_mod = -8  # Contrarian warning for puts
+                if rsi2_mod != 0:
+                    adjusted_technical = max(0, min(100, adjusted_technical + rsi2_mod))
+                    print(f"   S3 RSI-2={rsi2.get('value')} ({rsi2.get('signal')}): tech {rsi2_mod:+d} → {adjusted_technical:.1f}")
+
+            # S7A: VWAP institutional level boost
+            if Config.ENABLE_VWAP_LEVELS and indicators.get('vwap'):
+                vwap_mod = indicators['vwap'].get('score_boost', 0)
+                if vwap_mod != 0:
+                    adjusted_technical = max(0, min(100, adjusted_technical + vwap_mod))
+                    print(f"   S7A VWAP {indicators['vwap'].get('signal')}: tech {vwap_mod:+d} → {adjusted_technical:.1f}")
+
+            # S5: Minervini Stage 2 pre-filter (log but don't hard-block — zero-results floor)
+            if Config.ENABLE_MINERVINI_FILTER and indicators.get('minervini'):
+                mstage = indicators['minervini']
+                if mstage.get('stage') in ('STAGE_3_OR_4',) and not is_non_corporate:
+                    # Not in Stage 2 uptrend — penalize but don't block
+                    adjusted_technical = max(0, adjusted_technical - 10)
+                    print(f"   S5 Minervini: {mstage.get('stage')} ({mstage.get('score')}/8) — tech -10 → {adjusted_technical:.1f}")
+                elif mstage.get('is_stage2'):
+                    adjusted_technical = min(100, adjusted_technical + 8)
+                    print(f"   S5 Minervini: {mstage.get('stage')} ({mstage.get('score')}/8) — tech +8 → {adjusted_technical:.1f}")
+
             ranked_opportunities = self.options_analyzer.rank_opportunities(
                 opportunities, 
-                technical_score, 
-                sentiment_score,
+                adjusted_technical, 
+                adjusted_sentiment,
                 skew_score=skew_score,
                 strategy="LEAP",
                 current_price=current_price,
@@ -583,8 +681,10 @@ class HybridScannerService:
             result = {
                 'ticker': ticker,
                 'current_price': current_price,
-                'technical_score': technical_score,
-                'sentiment_score': sentiment_score,
+                'technical_score': adjusted_technical,
+                'sentiment_score': adjusted_sentiment,
+                'raw_technical_score': technical_score,
+                'raw_sentiment_score': sentiment_score,
                 'indicators': indicators,
                 'sentiment_analysis': sentiment_analysis,
                 'fundamental_analysis': {
@@ -596,7 +696,37 @@ class HybridScannerService:
                     'pe_ratio': pe_ratio if pe_ratio else (y_fundamentals.get('pe_ratio') if y_fundamentals else "N/A")
                 },
                 'opportunities': ranked_opportunities,
-                'data_source': 'ORATS' if self.use_orats else 'Schwab'
+                'data_source': 'ORATS' if self.use_orats else 'Schwab',
+                # --- Trading System Enhancements ---
+                'trading_systems': {
+                    'vix_regime': {
+                        'level': vix_level_leap,
+                        'regime': vix_regime_leap,
+                        'context': {
+                            'regime_5tier': regime_context.regime.value,
+                            'score_penalty': regime_context.score_penalty,
+                            'position_size_mult': regime_context.position_size_multiplier,
+                            'is_fallback': regime_context.is_fallback,
+                        } if regime_context else None,
+                    },
+                    'put_call': {
+                        'ratio': pc_signal.ratio if pc_signal else None,
+                        'z_score': pc_signal.z_score if pc_signal else None,
+                        'signal': pc_signal.signal if pc_signal else 'disabled',
+                        'contrarian_bias': pc_signal.contrarian_bias if pc_signal else None,
+                        'score_modifier': pc_score_mod,
+                    },
+                    'sector_momentum': sector_info if sector_info else {'tier': 'disabled'},
+                    'rsi2': indicators.get('rsi2', {}),
+                    'minervini': indicators.get('minervini', {}),
+                    'vwap': indicators.get('vwap', {}),
+                    'score_adjustments': {
+                        'technical_raw': technical_score,
+                        'technical_adjusted': adjusted_technical,
+                        'sentiment_raw': sentiment_score,
+                        'sentiment_adjusted': adjusted_sentiment,
+                    },
+                },
             }
             return self._sanitize_for_json(result)
 
@@ -825,26 +955,32 @@ class HybridScannerService:
                 print(f"⚠️ Batch Fetch Failed: {e}")
 
         # 2. Deep Scan
-        # XC-1: VIX Regime Filter — adjust scan behavior based on market volatility
+        # XC-1: VIX Regime Filter (S1: Enhanced RegimeDetector)
         vix_level = None
-        vix_regime = 'NORMAL'  # Default: NORMAL (<20), ELEVATED (20-30), CRISIS (>30)
+        vix_regime = 'NORMAL'
         try:
-            vix_quote = None
-            if self.use_orats:
-                vix_quote = self.batch_manager.orats_api.get_quote('VIX')
-            if vix_quote and vix_quote.get('price'):
-                vix_level = vix_quote['price']
-                if vix_level > 30:
-                    vix_regime = 'CRISIS'
-                elif vix_level > 20:
-                    vix_regime = 'ELEVATED'
-                print(f"\U0001f30a VIX Regime: {vix_level:.1f} ({vix_regime})")
+            if self.regime_detector and Config.ENABLE_VIX_REGIME:
+                sector_regime = self.regime_detector.detect()
+                vix_level = sector_regime.vix_level
+                vix_regime = sector_regime.regime_str  # Legacy 3-tier
+                print(f"\U0001f30a S1 VIX Regime: {vix_level} \u2192 {sector_regime.regime.value} (mapped: {vix_regime})")
                 if vix_regime == 'CRISIS':
                     print(f"\u26a0\ufe0f CRISIS mode: tightening filters, reducing position sizes recommended")
-            else:
-                print(f"\u26a0\ufe0f VIX quote unavailable, proceeding with NORMAL regime")
+            elif self.use_orats:
+                vix_quote = self.batch_manager.orats_api.get_quote('VIX')
+                if vix_quote and vix_quote.get('price'):
+                    vix_level = vix_quote['price']
+                    if vix_level > 30:
+                        vix_regime = 'CRISIS'
+                    elif vix_level > 20:
+                        vix_regime = 'ELEVATED'
+                    print(f"\U0001f30a VIX Regime: {vix_level:.1f} ({vix_regime})")
+                    if vix_regime == 'CRISIS':
+                        print(f"\u26a0\ufe0f CRISIS mode: tightening filters, reducing position sizes recommended")
+                else:
+                    print(f"\u26a0\ufe0f VIX quote unavailable, proceeding with NORMAL regime")
         except Exception as e:
-            print(f"\u26a0\ufe0f VIX fetch failed: {e} (proceeding with NORMAL regime)")
+            print(f"\u26a0\ufe0f VIX regime detection failed: {e} (proceeding with NORMAL regime)")
         all_results = []
         for cand in candidates:
             ticker = cand['symbol']
@@ -1558,26 +1694,30 @@ class HybridScannerService:
                 
                 opportunities.append(opp_dict)
         
-            # --- G8/G9/G14: Enriched context for Weekly/0DTE ---
+            # --- G8/G9/G14: Enriched context for Weekly/0DTE (S1: Enhanced) ---
             vix_regime_weekly = 'NORMAL'
             iv_percentile_weekly = 50
             days_to_earnings_weekly = None
             implied_earnings_move_weekly = None
             try:
-                if self.use_orats:
+                if self.regime_detector and Config.ENABLE_VIX_REGIME:
+                    weekly_regime = self.regime_detector.detect()
+                    vix_regime_weekly = weekly_regime.regime_str
+                elif self.use_orats:
                     vix_q_w = self.batch_manager.orats_api.get_quote('VIX')
                     if vix_q_w and vix_q_w.get('price'):
                         vl_w = vix_q_w['price']
                         if vl_w > 30: vix_regime_weekly = 'CRISIS'
                         elif vl_w > 20: vix_regime_weekly = 'ELEVATED'
-                    
+                
+                if self.use_orats:
                     cores_w = self.batch_manager.orats_api.get_hist_cores(ticker.replace('$', ''))
                     if cores_w:
                         iv_percentile_weekly = cores_w.get('ivPctile1y', 50) or 50
                         days_to_earnings_weekly = cores_w.get('daysToNextErn')
                         implied_earnings_move_weekly = cores_w.get('impliedEarningsMove')
             except Exception as e:
-                print(f"   ⚠️ Weekly enrichment fetch failed: {e}")
+                print(f"   \u26a0\ufe0f Weekly enrichment fetch failed: {e}")
 
             # Use Centralized Ranker with Strategy Logic (WEEKLY/0DTE)
             ranked_opps_dicts = self.options_analyzer.rank_opportunities(

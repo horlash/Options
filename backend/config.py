@@ -68,6 +68,15 @@ class Config:
     MAX_SECTOR_CONCENTRATION_PCT = float(os.getenv('MAX_SECTOR_CONCENTRATION_PCT', 30.0))
     MAX_SINGLE_TICKER_PCT = float(os.getenv('MAX_SINGLE_TICKER_PCT', 10.0))
 
+    # ─── Trading System Feature Flags ────────────────────────────────────
+    # All default to True (enabled). Set to 'False' via env var to disable.
+    ENABLE_VIX_REGIME = os.getenv('ENABLE_VIX_REGIME', 'True') == 'True'           # S1
+    ENABLE_PUT_CALL_RATIO = os.getenv('ENABLE_PUT_CALL_RATIO', 'True') == 'True'   # S2
+    ENABLE_RSI2 = os.getenv('ENABLE_RSI2', 'True') == 'True'                       # S3
+    ENABLE_SECTOR_MOMENTUM = os.getenv('ENABLE_SECTOR_MOMENTUM', 'True') == 'True' # S4
+    ENABLE_MINERVINI_FILTER = os.getenv('ENABLE_MINERVINI_FILTER', 'True') == 'True'# S5
+    ENABLE_VWAP_LEVELS = os.getenv('ENABLE_VWAP_LEVELS', 'True') == 'True'         # S7A
+
     @staticmethod
     def get_paper_db_url():
         """Get the paper trading database URL.
