@@ -406,80 +406,196 @@ class OptionsAnalyzer:
         
         return skew_raw, skew_score
 
-    def rank_opportunities(self, opportunities, technical_score, sentiment_score, skew_score=50, strategy="LEAP", current_price=None):
+    def rank_opportunities(self, opportunities, technical_score, sentiment_score, skew_score=50, strategy="LEAP", current_price=None, fundamental_score=50, greeks_context=None, vix_regime='NORMAL'):
         """
         Rank and score opportunities with Strategy-Specific Logic.
         Strategies: 'LEAP', 'WEEKLY', '0DTE'
+        
+        G4:  LEAP weights now sum to 1.00 (was 0.90)
+        G6:  Greeks factor into scoring (delta confidence, theta efficiency, gamma risk)
+        G10: Strategy-specific delta ranges enforce tighter bands
+        G11: Open Interest minimum filter (per strategy)
+        G12: Volume confirmation gate (per strategy)
+        G13: Bid-ask spread filter (per strategy)
+        G19: Score normalization — all sub-scores clamped to 0-100 before weighting
+        G20: Audit trail — score_breakdown dict on every opportunity
         """
         scored_opportunities = []
         
-        # --- DEFINE WEIGHTS BASED ON STRATEGY ---
+        # --- G10: STRATEGY-SPECIFIC DELTA RANGES ---
+        DELTA_RANGES = {
+            'LEAP':   (0.40, 0.75),   # Was 0.15-0.80 — tightened for quality
+            'WEEKLY': (0.30, 0.70),   # Swing trade range
+            '0DTE':   (0.35, 0.60),   # Tight ATM focus for gamma plays
+        }
+        delta_min, delta_max = DELTA_RANGES.get(strategy, (0.15, 0.80))
+        
+        # --- G11: STRATEGY-SPECIFIC OI MINIMUMS ---
+        OI_MINIMUMS = {
+            'LEAP':   100,
+            'WEEKLY': 500,
+            '0DTE':   1000,
+        }
+        oi_min = OI_MINIMUMS.get(strategy, 10)
+        
+        # --- G12: STRATEGY-SPECIFIC VOLUME MINIMUMS ---
+        VOL_MINIMUMS = {
+            'LEAP':   10,
+            'WEEKLY': 50,
+            '0DTE':   100,
+        }
+        vol_min = VOL_MINIMUMS.get(strategy, 0)
+        
+        # --- G13: STRATEGY-SPECIFIC BID-ASK SPREAD LIMITS ---
+        SPREAD_LIMITS = {
+            'LEAP':   0.10,   # 10% max spread
+            'WEEKLY': 0.05,   # 5% max spread
+            '0DTE':   0.03,   # 3% max spread
+        }
+        spread_limit = SPREAD_LIMITS.get(strategy, 0.15)
+        
+        # --- G4: DEFINE WEIGHTS BASED ON STRATEGY (all sum to 1.00) ---
         if strategy in ["WEEKLY", "0DTE"]:
             # Short Term: Momentum & Flow are King
-            W_TECH = 0.50      # Technicals (Momentum)
-            W_SKEW = 0.20      # Flow/Skew/Gamma
-            W_SENT = 0.20      # News/Sentiment
-            W_PROF = 0.05      # Profit Potential (Less important, we want speed)
-            W_LIQ  = 0.05      # Liquidity (Always needed)
-            PROFIT_TARGET = 50 if strategy == "WEEKLY" else 30 # Normalize score at 50% or 30%
+            W_TECH   = 0.40    # Technicals (Momentum)
+            W_SKEW   = 0.15    # Flow/Skew/Gamma
+            W_SENT   = 0.15    # News/Sentiment
+            W_GREEKS = 0.15    # G6: Greeks quality score (NEW)
+            W_PROF   = 0.05    # Profit Potential
+            W_LIQ    = 0.10    # Liquidity
+            # Sum: 0.40 + 0.15 + 0.15 + 0.15 + 0.05 + 0.10 = 1.00 ✓
+            PROFIT_TARGET = 50 if strategy == "WEEKLY" else 30
         else:
             # LEAP (Long Term): Fundamentals & Value
-            # P0-15: Rebalanced LEAP weights — W_PROF reduced from 0.20 to 0.05
-            # to prevent high-premium OTM options dominating over quality ITM setups
-            W_TECH = 0.35
-            W_SENT = 0.25      # +5% (reallocated from profit reduction)
-            W_SKEW = 0.15
-            W_PROF = 0.05      # Was 0.20 — now matches WEEKLY/0DTE spec
-            W_LIQ  = 0.10
-            W_FUND = 0.10      # NEW: fundamental quality placeholder
-            PROFIT_TARGET = 200 # Normalize score at 200%
+            # G4 FIX: Was 0.90 total — now includes W_GREEKS to reach 1.00
+            W_TECH   = 0.30    # Technicals (was 0.35)
+            W_SENT   = 0.20    # Sentiment (was 0.25)
+            W_SKEW   = 0.10    # Skew (was 0.15)
+            W_GREEKS = 0.15    # G6: Greeks quality score (NEW — fills the 0.10 gap + rebalance)
+            W_PROF   = 0.05    # Profit Potential
+            W_LIQ    = 0.10    # Liquidity
+            W_FUND   = 0.10    # Fundamental quality (from scanner)
+            # Sum: 0.30 + 0.20 + 0.10 + 0.15 + 0.05 + 0.10 + 0.10 = 1.00 ✓
+            PROFIT_TARGET = 200
 
         for opp in opportunities:
+            # --- G10: Delta Range Filter ---
+            delta_val = abs(opp.get('delta', 0) or 0)
+            if delta_val > 0 and (delta_val < delta_min or delta_val > delta_max):
+                opp['rejection_reason'] = f"Delta {delta_val:.2f} outside {strategy} range [{delta_min}-{delta_max}]"
+                continue
+            
+            # --- G11: Open Interest Minimum Filter ---
+            oi = opp.get('open_interest', 0) or 0
+            if oi < oi_min:
+                opp['rejection_reason'] = f"OI {oi} < {strategy} minimum {oi_min}"
+                continue
+            
+            # --- G12: Volume Confirmation Gate ---
+            opt_volume = opp.get('volume', 0) or 0
+            if opt_volume < vol_min:
+                opp['rejection_reason'] = f"Volume {opt_volume} < {strategy} minimum {vol_min}"
+                continue
+            
+            # --- G13: Bid-Ask Spread Filter ---
+            bid = opp.get('bid', 0) or 0
+            ask = opp.get('premium', 0) or 0  # 'premium' is mid price (ask used as proxy when no ask field)
+            if 'ask' in opp and opp['ask']:
+                ask = opp['ask']
+            mid = (bid + ask) / 2 if (bid + ask) > 0 else 0
+            spread_pct = (ask - bid) / mid if mid > 0 else 0
+            if spread_pct > spread_limit and bid > 0:
+                opp['rejection_reason'] = f"Spread {spread_pct:.1%} > {strategy} limit {spread_limit:.0%}"
+                continue
+            
+            # --- G19: Normalize all sub-scores to 0-100 ---
+            norm_tech = max(0.0, min(100.0, float(technical_score)))
+            norm_sent = max(0.0, min(100.0, float(sentiment_score)))
+            norm_skew = max(0.0, min(100.0, float(skew_score)))
+            norm_fund = max(0.0, min(100.0, float(fundamental_score)))
+            
             # Calculate liquidity score
             liquidity_score = self.calculate_liquidity_score(opp)
+            norm_liq = max(0.0, min(100.0, float(liquidity_score)))
             
             # --- PROFIT SCORE NORMALIZATION ---
-            # Cap at 100. If potential is 25% and target is 50%, score is 50.
-            profit_score = min(100, (opp['profit_potential'] / PROFIT_TARGET) * 100)
+            profit_score = min(100, (opp['profit_potential'] / PROFIT_TARGET) * 100) if PROFIT_TARGET > 0 else 0
+            norm_prof = max(0.0, min(100.0, float(profit_score)))
+            
+            # --- G6: GREEKS QUALITY SCORE (0-100) ---
+            greeks_score = self._calculate_greeks_score(opp, strategy)
+            norm_greeks = max(0.0, min(100.0, float(greeks_score)))
             
             # --- WEIGHTED SCORE ---
-            # P0-15: Removed dead duplicate formula that used W_SKEW for sentiment
-            opportunity_score = (
-                float(technical_score) * W_TECH +
-                float(sentiment_score) * W_SENT +
-                float(skew_score) * W_SKEW +
-                float(profit_score) * W_PROF +
-                float(liquidity_score) * W_LIQ
-            )
+            if strategy == "LEAP":
+                opportunity_score = (
+                    norm_tech   * W_TECH +
+                    norm_sent   * W_SENT +
+                    norm_skew   * W_SKEW +
+                    norm_greeks * W_GREEKS +
+                    norm_prof   * W_PROF +
+                    norm_liq    * W_LIQ +
+                    norm_fund   * W_FUND
+                )
+            else:
+                opportunity_score = (
+                    norm_tech   * W_TECH +
+                    norm_sent   * W_SENT +
+                    norm_skew   * W_SKEW +
+                    norm_greeks * W_GREEKS +
+                    norm_prof   * W_PROF +
+                    norm_liq    * W_LIQ
+                )
 
             # --- STRATEGY BONUSES / PENALTIES ---
+            bonus_penalty = 0
             
-            # 1. [PROFIT-TAKING] Delta Sweet Spot Bonus (LEAP ONLY)
-            # Reward options in the 0.60-0.75 sweet spot
+            # 1. Delta Sweet Spot Bonus (LEAP ONLY)
             if strategy == "LEAP":
-                delta_val = opp.get('delta', 0)
                 if 0.60 <= delta_val <= 0.75:
-                    opportunity_score += 10  # Bonus for optimal profit-taking delta
-                    
-            # 2. [REMOVED] Stock Replacement Bonus
-            # Old logic: Bonused delta >= 0.80, now filtered out entirely
-                
-            # 3. Delta Too Low Penalty (LEAP ONLY)
-            # Should never trigger since we filter <0.50, but keep as safety
-            if strategy == "LEAP" and opp.get('delta', 0) < 0.55:
-                opportunity_score -= 10  # Extra penalty for borderline lotto tickets
+                    bonus_penalty += 5  # Reduced from 10 — now part of Greeks score too
 
-            # 3. Gamma Wall Bonus (0DTE/WEEKLY)
-            # This requires 'current_price' passed to function
-            # Logic: If price is within 1% of Strike, and Strike is a "Wall", boost.
-            # (Simplified: High Gamma Badge check)
+            # 2. Gamma Wall Bonus (0DTE/WEEKLY)
             if strategy in ["WEEKLY", "0DTE"]:
-                if opp.get('gamma', 0) > 0.05: # High Gamma
-                     opportunity_score += 10
+                if opp.get('gamma', 0) > 0.05:
+                    bonus_penalty += 5
 
+            # 3. VIX Regime Penalty (G8 awareness at scoring level)
+            if vix_regime == 'CRISIS' and strategy != 'LEAP':
+                bonus_penalty -= 10  # Penalize short-term trades in crisis
+            elif vix_regime == 'ELEVATED' and strategy == '0DTE':
+                bonus_penalty -= 5   # Extra caution for 0DTE in elevated VIX
+            
+            opportunity_score += bonus_penalty
+            opportunity_score = max(1, min(99, float(opportunity_score)))  # Clamp 1-99
+            
+            # --- G20: AUDIT TRAIL — Score Breakdown ---
+            score_breakdown = {
+                'technical':    round(norm_tech, 1),
+                'sentiment':    round(norm_sent, 1),
+                'skew':         round(norm_skew, 1),
+                'greeks':       round(norm_greeks, 1),
+                'profit':       round(norm_prof, 1),
+                'liquidity':    round(norm_liq, 1),
+                'fundamental':  round(norm_fund, 1) if strategy == 'LEAP' else None,
+                'weights': {
+                    'W_TECH': W_TECH, 'W_SENT': W_SENT, 'W_SKEW': W_SKEW,
+                    'W_GREEKS': W_GREEKS, 'W_PROF': W_PROF, 'W_LIQ': W_LIQ,
+                    'W_FUND': W_FUND if strategy == 'LEAP' else 0,
+                },
+                'bonus_penalty': bonus_penalty,
+                'vix_regime':    vix_regime,
+                'delta_range':   f"{delta_min}-{delta_max}",
+                'spread_pct':    round(spread_pct, 4),
+                'oi':            oi,
+                'opt_volume':    opt_volume,
+            }
+            
             opp['liquidity_score'] = float(liquidity_score)
             opp['skew_score'] = float(skew_score)
-            opp['opportunity_score'] = min(99, float(opportunity_score)) # Cap at 99
+            opp['greeks_score'] = float(greeks_score)
+            opp['opportunity_score'] = float(opportunity_score)
+            opp['score_breakdown'] = score_breakdown
             opp['days_to_expiry'] = int(opp['days_to_expiry'])
             
             scored_opportunities.append(opp)
@@ -490,6 +606,75 @@ class OptionsAnalyzer:
         )
         
         return scored_opportunities
+    
+    def _calculate_greeks_score(self, opp, strategy):
+        """
+        G6: Calculate a Greeks quality score (0-100) based on:
+        - Delta confidence: Is delta in the optimal range for this strategy?
+        - Theta efficiency: Is theta decay reasonable relative to premium?
+        - Gamma risk: High gamma = high convexity (good for short-term, risky for LEAPs)
+        """
+        score = 50  # Neutral baseline
+        
+        delta = abs(opp.get('delta', 0) or 0)
+        gamma = abs(opp.get('gamma', 0) or 0)
+        theta = abs(opp.get('theta', 0) or 0)
+        premium = opp.get('premium', 0) or 0
+        
+        # --- Delta Confidence ---
+        if strategy == 'LEAP':
+            # Sweet spot: 0.55-0.70 = ideal for profit-taking LEAPs
+            if 0.55 <= delta <= 0.70:
+                score += 20  # Optimal
+            elif 0.50 <= delta <= 0.75:
+                score += 10  # Acceptable
+            elif delta < 0.45:
+                score -= 15  # Too speculative
+        elif strategy == 'WEEKLY':
+            if 0.40 <= delta <= 0.60:
+                score += 15  # Swing trade sweet spot
+            elif delta > 0.65:
+                score += 5   # Higher conviction but less leverage
+        elif strategy == '0DTE':
+            if 0.45 <= delta <= 0.55:
+                score += 20  # ATM is king for 0DTE
+            elif 0.40 <= delta <= 0.60:
+                score += 10  # Near ATM acceptable
+        
+        # --- Theta Efficiency ---
+        # Theta/Premium ratio: how much daily decay costs as % of position
+        if premium > 0 and theta > 0:
+            theta_pct = theta / premium  # Daily decay as fraction of premium
+            if strategy == 'LEAP':
+                # LEAPs should have low theta decay
+                if theta_pct < 0.003:     # < 0.3% per day = very efficient
+                    score += 15
+                elif theta_pct < 0.005:   # < 0.5% per day = acceptable
+                    score += 5
+                else:
+                    score -= 10           # Expensive time decay
+            else:
+                # Short-term: theta decay is expected, less penalty
+                if theta_pct < 0.01:
+                    score += 10
+                elif theta_pct < 0.03:
+                    score += 0  # Neutral
+                else:
+                    score -= 5
+        
+        # --- Gamma Risk/Reward ---
+        if strategy in ['WEEKLY', '0DTE']:
+            # High gamma is GOOD for short-term (convexity)
+            if gamma > 0.05:
+                score += 15
+            elif gamma > 0.02:
+                score += 5
+        elif strategy == 'LEAP':
+            # High gamma on LEAPs means near-expiry or very ATM — generally fine
+            if gamma > 0.05:
+                score -= 5  # Unusual for long-dated, slight concern
+        
+        return max(0, min(100, score))
 
     def calculate_gex_walls(self, options_data):
         """
