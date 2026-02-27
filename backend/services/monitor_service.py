@@ -602,43 +602,74 @@ class MonitorService:
                 f"({len(tickers)} tickers)"
             )
 
-            for ticker in tickers:
+            # P0-14 FIX: Fetch option-level prices per trade, not stock prices.
+            # Cache underlying prices per ticker to avoid redundant API calls.
+            underlying_cache = {}
+
+            for trade in open_trades:
                 try:
-                    quote = self.orats.get_quote(ticker)
-                    if not quote:
-                        continue
+                    ticker = trade.ticker
 
-                    underlying_price = quote.get('price', 0.0)
-                    bid = quote.get('bid')
-                    ask = quote.get('ask')
-                    mark = (bid + ask) / 2 if bid and ask else underlying_price
-
-                    # Find all trades for this ticker and write snapshots
-                    ticker_trades = [t for t in open_trades if t.ticker == ticker]
-                    for trade in ticker_trades:
-                        snapshot = PriceSnapshot(
-                            trade_id=trade.id,
-                            timestamp=now,
-                            mark_price=mark,
-                            bid=bid,
-                            ask=ask,
-                            underlying=underlying_price,
-                            snapshot_type=snapshot_type,
-                            username=trade.username,
+                    # Get underlying stock price (cached per ticker)
+                    if ticker not in underlying_cache:
+                        stock_quote = self.orats.get_quote(ticker)
+                        underlying_cache[ticker] = (
+                            stock_quote.get('price', 0.0) if stock_quote else 0.0
                         )
-                        db.add(snapshot)
+                    underlying_price = underlying_cache[ticker]
 
-                        # Also update the live price on the trade
-                        trade.current_price = mark
-                        direction_mult = 1 if trade.direction == 'BUY' else -1
-                        trade.unrealized_pnl = round(
-                            (mark - trade.entry_price) * trade.qty * 100 * direction_mult,
-                            2,
+                    # Fetch the OPTION contract's bid/ask/mark
+                    opt_quote = self.orats.get_option_quote(
+                        ticker=ticker,
+                        strike=trade.strike,
+                        expiry_date=trade.expiry,
+                        option_type=trade.option_type,
+                    )
+
+                    if opt_quote:
+                        bid = opt_quote.get('bid', 0.0)
+                        ask = opt_quote.get('ask', 0.0)
+                        mark = opt_quote.get('mark', 0.0)
+                        delta = opt_quote.get('delta')
+                        iv = opt_quote.get('iv')
+                    else:
+                        # Fallback: use stock price if option quote unavailable
+                        logger.warning(
+                            f"Option quote unavailable for {ticker} "
+                            f"{trade.strike} {trade.expiry} {trade.option_type}, "
+                            f"falling back to underlying price"
                         )
+                        bid = None
+                        ask = None
+                        mark = underlying_price
+                        delta = None
+                        iv = None
+
+                    snapshot = PriceSnapshot(
+                        trade_id=trade.id,
+                        timestamp=now,
+                        mark_price=mark,
+                        bid=bid,
+                        ask=ask,
+                        underlying=underlying_price,
+                        delta=delta,
+                        iv=iv,
+                        snapshot_type=snapshot_type,
+                        username=trade.username,
+                    )
+                    db.add(snapshot)
+
+                    # Also update the live price on the trade
+                    trade.current_price = mark
+                    direction_mult = 1 if trade.direction == 'BUY' else -1
+                    trade.unrealized_pnl = round(
+                        (mark - trade.entry_price) * trade.qty * 100 * direction_mult,
+                        2,
+                    )
 
                 except Exception as e:
                     logger.warning(
-                        f"Bookend snapshot failed for {ticker}: {e}"
+                        f"Bookend snapshot failed for trade {trade.id} ({trade.ticker}): {e}"
                     )
 
             db.commit()
