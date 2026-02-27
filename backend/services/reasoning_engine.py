@@ -381,7 +381,7 @@ class ReasoningEngine:
         # 4. Trend Alignment (worth ±15 points)
         ma_signal = technicals.get('ma_signal', 'neutral')
         if ma_signal == 'bullish':             score += 10
-        elif ma_signal == 'pullback_bullish':  score += 5
+        elif ma_signal == 'pullback bullish':  score += 5  # QW-9: was 'pullback_bullish' (underscore mismatch)
         elif ma_signal == 'bearish':           score -= 10
         elif ma_signal == 'breakdown':         score -= 15
         

@@ -279,6 +279,8 @@ class HybridScannerService:
             except Exception as e:
                 print(f"⚠️ Fundamental fetch warning: {e}")
 
+            # P0-11: Preserve history price as ORATS fallback
+            history_price = current_price  # from df['Close'].iloc[-1] above
             current_price = 0
             pe_ratio = 0
             
@@ -292,8 +294,13 @@ class HybridScannerService:
                     print(f"✓ Price (ORATS): ${current_price:.2f}")
             
             if not current_price:
-                 print("❌ Strict Mode: ORATS Price Failed")
-                 return None
+                # P0-11: Fall back to history price instead of returning None
+                if history_price and history_price > 0:
+                    current_price = history_price
+                    print(f"⚠️ ORATS price failed — using history price: ${current_price:.2f} (T-1 delay)")
+                else:
+                    print("❌ Strict Mode: No price available (ORATS + history both failed)")
+                    return None
                 
             # 3. Calculate Fundamental Score
             # fund_score and fund_badges already initialized at top
@@ -855,7 +862,7 @@ class HybridScannerService:
         print(f"Scanning {ticker} (WEEKLY + {weeks_out}) [Advanced Mode]...")
         # 0. Date Setup
         today = datetime.now().date()
-        target_friday = today + timedelta((3-today.weekday()) % 7) # This Friday
+        target_friday = today + timedelta((4-today.weekday()) % 7) # P0-12: Friday=4 (was 3=Thursday)
         target_friday += timedelta(weeks=weeks_out)
         target_friday_str = target_friday.strftime('%Y-%m-%d')
         print(f"📅 Target Expiry: {target_friday_str} (Friday)")

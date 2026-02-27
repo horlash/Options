@@ -1,13 +1,15 @@
 from datetime import datetime, timedelta
+import logging
 from backend.config import Config
+
+logger = logging.getLogger(__name__)
 
 class OptionsAnalyzer:
     def __init__(self):
         self.min_leap_days = Config.MIN_LEAP_DAYS
         self.max_investment = Config.MAX_INVESTMENT_PER_POSITION
         self.min_profit_potential = Config.MIN_PROFIT_POTENTIAL
-        
-        self.min_profit_potential = Config.MIN_PROFIT_POTENTIAL
+        # QW-8: Removed duplicate min_profit_potential assignment
 
     def parse_options_chain(self, options_data, current_price, min_profit_override=None):
         """
@@ -66,8 +68,6 @@ class OptionsAnalyzer:
                 opportunities.extend(results)
         
         return opportunities
-        
-        return opportunities
     
     def _process_expiration(self, strikes, exp_date_str, option_type, current_price, max_investment_limit=None, symbol='', min_profit_override=None):
         """
@@ -105,7 +105,7 @@ class OptionsAnalyzer:
         # if days_to_expiry < self.min_leap_days:
         #    return opportunities
         
-        print(f"   • Processing {len(strikes)} strikes for {exp_date_str} ({days_to_expiry} days)")
+        logger.debug(f"   Processing {len(strikes)} strikes for {exp_date_str} ({days_to_expiry} days)")
         rejected_reasons = []
         
         # Process each strike price
@@ -218,7 +218,11 @@ class OptionsAnalyzer:
             is_leap = days_to_expiry >= self.min_leap_days
             strategy_tag = 'profit_taking' if is_leap else 'standard'
             leverage_ratio = 0
-            break_even = strike_price + premium
+            # QW-10: Put break-even fix — was always strike + premium
+            if option_type == 'Call':
+                break_even = strike_price + premium
+            else:  # Put
+                break_even = strike_price - premium
             
             # Calculate leverage for informational purposes
             if premium > 0:
@@ -243,15 +247,15 @@ class OptionsAnalyzer:
                 **greeks
             })
         
-            # Debug Summary
-            if rejected_reasons:
-                print(f"   • Rejected {len(rejected_reasons)} options. Top reasons:")
-                for reason in rejected_reasons[:5]:  # Show first 5
-                    print(f"     - {reason}")
-            
-            print(f"   • Accepted {len(opportunities)} opportunities for {exp_date_str}")
-            
-            return opportunities
+        # P0-1: Debug Summary — OUTSIDE the for-loop (was indented inside, causing early return)
+        if rejected_reasons:
+            logger.debug(f"   Rejected {len(rejected_reasons)} options. Top reasons:")
+            for reason in rejected_reasons[:5]:
+                logger.debug(f"     - {reason}")
+        
+        logger.debug(f"   Accepted {len(opportunities)} opportunities for {exp_date_str}")
+        
+        return opportunities
     
     def _calculate_profit_potential(self, option_type, strike_price, premium, current_price):
         """
@@ -420,11 +424,14 @@ class OptionsAnalyzer:
             PROFIT_TARGET = 50 if strategy == "WEEKLY" else 30 # Normalize score at 50% or 30%
         else:
             # LEAP (Long Term): Fundamentals & Value
+            # P0-15: Rebalanced LEAP weights — W_PROF reduced from 0.20 to 0.05
+            # to prevent high-premium OTM options dominating over quality ITM setups
             W_TECH = 0.35
-            W_SENT = 0.20
+            W_SENT = 0.25      # +5% (reallocated from profit reduction)
             W_SKEW = 0.15
-            W_PROF = 0.20
+            W_PROF = 0.05      # Was 0.20 — now matches WEEKLY/0DTE spec
             W_LIQ  = 0.10
+            W_FUND = 0.10      # NEW: fundamental quality placeholder
             PROFIT_TARGET = 200 # Normalize score at 200%
 
         for opp in opportunities:
@@ -435,20 +442,8 @@ class OptionsAnalyzer:
             # Cap at 100. If potential is 25% and target is 50%, score is 50.
             profit_score = min(100, (opp['profit_potential'] / PROFIT_TARGET) * 100)
             
-            # --- BASE SCORE ---
-            opportunity_score = (
-                float(technical_score) * W_TECH +
-                float(sentiment_score) * W_SKEW + # Use Sentiment as proxy for generic 'Flow' if Skew unavailable
-                float(skew_score) * W_SKEW +
-                float(profit_score) * W_PROF +
-                float(liquidity_score) * W_LIQ
-            )
-            
-            # Correcting weight sum to 1.0 roughly
-            # LEAP: 35+20+15+20+10 = 100. OK.
-            # WEEKLY: 50+20+20+5+5 = 100. OK. (Note: Skew is used twice in line above? No, wait.)
-            
-            # FIXED FORMULA:
+            # --- WEIGHTED SCORE ---
+            # P0-15: Removed dead duplicate formula that used W_SKEW for sentiment
             opportunity_score = (
                 float(technical_score) * W_TECH +
                 float(sentiment_score) * W_SENT +
