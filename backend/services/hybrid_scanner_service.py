@@ -18,6 +18,7 @@ class HybridScannerService:
     
     _ticker_cache = []
     _orats_universe = None  # Loaded from orats_universe.json
+    _spy_history = None     # F11 FIX: class-level cache (shared across instances)
 
     def __init__(self):
         self.yahoo_api = None # YahooFinanceAPI() # REMOVED (Strict Mode)
@@ -597,9 +598,13 @@ class HybridScannerService:
             traceback.print_exc()
             return None
 
-    def scan_watchlist(self):
-        """Scan all tickers in watchlist"""
-        watchlist = self.watchlist_service.get_watchlist()
+    def scan_watchlist(self, username=None):
+        """Scan all tickers in watchlist.
+        
+        F42 FIX: Accept username param so app.py can pass current_user.
+        Previously crashed with TypeError when called from /api/scan route.
+        """
+        watchlist = self.watchlist_service.get_watchlist(username)
         if not watchlist:
             return []
         
@@ -1093,18 +1098,18 @@ class HybridScannerService:
             
             # Relative Strength vs SPY
             rs_score = 0
-            if not hasattr(self, '_spy_history'):
+            # F11 FIX: Use class-level cache to avoid re-fetching SPY per instance
+            if HybridScannerService._spy_history is None:
                 print("Fetching SPY History for Relative Strength (ORATS)...")
                 if self.use_orats:
                      try:
-                         # Use ORATS for SPY history
-                         self._spy_history = self.batch_manager.orats_api.get_history('SPY')
+                         HybridScannerService._spy_history = self.batch_manager.orats_api.get_history('SPY')
                      except Exception as e:
                          print(f"⚠️ SPY History Failed: {e}")
-                         self._spy_history = None
+                         HybridScannerService._spy_history = None
                 
-            if self._spy_history:
-                df_spy = self.technical_analyzer.prepare_dataframe(self._spy_history)
+            if HybridScannerService._spy_history:
+                df_spy = self.technical_analyzer.prepare_dataframe(HybridScannerService._spy_history)
                 rs_score = self.technical_analyzer.calculate_relative_strength(df, df_spy)
                 print(f"✓ Relative Strength vs SPY: {rs_score:.2f}%")
             

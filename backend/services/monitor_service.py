@@ -298,7 +298,11 @@ class MonitorService:
             close_reason = 'EXPIRED'
 
         trade.exit_price = exit_price
-        trade.realized_pnl = (exit_price - trade.entry_price) * trade.qty * 100
+        # F21 FIX: Add direction_mult — previously always assumed BUY direction
+        direction_mult = 1 if trade.direction == 'BUY' else -1
+        trade.realized_pnl = round(
+            (exit_price - trade.entry_price) * trade.qty * 100 * direction_mult, 2
+        )
         trade.close_reason = close_reason
 
         # Lifecycle transition: OPEN → EXPIRED (Point 11)
