@@ -426,16 +426,42 @@ class HybridScannerService:
                      opportunities.extend(leap_opps)
             
             # [PHASE 3] VOLATILITY SKEW ANALYSIS
-            # Calculate Skew (Call IV - Put IV) to detect "Smart Money" sentiment
-            skew_score = 50 # Default Neutral
-            if self.use_schwab and options_data:
-                skew_raw, skew_score = self.options_analyzer.calculate_skew(options_data, current_price)
-                
-                skew_label = "Neutral"
-                if skew_raw > 0.03: skew_label = "Bullish"
-                elif skew_raw < -0.05: skew_label = "Bearish"
-                
-                print(f"   • Volatility Skew: {skew_raw:.1%} ({skew_label}) [Score: {skew_score:.0f}]")
+            # P0-2: Skew was always 50 because use_schwab=False. Now uses ORATS live/summaries
+            skew_score = 50  # Default Neutral
+            skew_raw = 0.0
+
+            # Option A: Use ORATS live/summaries for pre-calculated skew (preferred)
+            if self.use_orats:
+                try:
+                    summary = self.batch_manager.orats_api.get_live_summary(ticker)
+                    if summary:
+                        # rSlp30 = 30-day risk-neutral skew slope
+                        r_slp30 = summary.get('rSlp30', 0) or 0
+                        skewing = summary.get('skewing', 0) or 0
+
+                        # Normalize rSlp30 to 0-100 score
+                        # rSlp30 typically ranges from -0.10 to +0.10
+                        skew_raw = r_slp30
+                        skew_score = max(0, min(100, 50 + (r_slp30 * 500)))
+
+                        skew_label = "Neutral"
+                        if r_slp30 > 0.02: skew_label = "Bullish"
+                        elif r_slp30 < -0.03: skew_label = "Bearish"
+
+                        print(f"   • ORATS Skew: rSlp30={r_slp30:.4f}, skewing={skewing:.2f} -> Score={skew_score:.0f} ({skew_label})")
+                except Exception as e:
+                    print(f"   ⚠️ ORATS skew fetch failed (using default 50): {e}")
+
+            # Option B: Fallback to chain-based calculate_skew if ORATS didn't work
+            if skew_score == 50 and options_data:
+                try:
+                    skew_raw, skew_score = self.options_analyzer.calculate_skew(options_data, current_price)
+                    skew_label = "Neutral"
+                    if skew_raw > 0.03: skew_label = "Bullish"
+                    elif skew_raw < -0.05: skew_label = "Bearish"
+                    print(f"   • Chain Skew: {skew_raw:.1%} ({skew_label}) [Score: {skew_score:.0f}]")
+                except Exception as e:
+                    print(f"   ⚠️ Chain skew calculation failed: {e}")
 
             # Rank
             ranked_opportunities = self.options_analyzer.rank_opportunities(
@@ -768,14 +794,32 @@ class HybridScannerService:
             # Let's call reasoning_engine directly using the data we JUST fetched to save time!
             
             # Construct Context from existing result
+            # P0-13: Populate full technicals + sentiment for AI reasoning engine
+            indicators = res.get('indicators', {})
             context = {
                 'current_price': res.get('current_price'),
                 'headlines': res.get('sentiment_analysis', {}).get('headlines', []),
                 'technicals': {
-                    'rsi': f"{res.get('indicators', {}).get('rsi', 0):.1f}",
-                    'trend': res.get('indicators', {}).get('trend', 'Neutral'),
-                    'atr': f"{res.get('indicators', {}).get('atr', 0):.2f}",
-                     'hv_rank': f"{res.get('indicators', {}).get('hv_rank', 0):.1f}"
+                    'score': res.get('technical_score', 50),
+                    'rsi': f"{indicators.get('rsi', 0):.1f}",
+                    'rsi_signal': indicators.get('rsi_signal', 'neutral'),
+                    'macd_signal': indicators.get('macd_signal', 'neutral'),
+                    'bb_signal': indicators.get('bb_signal', 'neutral'),
+                    'bb_bandwidth_pct': indicators.get('bb_bandwidth_pct', 'N/A'),
+                    'bb_squeeze': indicators.get('bb_squeeze', False),
+                    'ma_signal': indicators.get('ma_signal', 'neutral'),
+                    'sma_5': indicators.get('sma_5', 'N/A'),
+                    'sma_50': indicators.get('sma_50', 'N/A'),
+                    'sma_200': indicators.get('sma_200', 'N/A'),
+                    'trend': indicators.get('trend', 'Neutral'),
+                    'atr': f"{indicators.get('atr', 0):.2f}",
+                    'hv_rank': f"{indicators.get('hv_rank', 0):.1f}",
+                    'volume_signal': indicators.get('volume_signal', 'normal'),
+                    'volume_ratio': indicators.get('volume_ratio', 'N/A'),
+                    'volume_zscore': indicators.get('volume_zscore', 0),
+                },
+                'sentiment': {
+                    'score': res.get('sentiment_score', 50),
                 },
                 'gex': {
                     'call_wall': res.get('gex_data', {}).get('call_wall', 'N/A'),
@@ -1036,7 +1080,35 @@ class HybridScannerService:
 
             earnings_date = None
             has_earnings_risk = False
-            # (Yahoo Earnings Check Removed - Strict Mode)
+            earnings_move = None
+
+            # P0-3: Re-enable earnings risk check via Finnhub (was stripped during Strict Mode migration)
+            try:
+                from datetime import date, timedelta as td
+                today_str = date.today().isoformat()
+                future_str = (date.today() + td(days=7)).isoformat()
+
+                earnings = self.finnhub_api.get_earnings_calendar(
+                    symbol=ticker,
+                    from_date=today_str,
+                    to_date=future_str
+                )
+                if earnings:
+                    nearest = earnings[0]
+                    earnings_date = nearest.get('date')
+                    has_earnings_risk = True
+                    # Try to get implied move from ORATS hist/cores
+                    if self.use_orats:
+                        try:
+                            cores = self.batch_manager.orats_api.get_hist_cores(ticker)
+                            if cores:
+                                earnings_move = cores.get('impliedEarningsMove')
+                        except:
+                            pass
+                    print(f"   ⚠️ EARNINGS in {earnings_date} (EPS est: {nearest.get('epsEstimate', 'N/A')}, "
+                          f"implied move: {earnings_move or 'N/A'})")
+            except Exception as e:
+                print(f"   ⚠️ Earnings check failed (non-fatal): {e}")
 
             # 4. Fetch Options & GEX
             print(f"[3/6] Fetching Options Chain...")
