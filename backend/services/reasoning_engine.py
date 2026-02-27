@@ -442,3 +442,57 @@ class ReasoningEngine:
         if "SAFE" in upper_text: return "SAFE"
         
         return "NEUTRAL"
+
+    # ------------------------------------------------------------------
+    # G16: Macro/Index Sentiment via Perplexity
+    # ------------------------------------------------------------------
+    def get_macro_sentiment(self, vix_level=None, vix_regime='NORMAL'):
+        """
+        G16: Use Perplexity to generate a macro market sentiment score (0-100).
+        For index/ETF tickers (SPY, QQQ, etc.) where company-specific sentiment is N/A.
+
+        Returns:
+            dict with 'score' (0-100), 'summary', 'regime'
+        """
+        if not self.api_key:
+            return {'score': 50, 'summary': 'AI disabled', 'regime': vix_regime}
+
+        vix_str = f"VIX is at {vix_level:.1f} ({vix_regime} regime)." if vix_level else "VIX data unavailable."
+
+        prompt = (
+            f"You are a macro market sentiment engine.\n"
+            f"Current data: {vix_str}\n"
+            f"Assess the overall US equity market sentiment RIGHT NOW on a 0-100 scale:\n"
+            f"0 = extreme fear/bearish, 50 = neutral, 100 = extreme greed/bullish.\n\n"
+            f"Consider: VIX level, recent market breadth, Fed policy stance, and risk appetite.\n"
+            f"Respond with ONLY a JSON object: {{\"score\": <int>, \"summary\": \"<1 sentence>\"}}\n"
+        )
+
+        try:
+            resp = requests.post(
+                self.base_url,
+                json={
+                    "model": self.model,
+                    "messages": [
+                        {"role": "system", "content": "You are a macro market sentiment engine. Return only JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.0
+                },
+                headers=self.headers,
+                timeout=15
+            )
+
+            if resp.status_code == 200:
+                content = resp.json()['choices'][0]['message']['content']
+                json_match = re.search(r'\{[^}]*"score"\s*:\s*(\d+)[^}]*\}', content)
+                if json_match:
+                    parsed = json.loads(json_match.group(0))
+                    score = max(0, min(100, int(parsed.get('score', 50))))
+                    summary = parsed.get('summary', '')
+                    print(f"   G16 Macro Sentiment: {score}/100 — {summary}")
+                    return {'score': score, 'summary': summary, 'regime': vix_regime}
+        except Exception as e:
+            print(f"   ⚠️ G16 Macro Sentiment failed: {e}")
+
+        return {'score': 50, 'summary': 'Analysis unavailable', 'regime': vix_regime}

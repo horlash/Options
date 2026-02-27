@@ -406,7 +406,7 @@ class OptionsAnalyzer:
         
         return skew_raw, skew_score
 
-    def rank_opportunities(self, opportunities, technical_score, sentiment_score, skew_score=50, strategy="LEAP", current_price=None, fundamental_score=50, greeks_context=None, vix_regime='NORMAL'):
+    def rank_opportunities(self, opportunities, technical_score, sentiment_score, skew_score=50, strategy="LEAP", current_price=None, fundamental_score=50, greeks_context=None, vix_regime='NORMAL', iv_percentile=50, days_to_earnings=None, implied_earnings_move=None):
         """
         Rank and score opportunities with Strategy-Specific Logic.
         Strategies: 'LEAP', 'WEEKLY', '0DTE'
@@ -565,6 +565,24 @@ class OptionsAnalyzer:
                 bonus_penalty -= 10  # Penalize short-term trades in crisis
             elif vix_regime == 'ELEVATED' and strategy == '0DTE':
                 bonus_penalty -= 5   # Extra caution for 0DTE in elevated VIX
+
+            # 4. G9: IV Percentile — premium for buying low IV, penalty for high IV
+            iv_pct = float(iv_percentile) if iv_percentile else 50
+            if iv_pct < 20:
+                bonus_penalty += 5   # IV is cheap — good time to buy options
+            elif iv_pct > 80:
+                bonus_penalty -= 5   # IV is expensive — overpaying for premium
+
+            # 5. G14: Earnings Proximity — flag and penalize pre-earnings uncertainty
+            if days_to_earnings is not None:
+                dte = int(days_to_earnings)
+                if 0 < dte <= 3:
+                    bonus_penalty -= 10  # Binary event imminent
+                elif 3 < dte <= 14:
+                    bonus_penalty -= 5   # Approaching earnings
+
+            # 6. G15: (Dividend impact handled at scanner level for LEAPs;
+            #    here we note it in the breakdown)
             
             opportunity_score += bonus_penalty
             opportunity_score = max(1, min(99, float(opportunity_score)))  # Clamp 1-99
@@ -585,6 +603,9 @@ class OptionsAnalyzer:
                 },
                 'bonus_penalty': bonus_penalty,
                 'vix_regime':    vix_regime,
+                'iv_percentile': round(iv_pct, 1),
+                'days_to_earnings': days_to_earnings,
+                'implied_earnings_move': implied_earnings_move,
                 'delta_range':   f"{delta_min}-{delta_max}",
                 'spread_pct':    round(spread_pct, 4),
                 'oi':            oi,
