@@ -541,8 +541,6 @@ class HybridScannerService:
         results.sort(key=lambda x: x['opportunities'][0]['opportunity_score'] if x['opportunities'] else 0, reverse=True)
         return results
 
-        return final_results
-
     def _calculate_greeks_black_scholes(self, S, K, T, sigma, r=0.045, opt_type='call'):
         """
         Estimate Greeks using Black-Scholes (Pure Python, no scipy).

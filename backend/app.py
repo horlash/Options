@@ -12,6 +12,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from flask import Flask, jsonify, request, render_template, session, redirect, send_from_directory
 from flask_cors import CORS
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    HAS_LIMITER = True
+except ImportError:
+    HAS_LIMITER = False
 from backend.config import Config
 from backend.database.models import init_db, SearchHistory, get_db
 from backend.services.hybrid_scanner_service import HybridScannerService as ScannerService
@@ -30,12 +36,34 @@ app.config.from_object(Config)
 CORS(app)
 security_service = Security(app)
 
+# XC-7: Rate limiting on login endpoint to prevent brute-force attacks
+if HAS_LIMITER:
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=[],            # No global limit — only applied per-route
+        storage_uri="memory://",      # In-memory; works fine for single-process Pi deploy
+    )
+else:
+    limiter = None
+    logging.getLogger(__name__).warning(
+        "flask-limiter not installed — login rate limiting disabled. "
+        "Run: pip install flask-limiter>=3.5.0"
+    )
+
 # Register paper trading API routes (Phase 3)
 from backend.api.paper_routes import paper_bp
 app.register_blueprint(paper_bp)
 
 # Initialize database
 init_db()
+
+# P1-A12: Validate ENCRYPTION_KEY at startup (needed for Tradier token encryption)
+if not Config.ENCRYPTION_KEY:
+    logging.getLogger(__name__).warning(
+        "ENCRYPTION_KEY not set. Tradier token encryption/decryption will fail. "
+        "Set ENCRYPTION_KEY env var for paper trading with Tradier."
+    )
 
 # Global service instance
 scanner_service = None
@@ -69,6 +97,11 @@ def login_page():
 
     # GET request - serve login page
     return app.send_static_file('login.html')
+
+# XC-7: Apply rate limit to login — 5 attempts/minute per IP
+# Prevents brute-force attacks on the login endpoint
+if limiter is not None:
+    login_page = limiter.limit("5/minute")(login_page)
 
 @app.route('/logout')
 def logout():

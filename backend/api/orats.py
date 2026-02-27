@@ -53,7 +53,7 @@ class OratsAPI:
                 }
             return universe
         except Exception as e:
-            print(f"ORATS Ticker Universe Error: {e}")
+            logger.warning(f"ORATS Ticker Universe Error: {e}")
             return {}
 
     def check_ticker(self, ticker):
@@ -87,10 +87,10 @@ class OratsAPI:
             data = response.json()
             return self._standardize_response(data)
         except requests.exceptions.HTTPError as e:
-            print(f"ORATS API Error (Chain): {e}")
+            logger.warning(f"ORATS API Error (Chain): {e}")
             return None
         except Exception as e:
-            print(f"ORATS Connection Error: {e}")
+            logger.warning(f"ORATS Connection Error: {e}")
             return None
 
     def get_history(self, ticker, days=365):
@@ -141,12 +141,12 @@ class OratsAPI:
 
         except requests.exceptions.HTTPError as e:
             if response.status_code == 403:
-                print(f"ORATS Perms Error: Candles not enabled for this key.")
+                logger.warning("ORATS Perms Error: Candles not enabled for this key.")
             else:
-                print(f"ORATS API Error (History): {e}")
+                logger.warning(f"ORATS API Error (History): {e}")
             return None
         except Exception as e:
-            print(f"ORATS History Connection Error: {e}")
+            logger.warning(f"ORATS History Connection Error: {e}")
             return None
 
     def get_quote(self, ticker):
@@ -197,10 +197,10 @@ class OratsAPI:
             return None
 
         except requests.exceptions.HTTPError as e:
-            print(f"ORATS API Error (Quote): {e}")
+            logger.warning(f"ORATS API Error (Quote): {e}")
             return None
         except Exception as e:
-            print(f"ORATS Quote Connection Error: {e}")
+            logger.warning(f"ORATS Quote Connection Error: {e}")
             return None
 
     def get_option_quote(self, ticker, strike, expiry_date, option_type='CALL'):
@@ -294,14 +294,14 @@ class OratsAPI:
                     }
             
             # No matching contract found
-            print(f"ORATS: No contract found for {ticker} {strike} {expiry_date} {option_type}")
+            logger.debug(f"ORATS: No contract found for {ticker} {strike} {expiry_date} {option_type}")
             return None
 
         except requests.exceptions.HTTPError as e:
-            print(f"ORATS API Error (Option Quote): {e}")
+            logger.warning(f"ORATS API Error (Option Quote): {e}")
             return None
         except Exception as e:
-            print(f"ORATS Option Quote Error: {e}")
+            logger.warning(f"ORATS Option Quote Error: {e}")
             return None
 
     def _standardize_response(self, orats_data):
@@ -311,7 +311,7 @@ class OratsAPI:
         We need {callExpDateMap: {expiry: {strike: [option, ...]}}}
         """
         if not orats_data or "data" not in orats_data:
-            print("DEBUG: No 'data' field in response")
+            logger.debug("No 'data' field in ORATS response")
             return {}
 
         raw_list = orats_data["data"]

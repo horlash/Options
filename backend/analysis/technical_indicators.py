@@ -1,7 +1,10 @@
 import pandas as pd
 import ta
 import numpy as np
+import logging
 from backend.config import Config
+
+logger = logging.getLogger(__name__)
 
 class TechnicalIndicators:
     def __init__(self):
@@ -200,7 +203,7 @@ class TechnicalIndicators:
         sma_200 = sma_200_indicator.sma_indicator().iloc[-1]
         current_price = df['Close'].iloc[-1]
         
-        print(f"DEBUG: Calculated SMA5={sma_5}, SMA50={sma_50}")
+        logger.debug(f"Calculated SMA5={sma_5}, SMA50={sma_50}")
         
         # 5-zone trend analysis with SMA200 safety net
         if sma_50 > sma_200 and current_price > sma_50:
@@ -319,13 +322,10 @@ class TechnicalIndicators:
         macd_values, macd_signal = self.calculate_macd(df)
         bb_values, bb_signal = self.calculate_bollinger_bands(df)
         ma_values, ma_signal = self.calculate_moving_averages(df)
-        volume_values, volume_signal = self.analyze_volume(df)
-        volume_values, volume_signal = self.analyze_volume(df)
+        volume_values, volume_signal = self.analyze_volume(df)  # QW-6: removed duplicate call
         sr_levels = self.calculate_support_resistance(df)
         atr = self.calculate_atr(df)
         hv_rank = self.calculate_hv_rank(df)
-        
-        print(f"DEBUG TI RETURN MA_VALUES: {ma_values}")
         
         return {
             'rsi': {
@@ -468,6 +468,9 @@ class TechnicalIndicators:
         """
         if df is None or len(df) < 30: # Need some data
             return 50 # Default neutral
+        
+        # XC-5: Work on a copy to avoid SettingWithCopyWarning on caller's DataFrame
+        df = df.copy()
             
         # Calculate Log Returns
         df['log_ret'] = np.log(df['Close'] / df['Close'].shift(1))
