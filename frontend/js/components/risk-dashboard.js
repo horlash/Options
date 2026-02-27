@@ -121,8 +121,39 @@ const riskDashboard = (() => {
                 </div>
             </div>
 
+            <!-- Risk Rules Section -->
+            <div class="weekly-report" style="margin-top: var(--spacing-md);">
+                <h3>⚖️ Risk Rules — Current Status</h3>
+                <div class="report-grid">
+                    <div class="report-metric">
+                        <div class="report-metric-label">Max Positions</div>
+                        <div class="report-metric-value">${openCount}/${maxPos}</div>
+                    </div>
+                    <div class="report-metric">
+                        <div class="report-metric-label">Daily Loss Used</div>
+                        <div class="report-metric-value" style="color: ${Math.abs(totalRealized) > 500 ? 'var(--danger)' : 'var(--secondary)'};">$${Math.abs(totalRealized < 0 ? totalRealized : 0).toFixed(0)}/$500</div>
+                    </div>
+                    <div class="report-metric">
+                        <div class="report-metric-label">Daily Trades</div>
+                        <div class="report-metric-value">${totalTrades}/10</div>
+                    </div>
+                    <div class="report-metric">
+                        <div class="report-metric-label">Portfolio Concentration</div>
+                        <div class="report-metric-value">${openCount > 0 ? 'Active' : 'None'}</div>
+                    </div>
+                    <div class="report-metric">
+                        <div class="report-metric-label">Sector Exposure</div>
+                        <div class="report-metric-value">${openCount > 0 ? 'Diversified' : 'N/A'}</div>
+                    </div>
+                    <div class="report-metric">
+                        <div class="report-metric-label">Last Updated</div>
+                        <div class="report-metric-value">${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})}</div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Performance Summary -->
-            <div class="weekly-report">
+            <div class="weekly-report" style="margin-top: var(--spacing-md);">
                 <h3>📋 Performance Summary</h3>
                 <div class="report-grid">
                     <div class="report-metric">

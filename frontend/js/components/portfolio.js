@@ -615,9 +615,20 @@ const portfolio = (() => {
         const pnlColor = realizedPnL >= 0 ? 'var(--secondary)' : 'var(--danger)';
 
         el.innerHTML = `
-            <div class="summ-item">Total Closed: <span class="summ-val">${totalClosed}</span></div>
-            <div class="summ-item">Win Rate: <span class="summ-val">${winRate}%</span></div>
-            <div class="summ-item">Realized P&L: <span class="summ-val" style="color:${pnlColor}">${realizedPnL >= 0 ? '+' : ''}$${realizedPnL.toLocaleString()}</span></div>
+            <div class="history-summary-boxes">
+                <div class="history-summary-box">
+                    <div class="summ-label">Total Closed</div>
+                    <div class="summ-val">${totalClosed}</div>
+                </div>
+                <div class="history-summary-box">
+                    <div class="summ-label">Win Rate</div>
+                    <div class="summ-val">${winRate}%</div>
+                </div>
+                <div class="history-summary-box">
+                    <div class="summ-label">Realized P&L</div>
+                    <div class="summ-val" style="color:${pnlColor}">${realizedPnL >= 0 ? '+' : ''}$${realizedPnL.toLocaleString()}</div>
+                </div>
+            </div>
         `;
 
         // ── Populate ticker filter dropdown (UI-83) ──

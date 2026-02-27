@@ -482,6 +482,18 @@ const opportunities = {
                 : (opp.strike_price - opp.premium);
         }
 
+        // Scan-type badge based on current scanner mode
+        let scanBadgeHtml = '';
+        if (typeof scanner !== 'undefined') {
+            if (scanner.scanMode === 'leaps') {
+                scanBadgeHtml = '<span class="scan-type-badge badge-leap">LEAP</span>';
+            } else if (scanner.scanMode === '0dte') {
+                scanBadgeHtml = '<span class="scan-type-badge badge-0dte">0DTE</span>';
+            } else {
+                scanBadgeHtml = '<span class="scan-type-badge badge-weekly">Weekly</span>';
+            }
+        }
+
         // Main Badges (Mutually Exclusive)
         let badgesHtml = '';
         if (opp.play_type === 'tactical') badgesHtml += `<span class="badge badge-tactical">⚡ Tactical</span>`;
@@ -499,6 +511,30 @@ const opportunities = {
             });
         }
 
+        // Trading Systems collapsible section
+        const tsCount = opp.trading_systems ? Object.keys(opp.trading_systems).length : 0;
+        const tsScore = opp.technical_score || 0;
+        let tradingSystemsHtml = '';
+        if (tsCount > 0) {
+            const tsId = `ts-${index}`;
+            let tsPillsHtml = '';
+            for (const [name, data] of Object.entries(opp.trading_systems || {})) {
+                const signal = data.signal || data;
+                const pillColor = signal === 'BUY' ? 'var(--secondary)' : signal === 'SELL' ? 'var(--danger)' : 'var(--text-muted)';
+                tsPillsHtml += `<span style="display:inline-block;padding:2px 8px;margin:2px 4px 2px 0;border-radius:4px;font-size:0.7rem;font-weight:600;background:rgba(255,255,255,0.05);border:1px solid ${pillColor};color:${pillColor};">${name}: ${signal}</span>`;
+            }
+            tradingSystemsHtml = `
+                <div class="trading-systems-toggle" onclick="this.classList.toggle('expanded');this.nextElementSibling.classList.toggle('show');">
+                    <span class="ts-header">Trading Systems</span>
+                    <span class="ts-summary">${tsCount} Systems · Score: ${tsScore}/100</span>
+                    <span class="ts-chevron">▶</span>
+                </div>
+                <div class="trading-systems-content" id="${tsId}">
+                    ${tsPillsHtml}
+                </div>
+            `;
+        }
+
         return `
             <div class="opportunity-card ${cardClass}" data-ticker="${opp.ticker}" data-index="${index}">
                 
@@ -507,8 +543,9 @@ const opportunities = {
                     <div style="display:flex; align-items:baseline;">
                         <span class="ticker-symbol">${opp.ticker}</span>
                         <span class="price-display">$${opp.current_price ? opp.current_price.toFixed(2) : '-.--'}</span>
+                        ${scanBadgeHtml}
                     </div>
-                    <span class="score-badge-large ${opp.opportunity_score >= 66 ? 'score-high' : opp.opportunity_score >= 40 ? 'score-mid' : 'score-low'}">${opp.opportunity_score.toFixed(0)}</span>
+                    <span class="score-badge-large ${opp.opportunity_score >= 66 ? 'score-high' : opp.opportunity_score >= 40 ? 'score-mid' : 'score-low'}">${opp.opportunity_score.toFixed(0)}<span class="score-out-of">/100</span></span>
                 </div>
 
                 <!-- BODY: Hero Action -->
@@ -565,6 +602,9 @@ const opportunities = {
                         <span class="source-text">${source}</span>
                     </div>
                 </div>
+
+                <!-- TRADING SYSTEMS (collapsible) -->
+                ${tradingSystemsHtml}
 
                 <!-- TRADE BUTTON (Gate 1: Card Score) -->
                 <div class="card-trade-area" style="padding: 0 1.25rem 0.75rem;">
@@ -630,7 +670,7 @@ const opportunities = {
                         ⚡ Trade
                     </button>
                 </div>
-                <div class="edge-gate-label">Card Score ${score.toFixed(0)} — Click Trade to run AI check</div>
+                <div class="edge-gate-label">Card Score ${score.toFixed(0)}/100 — Click Trade to run AI check</div>
             `;
         } else {
             return `
@@ -640,7 +680,7 @@ const opportunities = {
                         🔒 Locked
                     </button>
                 </div>
-                <div class="edge-gate-label" style="color: var(--text-muted);">Card Score ${score.toFixed(0)} — Below 40 threshold</div>
+                <div class="edge-gate-label" style="color: var(--text-muted);">Card Score ${score.toFixed(0)}/100 — Below 40 threshold</div>
             `;
         }
     },
@@ -655,4 +695,3 @@ const opportunities = {
         this.render(this.currentResults);
     }
 };
-

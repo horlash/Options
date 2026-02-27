@@ -123,6 +123,262 @@ body.has-subtabs .main-content {
     /* header(97) + nav(51) + portfolio-header(~50) + gap */
 }
 
+/* ═══════════════════════════════════════════════════════════
+   SCANNER SIDEBAR + MAIN LAYOUT
+   ═══════════════════════════════════════════════════════════ */
+
+/* Scanner Body: Sidebar + Main flex layout */
+.scanner-body {
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: flex-start;
+}
+
+/* Left Sidebar */
+.scanner-sidebar {
+    width: 230px;
+    min-width: 230px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.sidebar-section {
+    background: var(--bg-card);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+}
+
+.sidebar-section h2 {
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+}
+
+/* Scan Mode Grid: 2-row compact layout */
+.scan-mode-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.4rem;
+}
+
+.scan-mode-grid .btn-mode {
+    min-width: unset;
+    padding: 0.45rem 0.25rem;
+    font-size: 0.72rem;
+    text-align: center;
+}
+
+.scan-mode-grid .btn-mode-0dte {
+    background: linear-gradient(135deg, #ff4d4d, #c62828);
+    border-color: #ff4d4d;
+    color: #fff;
+}
+
+/* Leaps spans full row below */
+.scan-mode-grid .btn-mode:nth-child(4) {
+    grid-column: 1 / 3;
+}
+.scan-mode-grid .btn-mode:nth-child(5) {
+    grid-column: 3 / 4;
+}
+
+/* Scanner Main Content Area */
+.scanner-main {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Watchlist Inline Row */
+.watchlist-inline-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.watchlist-add-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    position: relative;
+}
+
+.watchlist-inline-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.watchlist-count-badge {
+    background: rgba(255,255,255,0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+.watchlist-chips {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+/* Mobile: sidebar stacks above main */
+@media (max-width: 900px) {
+    .scanner-body {
+        flex-direction: column;
+    }
+    .scanner-sidebar {
+        width: 100%;
+        min-width: unset;
+    }
+}
+
+@media (max-width: 480px) {
+    .watchlist-inline-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CARD ENHANCEMENTS: Left border, score /100, scan badges,
+   collapsible Trading Systems
+   ═══════════════════════════════════════════════════════════ */
+
+/* Left border instead of top border */
+.card-call {
+    border-top: none !important;
+    border-left: 4px solid #059669 !important;
+}
+.card-put {
+    border-top: none !important;
+    border-left: 4px solid #dc2626 !important;
+}
+
+/* Scan-type badge */
+.scan-type-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 6px;
+}
+.scan-type-badge.badge-leap {
+    background: rgba(99, 102, 241, 0.2);
+    color: #818cf8;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+}
+.scan-type-badge.badge-0dte {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.scan-type-badge.badge-weekly {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Score /100 label */
+.score-out-of {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.5);
+    margin-left: 2px;
+    font-weight: 400;
+}
+
+/* Collapsible Trading Systems */
+.trading-systems-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1.25rem;
+    cursor: pointer;
+    user-select: none;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    transition: background 0.15s;
+}
+.trading-systems-toggle:hover {
+    background: rgba(255,255,255,0.03);
+}
+.trading-systems-toggle .ts-header {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.trading-systems-toggle .ts-summary {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+.trading-systems-toggle .ts-chevron {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+}
+.trading-systems-toggle.expanded .ts-chevron {
+    transform: rotate(90deg);
+}
+.trading-systems-content {
+    display: none;
+    padding: 0.5rem 1.25rem 0.75rem;
+}
+.trading-systems-content.show {
+    display: block;
+}
+
+/* Trade History Summary Boxes */
+.history-summary-boxes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+}
+.history-summary-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1rem;
+    text-align: center;
+}
+.history-summary-box .summ-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+.history-summary-box .summ-val {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+@media (max-width: 480px) {
+    .history-summary-boxes {
+        grid-template-columns: 1fr;
+    }
+}
+
 .control-panel {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
