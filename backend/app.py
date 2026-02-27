@@ -160,6 +160,14 @@ def add_to_watchlist():
                 'error': 'Ticker is required'
             }), 400
         
+        # BUG-2 FIX: Validate ticker format (1-5 uppercase letters only)
+        ticker = ticker.strip().upper()
+        if not re.match(r'^[A-Z]{1,5}$', ticker):
+            return jsonify({
+                'success': False,
+                'error': f'Invalid ticker format: {ticker}. Use 1-5 letters (e.g. AAPL, MSFT).'
+            }), 400
+        
         watchlist_service = WatchlistService()
         success, message = watchlist_service.add_ticker(ticker, current_user)
         watchlist_service.close()
@@ -244,15 +252,35 @@ def run_scan():
 
 @app.route('/api/scan/<ticker>', methods=['POST'])
 def scan_ticker(ticker):
-    """Run scan on a specific ticker"""
+    """Run scan on a specific ticker. Supports direction: CALL, PUT, or BOTH (default)."""
     try:
         scanner_service = ScannerService()
-        # F41 FIX: Accept direction from request body (default CALL)
         data = request.get_json(silent=True) or {}
-        direction = data.get('direction', 'CALL').upper()
-        if direction not in ('CALL', 'PUT'):
-            direction = 'CALL'
-        result = scanner_service.scan_ticker(ticker, strict_mode=False, direction=direction)
+        direction = data.get('direction', 'BOTH').upper()
+        if direction not in ('CALL', 'PUT', 'BOTH'):
+            direction = 'BOTH'
+
+        if direction == 'BOTH':
+            # Scan both directions and merge opportunities
+            result_call = scanner_service.scan_ticker(ticker, strict_mode=False, direction='CALL')
+            result_put = scanner_service.scan_ticker(ticker, strict_mode=False, direction='PUT')
+
+            if result_call and result_put:
+                # Merge: use CALL result as base, append PUT opportunities
+                merged = dict(result_call)
+                call_opps = merged.get('opportunities', [])
+                put_opps = result_put.get('opportunities', [])
+                merged['opportunities'] = call_opps + put_opps
+                result = merged
+            elif result_call:
+                result = result_call
+            elif result_put:
+                result = result_put
+            else:
+                result = None
+        else:
+            result = scanner_service.scan_ticker(ticker, strict_mode=False, direction=direction)
+
         scanner_service.close()
         
         if result:
@@ -308,7 +336,7 @@ def run_daily_scan():
 
 @app.route('/api/scan/daily/<ticker>', methods=['POST'])
 def scan_ticker_daily(ticker):
-    """Run Daily scan on a specific ticker"""
+    """Run Daily scan on a specific ticker. Already returns both CALL and PUT."""
     try:
         data = request.get_json() or {}
         weeks_out = int(data.get('weeks_out', 0))
@@ -324,8 +352,8 @@ def scan_ticker_daily(ticker):
         else:
             return jsonify({
                 'success': False,
-                'error': f'Failed to scan {ticker}'
-            }), 500
+                'error': f'No opportunities found for {ticker}'
+            }), 200
     except Exception as e:
         print(f"ERROR in scan_ticker_daily: {e}")
         return jsonify({

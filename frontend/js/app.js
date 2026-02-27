@@ -226,6 +226,9 @@ function setupEventListeners() {
                 updateHistory(ticker);
                 scanner.scanTicker(ticker);
                 input.value = '';
+            } else {
+                // BUG-6 FIX: Show error for empty search
+                toast.error('Please enter a ticker symbol');
             }
         });
     }

@@ -44,6 +44,9 @@
                         <span class="stat-label">Heat</span>
                         <span class="stat-value" id="portfolio-heat" style="color: var(--accent);">4.1%</span>
                     </div>
+                    <div class="stat-item">
+                        <a href="/logout" class="btn-logout" title="Sign Out" style="display:inline-flex;align-items:center;gap:4px;color:#94a3b8;text-decoration:none;font-size:0.85rem;padding:4px 10px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);transition:all 0.2s;" onmouseover="this.style.color='#ef4444';this.style.borderColor='#ef4444'" onmouseout="this.style.color='#94a3b8';this.style.borderColor='rgba(148,163,184,0.3)'">🚪 Logout</a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -81,9 +84,11 @@
                             <button id="mode-weekly-2" class="btn btn-mode">Next 2 Weeks</button>
                             <button id="mode-leaps" class="btn btn-mode">Leaps</button>
                         </div>
-                        <!-- F41 FIX: Direction toggle for CALL/PUT scanning -->
+                        <!-- Direction toggle: BOTH (default), CALL, PUT -->
                         <div class="scan-mode-toggle" style="margin-top: 8px;">
-                            <button id="dir-call" class="btn btn-mode active"
+                            <button id="dir-both" class="btn btn-mode active"
+                                style="flex: 1;" onclick="scanner.setDirection('BOTH')">📊 Both</button>
+                            <button id="dir-call" class="btn btn-mode"
                                 style="flex: 1;" onclick="scanner.setDirection('CALL')">📈 CALL</button>
                             <button id="dir-put" class="btn btn-mode"
                                 style="flex: 1;" onclick="scanner.setDirection('PUT')">📉 PUT</button>
@@ -117,7 +122,7 @@
                             <div id="autocomplete-list" class="autocomplete-list" style="z-index: 9999;"></div>
 
                             <button type="button" class="btn btn-primary"
-                                onclick="(() => { const t = document.getElementById('quick-scan-input').value.trim().toUpperCase(); if (!t) return; if (!scanner.isValidTicker(t)) { toast.error('Unknown ticker \'' + t + '\'. Use the autocomplete to find valid symbols.'); return; } updateHistory(t); scanner.scanTicker(t); })()">
+                                onclick="(() => { const t = document.getElementById('quick-scan-input').value.trim().toUpperCase(); if (!t) { toast.error('Please enter a ticker symbol'); return; } if (!scanner.isValidTicker(t)) { toast.error('Unknown ticker \'' + t + '\'. Use the autocomplete to find valid symbols.'); return; } updateHistory(t); scanner.scanTicker(t); })()">
                                 Scan
                             </button>
                         </form>

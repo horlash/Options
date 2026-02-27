@@ -2,7 +2,7 @@
 const scanner = {
     isScanning: false,
     scanMode: 'weekly-0', // Default to This Week
-    scanDirection: 'CALL', // F41 FIX: Default direction
+    scanDirection: 'BOTH', // Default: scan both CALL and PUT
     tickers: [], // Full list of cached tickers
 
     async init() {
@@ -171,13 +171,15 @@ const scanner = {
         }
     },
 
-    // F41 FIX: Direction toggle (CALL/PUT)
+    // Direction toggle (BOTH/CALL/PUT)
     setDirection(direction) {
         this.scanDirection = direction;
         console.log(`Scanner direction set to: ${direction}`);
         // Toggle active state on buttons
+        const bothBtn = document.getElementById('dir-both');
         const callBtn = document.getElementById('dir-call');
         const putBtn = document.getElementById('dir-put');
+        if (bothBtn) bothBtn.classList.toggle('active', direction === 'BOTH');
         if (callBtn) callBtn.classList.toggle('active', direction === 'CALL');
         if (putBtn) putBtn.classList.toggle('active', direction === 'PUT');
     },
@@ -236,7 +238,7 @@ const scanner = {
 
             // NEW: Strict 0DTE Constraint
             if (this.scanMode === '0dte') {
-                toast.error("0DTE Sector Scan Not Supported");
+                toast.error("0DTE sector scans are not supported. Use single-ticker 0DTE scan instead.");
                 return;
             }
 

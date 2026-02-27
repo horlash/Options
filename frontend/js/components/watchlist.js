@@ -92,8 +92,17 @@ const watchlist = {
     },
 
     async add(ticker) {
-        if (!ticker || ticker.trim() === '') return;
+        if (!ticker || ticker.trim() === '') {
+            if (typeof toast !== 'undefined') toast.error('Please enter a ticker symbol');
+            return;
+        }
         ticker = ticker.trim().toUpperCase();
+
+        // BUG-2 FIX: Validate ticker format (1-5 uppercase letters)
+        if (!/^[A-Z]{1,5}$/.test(ticker)) {
+            if (typeof toast !== 'undefined') toast.error(`Invalid ticker "${ticker}". Use 1-5 letters (e.g. AAPL, MSFT).`);
+            return;
+        }
 
         try {
             const result = await api.addToWatchlist(ticker);
@@ -103,7 +112,8 @@ const watchlist = {
                 this.input.value = ''; // Clear input
                 this.load(); // Reload to update UI and count
             } else {
-                if (typeof toast !== 'undefined') toast.error(result.message || 'Failed to add ticker');
+                // BUG-5 FIX: Show the actual error/message from backend (e.g. "already in watchlist")
+                if (typeof toast !== 'undefined') toast.error(result.message || result.error || 'Failed to add ticker');
             }
         } catch (error) {
             console.error('Error adding ticker:', error);

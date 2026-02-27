@@ -65,7 +65,7 @@ const api = {
         return this.request('/scan', { method: 'POST' });
     },
 
-    async scanTicker(ticker, direction = 'CALL') {
+    async scanTicker(ticker, direction = 'BOTH') {
         return this.request(`/scan/${ticker}`, {
             method: 'POST',
             body: JSON.stringify({ direction })
