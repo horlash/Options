@@ -146,16 +146,17 @@ class HybridScannerService:
         ticker = ticker.upper().strip()
         return ticker
 
-    def scan_ticker(self, ticker, strict_mode=True, pre_fetched_data=None):
+    def scan_ticker(self, ticker, strict_mode=True, pre_fetched_data=None, direction='CALL'):
         """
-        Perform complete LEAP analysis on a single ticker
+        Perform complete LEAP analysis on a single ticker.
         strict_mode: If True, blocks tickers with poor fundamentals (ROE/Margin).
                      If False, allows them but marks as "Speculative".
         pre_fetched_data: Optional injected option chain data (for batch processing)
+        direction: 'CALL' (bullish LEAPs) or 'PUT' (bearish LEAPs) — P0-17
         """
         ticker = self._normalize_ticker(ticker)
         print(f"\n{'='*50}")
-        print(f"Scanning {ticker} (LEAPS)...")
+        print(f"Scanning {ticker} (LEAPS — {direction})...")
         print(f"{'='*50}")
         
         # [ORATS COVERAGE CHECK] Skip tickers not in ORATS universe
@@ -249,6 +250,8 @@ class HybridScannerService:
                 print("❌ Insufficient Data for Analysis.")
                 return None
             
+            # P0-17 FIX: Direction-aware SMA filter.
+            # Calls require price > SMA (uptrend). Puts require price < SMA (downtrend).
             # Use SMA 200 (Daily) as proxy for Long-Term Trend
             current_price = df['Close'].iloc[-1]
             sma_200 = df['Close'].rolling(window=200).mean().iloc[-1]
@@ -257,11 +260,16 @@ class HybridScannerService:
             if str(sma_200) == 'nan':
                  sma_200 = df['Close'].rolling(window=50).mean().iloc[-1]
             
-            if str(sma_200) != 'nan' and current_price < sma_200:
-                print(f"❌ Downtrend (Price {current_price:.2f} < Long-Term SMA {sma_200:.2f})")
-                return None
+            if str(sma_200) != 'nan':
+                if direction == 'CALL' and current_price < sma_200:
+                    print(f"\u274c Downtrend for CALL LEAPs (Price {current_price:.2f} < SMA {sma_200:.2f})")
+                    return None
+                elif direction == 'PUT' and current_price > sma_200:
+                    print(f"\u274c Uptrend for PUT LEAPs (Price {current_price:.2f} > SMA {sma_200:.2f})")
+                    return None
             
-            print(f"✓ Trend Bullish (Price > Long-Term SMA)")
+            trend_label = "Bullish" if current_price > sma_200 else "Bearish"
+            print(f"\u2713 Trend {trend_label} for {direction} LEAPs (Price vs Long-Term SMA)")
 
             # 1. Get Fundamental Data (Hybrid Strategy)
             print(f"[1/5] Fetching Fundamentals (FMP + Yahoo)...")
@@ -719,6 +727,26 @@ class HybridScannerService:
                 print(f"⚠️ Batch Fetch Failed: {e}")
 
         # 2. Deep Scan
+        # XC-1: VIX Regime Filter — adjust scan behavior based on market volatility
+        vix_level = None
+        vix_regime = 'NORMAL'  # Default: NORMAL (<20), ELEVATED (20-30), CRISIS (>30)
+        try:
+            vix_quote = None
+            if self.use_orats:
+                vix_quote = self.batch_manager.orats_api.get_quote('VIX')
+            if vix_quote and vix_quote.get('price'):
+                vix_level = vix_quote['price']
+                if vix_level > 30:
+                    vix_regime = 'CRISIS'
+                elif vix_level > 20:
+                    vix_regime = 'ELEVATED'
+                print(f"\U0001f30a VIX Regime: {vix_level:.1f} ({vix_regime})")
+                if vix_regime == 'CRISIS':
+                    print(f"\u26a0\ufe0f CRISIS mode: tightening filters, reducing position sizes recommended")
+            else:
+                print(f"\u26a0\ufe0f VIX quote unavailable, proceeding with NORMAL regime")
+        except Exception as e:
+            print(f"\u26a0\ufe0f VIX fetch failed: {e} (proceeding with NORMAL regime)")
         all_results = []
         for cand in candidates:
             ticker = cand['symbol']
@@ -728,7 +756,15 @@ class HybridScannerService:
             if weeks_out is not None:
                 res = self.scan_weekly_options(ticker, weeks_out=weeks_out, pre_fetched_data=opts)
             else:
-                res = self.scan_ticker(ticker, pre_fetched_data=opts) # LEAP
+                res = self.scan_ticker(ticker, pre_fetched_data=opts, direction='CALL') # LEAP (calls)
+                # P0-17: Also scan for put LEAPs (bearish)
+                res_put = self.scan_ticker(ticker, pre_fetched_data=opts, direction='PUT')
+                if res_put and res_put.get('opportunities'):
+                    if res and res.get('opportunities'):
+                        # Merge put opportunities into the call result
+                        res['opportunities'].extend(res_put['opportunities'])
+                    else:
+                        res = res_put
             
             if res and res.get('opportunities'):
                 all_results.append(res)
@@ -824,6 +860,11 @@ class HybridScannerService:
                 'gex': {
                     'call_wall': res.get('gex_data', {}).get('call_wall', 'N/A'),
                     'put_wall': res.get('gex_data', {}).get('put_wall', 'N/A')
+                },
+                # XC-1: VIX regime context for AI reasoning
+                'vix': {
+                    'level': vix_level,
+                    'regime': vix_regime,
                 }
             }
             
@@ -1559,7 +1600,8 @@ class HybridScannerService:
         context = {
             'headlines': [],
             'technicals': {},
-            'gex': {}
+            'gex': {},
+            'vix': {},  # XC-1: VIX regime context
         }
         
         try:
@@ -1627,6 +1669,17 @@ class HybridScannerService:
                         'call_wall': gex.get('call_wall', 'N/A'),
                         'put_wall': gex.get('put_wall', 'N/A')
                     }
+
+                # XC-1: VIX regime context for AI reasoning
+                try:
+                    if self.use_orats:
+                        vix_q = self.batch_manager.orats_api.get_quote('VIX')
+                        if vix_q and vix_q.get('price'):
+                            vl = vix_q['price']
+                            vr = 'CRISIS' if vl > 30 else ('ELEVATED' if vl > 20 else 'NORMAL')
+                            context['vix'] = {'level': vl, 'regime': vr}
+                except Exception:
+                    pass  # VIX is supplementary, don't block on failure
 
                 # E. Option Greeks (Fix 3: Find specific option if strike+type provided)
                 req_strike = kwargs.get('strike')
