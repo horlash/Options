@@ -1,7 +1,7 @@
 # Expert Trader Recommendations 🧠
 
 **Date:** January 29, 2026
-**Context:** Strategic review of LEAP Options Scanner Algorithm.
+**Context:** Strategic review of Options Scanner Algorithm.
 
 ---
 

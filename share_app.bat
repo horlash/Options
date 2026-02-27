@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo LEAP Scanner - Share App
+echo Options Scanner - Share App
 echo ========================================
 echo.
 echo Checking for ngrok...

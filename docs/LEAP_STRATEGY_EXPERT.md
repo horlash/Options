@@ -1,6 +1,6 @@
 # Expert LEAP Strategy (Institutional Grade)
 
-This document outlines the "Hedge Fund in a Box" logic used in the Expert LEAP Scanner.
+This document outlines the "Hedge Fund in a Box" logic used in the Expert Options Scanner.
 
 ## Core Philosophy
 We do not just look for "cheap" options. We look for **High Quality Businesses** that are in an **Established Uptrend**, where **Smart Money** is already positioning for a move.

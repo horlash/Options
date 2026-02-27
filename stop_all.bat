@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo LEAP Scanner - Stopping All Services
+echo Options Scanner - Stopping All Services
 echo ========================================
 
 echo.

@@ -1,7 +1,7 @@
 @echo off
-title LEAP Options Scanner (PRODUCTION)
+title Options Scanner (PRODUCTION)
 echo ==============================================
-echo   LEAP Options Scanner - Production Launch
+echo   Options Scanner - Production Launch
 echo ==============================================
 echo.
 

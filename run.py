@@ -25,7 +25,7 @@ from backend.config import Config
 
 if __name__ == '__main__':
     print("="*50)
-    print("LEAP Options Scanner - Backend Server")
+    print("Options Scanner - Backend Server")
     print("="*50)
     print(f"\nServer starting on http://localhost:{Config.PORT}")
     print("\nPress Ctrl+C to stop the server\n")

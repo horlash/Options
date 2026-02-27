@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo LEAP Options Scanner - Publish to GitHub
+echo Options Scanner - Publish to GitHub
 echo ========================================
 echo.
 echo This script will help you push your local repository to GitHub.

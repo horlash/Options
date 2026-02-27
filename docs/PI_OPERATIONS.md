@@ -1,6 +1,6 @@
 # Pi Operations Runbook
 
-> Single source of truth for deploying, maintaining, and troubleshooting the LEAP Scanner on the Raspberry Pi.
+> Single source of truth for deploying, maintaining, and troubleshooting the Options Scanner on the Raspberry Pi.
 
 ---
 

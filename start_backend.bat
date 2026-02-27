@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo LEAP Options Scanner - Starting...
+echo Options Scanner - Starting...
 echo ========================================
 echo.
 

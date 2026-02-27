@@ -1,4 +1,4 @@
-# Codebase Review Prompt — LEAP Scanner (`/Options`)
+# Codebase Review Prompt — Options Scanner (`/Options`)
 
 ## Context
 This is a **live single-leg options trading platform** (calls & puts only) built for a day-trader / short-term swing trader. The trader:

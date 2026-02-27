@@ -1,6 +1,6 @@
 # Technical Indicators Explained
 
-This document explains the technical indicators used by the LEAP Options Scanner and how they contribute to opportunity scoring.
+This document explains the technical indicators used by the Options Scanner and how they contribute to opportunity scoring.
 
 ## Overview
 
@@ -247,7 +247,7 @@ Look for:
 
 ## Summary
 
-The LEAP Options Scanner uses proven technical indicators to:
+The Options Scanner uses proven technical indicators to:
 1. Identify trend direction (MACD, Moving Averages)
 2. Find entry points (RSI, Bollinger Bands)
 3. Confirm signals (Volume)

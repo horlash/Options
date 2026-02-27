@@ -99,7 +99,7 @@ function switchTab(tabId, btn) {
     }
 }
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('LEAP Options Scanner initialized');
+    console.log('Options Scanner initialized');
 
     // Initialize tabs with dynamic dates
     if (typeof scanner !== 'undefined') {

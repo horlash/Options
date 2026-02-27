@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo LEAP Scanner - User Management
+echo Options Scanner - User Management
 echo ========================================
 echo.
 python manage_users.py

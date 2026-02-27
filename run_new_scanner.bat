@@ -1,5 +1,5 @@
 @echo off
-echo Starting LEAP Scanner V2 (Sandbox) on Port 5001...
+echo Starting Options Scanner V2 (Sandbox) on Port 5001...
 echo.
 
 cd /d "%~dp0"
