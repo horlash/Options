@@ -333,9 +333,15 @@ class ReasoningEngine:
             
             if parsed:
                 score = min(100, max(0, int(parsed.get('score', 0))))
-                verdict = parsed.get('verdict', 'NEUTRAL').upper()
-                if verdict not in ('SAFE', 'RISKY', 'AVOID'):
-                    verdict = self._extract_verdict(content)  # fallback
+                # OVERRIDE: Enforce verdict based on score thresholds
+                # AI model sometimes returns wrong verdict for the score.
+                # Our rules: 66+ = SAFE (FAVORABLE), 40-65 = RISKY, <40 = AVOID
+                if score >= 66:
+                    verdict = 'SAFE'
+                elif score >= 40:
+                    verdict = 'RISKY'
+                else:
+                    verdict = 'AVOID'
                 return {
                     "ticker": ticker,
                     "strategy": strategy,
@@ -350,7 +356,13 @@ class ReasoningEngine:
                 # Fallback: regex extraction (legacy)
                 print(f"  ⚠️ JSON extraction failed for {ticker}, falling back to regex")
                 score = self._extract_score(content)
-                verdict = self._extract_verdict(content)
+                # OVERRIDE: Enforce verdict based on score thresholds
+                if score >= 66:
+                    verdict = 'SAFE'
+                elif score >= 40:
+                    verdict = 'RISKY'
+                else:
+                    verdict = 'AVOID'
                 return {
                     "ticker": ticker,
                     "strategy": strategy,

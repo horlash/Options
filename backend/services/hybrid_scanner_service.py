@@ -464,7 +464,23 @@ class HybridScannerService:
                  # Schwab API already filters min_days=150 internally.
                  # We apply a safety filter here for all data sources.
                  if parsed_opps:
-                     leap_opps = [o for o in parsed_opps if o['days_to_expiry'] >= 150]
+                     leap_opps = []
+                     for o in parsed_opps:
+                         dte = o.get('days_to_expiry', 0)
+                         # Double-check: recalculate DTE from expiration_date to prevent stale cache
+                         exp = o.get('expiration_date')
+                         if exp:
+                             try:
+                                 if isinstance(exp, str):
+                                     exp_dt = datetime.strptime(exp.split('T')[0], '%Y-%m-%d')
+                                 else:
+                                     exp_dt = exp
+                                 dte = (exp_dt - datetime.now()).days
+                                 o['days_to_expiry'] = dte  # Ensure consistency
+                             except:
+                                 pass
+                         if dte >= 150:
+                             leap_opps.append(o)
                      print(f"   • Filtered {len(parsed_opps)} options -> {len(leap_opps)} LEAPs (>150 days)")
                      opportunities.extend(leap_opps)
             

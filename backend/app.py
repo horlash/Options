@@ -284,6 +284,26 @@ def scan_ticker(ticker):
         scanner_service.close()
         
         if result:
+            # Safety net: ensure LEAP opportunities have DTE >= 150
+            # (prevents near-term options leaking through stale cache data)
+            opps = result.get('opportunities', [])
+            from datetime import datetime as dt_check
+            now = dt_check.now()
+            filtered_opps = []
+            for o in opps:
+                exp_str = o.get('expiration_date', '')
+                try:
+                    if isinstance(exp_str, str) and exp_str:
+                        exp_dt = dt_check.strptime(exp_str[:10], '%Y-%m-%d')
+                        dte = (exp_dt - now).days
+                        if dte < 150:
+                            continue  # Drop near-term leakers
+                        o['days_to_expiry'] = dte  # Ensure consistency
+                except:
+                    pass
+                filtered_opps.append(o)
+            result['opportunities'] = filtered_opps
+
             return jsonify({
                 'success': True,
                 'result': result

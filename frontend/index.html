@@ -84,15 +84,7 @@
                             <button id="mode-weekly-2" class="btn btn-mode">Next 2 Weeks</button>
                             <button id="mode-leaps" class="btn btn-mode">Leaps</button>
                         </div>
-                        <!-- Direction toggle: BOTH (default), CALL, PUT -->
-                        <div class="scan-mode-toggle" style="margin-top: 8px;">
-                            <button id="dir-both" class="btn btn-mode active"
-                                style="flex: 1;" onclick="scanner.setDirection('BOTH')">📊 Both</button>
-                            <button id="dir-call" class="btn btn-mode"
-                                style="flex: 1;" onclick="scanner.setDirection('CALL')">📈 CALL</button>
-                            <button id="dir-put" class="btn btn-mode"
-                                style="flex: 1;" onclick="scanner.setDirection('PUT')">📉 PUT</button>
-                        </div>
+                        <!-- Direction: Always BOTH (shows mixed CALL + PUT results) -->
                         <!-- Run Scan button removed as requested -->
                         <div id="scan-progress" class="scan-progress hidden">
                             <div class="progress-bar">

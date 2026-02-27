@@ -799,6 +799,8 @@ body.has-subtabs .main-content {
     padding: 0.5rem;
     border-radius: var(--radius-full);
     border: 1px solid var(--border);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .p-tab {
@@ -810,6 +812,8 @@ body.has-subtabs .main-content {
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .p-tab:hover {
@@ -1979,6 +1983,177 @@ input[type="number"] {
 
     .settings-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+/* ─── Mobile: No horizontal scroll (375px) ───────── */
+@media (max-width: 480px) {
+    /* Global overflow guard */
+    html, body {
+        overflow-x: hidden;
+    }
+
+    .container {
+        padding: 0 var(--spacing-sm);
+    }
+
+    /* Header: shrink logo & hide stats */
+    .logo h1 {
+        font-size: 1.25rem;
+    }
+
+    .header-stats {
+        display: none;
+    }
+
+    /* Nav tabs: equal-width, smaller font */
+    .nav-tabs {
+        overflow-x: hidden;
+    }
+
+    .nav-tab {
+        flex: 1;
+        font-size: 0.8rem;
+        padding: 0.6rem 0.25rem;
+        white-space: nowrap;
+    }
+
+    .tab-icon {
+        display: none;
+    }
+
+    /* Control panel already 1fr at 768px — just tighten padding */
+    .panel-card {
+        padding: var(--spacing-sm);
+    }
+
+    /* Mode toggle buttons: smaller min-width */
+    .btn-mode {
+        min-width: 80px;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+    }
+
+    /* Opportunity cards: 1 column, no 350px minimum */
+    .opportunities-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .opportunity-card {
+        padding: var(--spacing-sm);
+    }
+
+    /* Card metrics: 2-col is fine, just shrink text */
+    .card-metrics .metric-value {
+        font-size: 1rem;
+    }
+
+    /* Details panel: stack to 1 column */
+    .details-panel {
+        grid-template-columns: 1fr;
+        padding: var(--spacing-sm);
+    }
+
+    /* Data table: horizontal scroll within container only */
+    .data-table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 0.5rem 0.6rem;
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+
+    /* Portfolio header: stack vertically */
+    .portfolio-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    /* Portfolio sub-tabs: wrap and shrink */
+    .portfolio-tabs {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .p-tab {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.8rem;
+    }
+
+    /* Portfolio stats row */
+    .portfolio-stats-row {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stat-card .value {
+        font-size: 1.1rem;
+    }
+
+    /* History summary: wrap and stack */
+    .history-summary {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    /* Performance grid */
+    .perf-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Modal: full-width on small screens */
+    .modal-content {
+        width: 95%;
+        min-width: unset;
+        padding: 1rem;
+    }
+
+    .modal-card {
+        width: 95%;
+    }
+
+    /* Trade modal body */
+    .modal-body-trade .trade-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Settings grid */
+    .settings-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .broker-mode-cards {
+        grid-template-columns: 1fr;
+    }
+
+    /* Ticker form: stack input + button */
+    .ticker-form {
+        flex-direction: column;
+    }
+
+    .ticker-form .btn {
+        width: 100%;
+        min-width: unset;
+    }
+
+    /* Filter pills: wrap */
+    .filter-pills {
+        flex-wrap: wrap;
+    }
+
+    /* Scan mode toggle: center and wrap */
+    .scan-mode-toggle {
+        justify-content: center;
+    }
+
+    /* Portfolio controls: stack */
+    .portfolio-controls {
+        flex-wrap: wrap;
+        justify-content: center;
     }
 }
 

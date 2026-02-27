@@ -2,7 +2,7 @@
 const scanner = {
     isScanning: false,
     scanMode: 'weekly-0', // Default to This Week
-    scanDirection: 'BOTH', // Default: scan both CALL and PUT
+    scanDirection: 'BOTH', // Always BOTH — shows mixed CALL + PUT results
     tickers: [], // Full list of cached tickers
 
     async init() {
@@ -171,17 +171,11 @@ const scanner = {
         }
     },
 
-    // Direction toggle (BOTH/CALL/PUT)
+    // Direction is always BOTH (no toggle) — all scans return mixed CALL + PUT results
     setDirection(direction) {
-        this.scanDirection = direction;
-        console.log(`Scanner direction set to: ${direction}`);
-        // Toggle active state on buttons
-        const bothBtn = document.getElementById('dir-both');
-        const callBtn = document.getElementById('dir-call');
-        const putBtn = document.getElementById('dir-put');
-        if (bothBtn) bothBtn.classList.toggle('active', direction === 'BOTH');
-        if (callBtn) callBtn.classList.toggle('active', direction === 'CALL');
-        if (putBtn) putBtn.classList.toggle('active', direction === 'PUT');
+        // No-op: direction toggle removed. Always scan BOTH.
+        // Kept as no-op for backwards compatibility in case any code calls it.
+        console.log('Direction toggle removed — always scanning BOTH');
     },
 
     // Industry Mapping
@@ -357,8 +351,8 @@ const scanner = {
         try {
             let result;
             if (this.scanMode === 'leaps') {
-                toast.info(`Scanning ${ticker} (LEAPS ${this.scanDirection})...`);
-                result = await api.scanTicker(ticker, this.scanDirection);
+                toast.info(`Scanning ${ticker} (LEAPS)...`);
+                result = await api.scanTicker(ticker, 'BOTH');
             } else if (this.scanMode === '0dte') {
                 toast.info(`⚡ Scanning ${ticker} (0DTE)...`);
                 result = await api.scan0DTE(ticker);

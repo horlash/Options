@@ -253,7 +253,10 @@ const opportunities = {
         if (!overlay) return;
 
         const score = aiResult.score || 0;
-        const verdict = aiResult.verdict || 'UNKNOWN';
+        const rawVerdict = aiResult.verdict || 'UNKNOWN';
+        // Map backend verdicts to user-friendly labels
+        const verdictMap = {'SAFE': 'FAVORABLE', 'RISKY': 'RISKY', 'AVOID': 'UNFAVORABLE'};
+        const verdict = verdictMap[rawVerdict] || rawVerdict;
         const summary = aiResult.summary || '';
         const risks = aiResult.risks || [];
         const thesis = aiResult.thesis || '';
@@ -264,7 +267,7 @@ const opportunities = {
             scoreColor = '#6b7280'; headerGradient = 'linear-gradient(135deg, #374151 0%, #1f2937 100%)'; bgGlow = 'rgba(107,114,128,0.1)';
         } else if (score >= 66) {
             scoreColor = '#22c55e'; headerGradient = 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)'; bgGlow = 'rgba(34,197,94,0.1)';
-        } else if (score >= 41) {
+        } else if (score >= 40) {
             scoreColor = '#f59e0b'; headerGradient = 'linear-gradient(135deg, #d97706 0%, #b45309 100%)'; bgGlow = 'rgba(245,158,11,0.1)';
         } else {
             scoreColor = '#ef4444'; headerGradient = 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)'; bgGlow = 'rgba(239,68,68,0.1)';
@@ -309,7 +312,7 @@ const opportunities = {
                     ${risksHtml ? `<div style="margin-bottom:1rem;"><div style="font-weight:600;color:var(--text-light);font-size:0.85rem;margin-bottom:0.5rem;">Key Risks:</div><div style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;">${risksHtml}</div></div>` : ''}
                     <div style="display:flex;gap:0.75rem;margin-top:1.5rem;">
                         <button onclick="document.getElementById('trade-modal-overlay').classList.remove('show')" style="flex:1;padding:0.75rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text-light);cursor:pointer;font-size:0.95rem;font-weight:500;">← Back</button>
-                        <button onclick="opportunities._proceedToTrade('${opp.ticker}', ${opp.strike_price}, '${opp.option_type}', '${opp.expiration_date}')" style="flex:1;padding:0.75rem;border-radius:var(--radius-sm);border:none;background:${score >= 41 ? scoreColor : 'rgba(239,68,68,0.2)'};color:#fff;cursor:pointer;font-size:0.95rem;font-weight:700;${score < 41 ? 'color:var(--danger);border:1px solid var(--danger);' : ''}">${score >= 66 ? '✅ Proceed to Trade' : score >= 41 ? '⚠️ Proceed with Caution' : '⚠️ Override & Trade'}</button>
+                        <button onclick="opportunities._proceedToTrade('${opp.ticker}', ${opp.strike_price}, '${opp.option_type}', '${opp.expiration_date}')" style="flex:1;padding:0.75rem;border-radius:var(--radius-sm);border:none;background:${score >= 40 ? scoreColor : 'rgba(239,68,68,0.2)'};color:#fff;cursor:pointer;font-size:0.95rem;font-weight:700;${score < 40 ? 'color:var(--danger);border:1px solid var(--danger);' : ''}">${score >= 66 ? '✅ Proceed to Trade' : score >= 40 ? '⚠️ Proceed with Caution' : '⚠️ Override & Trade'}</button>
                     </div>
                 </div>
             </div>`;
@@ -348,7 +351,7 @@ const opportunities = {
                 delta: opp.greeks?.delta || 0, iv: opp.greeks?.iv || opp.implied_volatility || 0,
                 technicalScore: opp.technical_score || 0, sentimentScore: opp.sentiment_score || 0,
                 gateVerdict: (aiResult.score || 0) >= 66 ? 'GO' : 'CAUTION',
-                aiWarning: (aiResult.score || 0) < 41 ? `🚫 OVERRIDE: AI scored ${aiResult.score || 0}/100 — High risk` : undefined
+                aiWarning: (aiResult.score || 0) < 40 ? `🚫 OVERRIDE: AI scored ${aiResult.score || 0}/100 — High risk` : undefined
             });
         }
     },
@@ -362,8 +365,11 @@ const opportunities = {
             const cardOpp = filtered[idx];
             if (!cardOpp || cardOpp.ticker !== opp.ticker || cardOpp.strike_price !== opp.strike_price) return;
 
-            const btnContainer = card.querySelector('[style*="padding: 0 1.25rem 0.75rem"]');
-            if (!btnContainer) return;
+            const btnContainer = card.querySelector('.card-trade-area');
+            if (!btnContainer) {
+                console.warn('[AI Badge] Could not find .card-trade-area for card', idx);
+                return;
+            }
 
             const isCall = opp.option_type === 'Call';
             const btnClass = isCall ? 'trade-btn-call' : 'trade-btn-put';
@@ -373,7 +379,7 @@ const opportunities = {
                 btnContainer.innerHTML = `
                     <div class="card-actions">${analyzeBtn}<button class="action-btn trade-btn ${btnClass}" data-trade-index="${idx}">✅ Trade ${aiScore}</button></div>
                     <div class="edge-gate-label" style="color: var(--secondary);">AI: FAVORABLE (${aiScore}/100) — Dual Gate ✅</div>`;
-            } else if (aiScore >= 41) {
+            } else if (aiScore >= 40) {
                 btnContainer.innerHTML = `
                     <div class="card-actions">${analyzeBtn}<button class="action-btn trade-btn ${btnClass}" data-trade-index="${idx}" style="opacity: 0.85;">⚠️ Trade ${aiScore}</button></div>
                     <div class="edge-gate-label" style="color: var(--accent);">AI: RISKY (${aiScore}/100) — Proceed with Caution</div>`;
@@ -502,7 +508,7 @@ const opportunities = {
                         <span class="ticker-symbol">${opp.ticker}</span>
                         <span class="price-display">$${opp.current_price ? opp.current_price.toFixed(2) : '-.--'}</span>
                     </div>
-                    <span class="score-badge-large ${opp.opportunity_score >= 66 ? 'score-high' : opp.opportunity_score >= 41 ? 'score-mid' : 'score-low'}">${opp.opportunity_score.toFixed(0)}</span>
+                    <span class="score-badge-large ${opp.opportunity_score >= 66 ? 'score-high' : opp.opportunity_score >= 40 ? 'score-mid' : 'score-low'}">${opp.opportunity_score.toFixed(0)}</span>
                 </div>
 
                 <!-- BODY: Hero Action -->
@@ -561,7 +567,7 @@ const opportunities = {
                 </div>
 
                 <!-- TRADE BUTTON (Gate 1: Card Score) -->
-                <div style="padding: 0 1.25rem 0.75rem;">
+                <div class="card-trade-area" style="padding: 0 1.25rem 0.75rem;">
                     ${this._renderTradeButton(opp, index)}
                 </div>
             </div>
@@ -592,7 +598,7 @@ const opportunities = {
                     </div>
                     <div class="edge-gate-label" style="color: var(--secondary);">AI: FAVORABLE (${aiScore}/100) — Dual Gate ✅</div>
                 `;
-            } else if (aiScore >= 41) {
+            } else if (aiScore >= 40) {
                 return `
                     <div class="card-actions">
                         ${analyzeBtn}
