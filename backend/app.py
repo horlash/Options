@@ -556,20 +556,31 @@ def init_scheduler(app):
             replace_existing=True,
         )
 
+        # P0-8: Job 5: Lifecycle sync — process stale PENDING/CLOSING trades + expire
+        scheduler.add_job(
+            func=monitor.lifecycle_sync,
+            trigger=IntervalTrigger(seconds=120),
+            id='lifecycle_sync',
+            name='Lifecycle Sync (120s)',
+            replace_existing=True,
+            max_instances=1,
+        )
+
         scheduler.start()
         atexit.register(lambda: scheduler.shutdown(wait=False))
 
         logger = logging.getLogger(__name__)
         logger.info(
-            "APScheduler started — 4 jobs registered "
-            "(order sync 60s, snapshots 40s, bookends 9:25/16:05 ET)"
+            "APScheduler started — 5 jobs registered "
+            "(order sync 60s, snapshots 40s, bookends 9:25/16:05 ET, lifecycle 120s)"
         )
         print(
-            "\n✅ [SCHEDULER] APScheduler started — 4 background jobs registered:\n"
+            "\n✅ [SCHEDULER] APScheduler started — 5 background jobs registered:\n"
             "   • sync_tradier_orders  (every 60s)\n"
             "   • update_price_snapshots (every 40s)\n"
             "   • pre_market_bookend   (9:25 AM ET Mon-Fri)\n"
-            "   • post_market_bookend  (4:05 PM ET Mon-Fri)\n",
+            "   • post_market_bookend  (4:05 PM ET Mon-Fri)\n"
+            "   • lifecycle_sync       (every 120s)\n",
             flush=True,
         )
 
