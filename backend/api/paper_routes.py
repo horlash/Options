@@ -42,9 +42,14 @@ def _get_username():
     """Get the current authenticated username.
 
     Reads from Flask session (set by security.login_user).
-    Falls back to 'demo' in development for testing without auth.
+    Returns 401 if no session exists — no silent fallback to 'demo'.
     """
-    return session.get('user', 'demo')
+    # P0-10: Require authentication — abort(401) instead of falling back to 'demo'
+    from flask import abort
+    user = session.get('user')
+    if not user:
+        abort(401)
+    return user
 
 
 def _trade_to_dict(trade):
@@ -386,7 +391,7 @@ def place_trade():
                 entry_price=trade.entry_price,
             )
         except Exception as e:
-            log.warning(f'[place_trade] Context capture failed (non-fatal): {e}')
+            logger.warning(f'[place_trade] Context capture failed (non-fatal): {e}')  # P0-9: was `log.warning` (undefined)
 
         # ── Lifecycle Transition: PENDING → OPEN (Point 11) ──────────
         lifecycle = LifecycleManager(db)

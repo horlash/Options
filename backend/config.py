@@ -53,7 +53,7 @@ class Config:
     
     # Server
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')
-    FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'True') == 'True'
+    FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'False') == 'True'  # P0-5: Default to False (was 'True')
     PORT = int(os.getenv('PORT', 5000))
     
     # Rate Limiting
