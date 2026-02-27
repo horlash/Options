@@ -1,6 +1,6 @@
 """
 Sentiment Analyzer — G3 Remediation
-Replaces TextBlob (37% accuracy) with Finnhub institutional sentiment + Perplexity AI fallback.
+Uses Finnhub institutional sentiment + Perplexity AI fallback for high-accuracy scoring.
 
 Signal hierarchy:
   1. Finnhub news-sentiment endpoint (premium score, 0-1 scale)
@@ -48,7 +48,7 @@ class SentimentAnalyzer:
         return None, None
 
     # ------------------------------------------------------------------
-    # SECONDARY: Perplexity AI headline scoring (replaces TextBlob)
+    # SECONDARY: Perplexity AI headline scoring
     # ------------------------------------------------------------------
     def score_headlines_with_perplexity(self, ticker, headlines):
         """
