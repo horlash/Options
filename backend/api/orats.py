@@ -1,8 +1,11 @@
 import os
 import requests
+import logging
 import time
 from datetime import datetime, timedelta
 from backend.config import Config
+
+logger = logging.getLogger(__name__)
 
 class OratsAPI:
     # ORATS index aliases: map common ticker names to ORATS-expected symbols
@@ -39,7 +42,7 @@ class OratsAPI:
         url = f"{self.base_url}/tickers"
         params = {"token": self.api_key}
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=(5, 30))  # QW-5
             response.raise_for_status()
             data = response.json()
             universe = {}
@@ -59,7 +62,7 @@ class OratsAPI:
         url = f"{self.base_url}/tickers"
         params = {"token": self.api_key, "ticker": ticker}
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=(5, 30))  # QW-5
             response.raise_for_status()
             data = response.json()
             return bool(data.get("data"))
@@ -79,7 +82,7 @@ class OratsAPI:
         }
         
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=(5, 30))  # QW-5
             response.raise_for_status()
             data = response.json()
             return self._standardize_response(data)
@@ -106,7 +109,7 @@ class OratsAPI:
         }
         
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=(5, 30))  # QW-5
             response.raise_for_status()
             data = response.json()
             
@@ -159,7 +162,7 @@ class OratsAPI:
             "ticker": ticker
         }
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=(5, 30))  # QW-5
             response.raise_for_status()
             data = response.json()
             
@@ -224,7 +227,7 @@ class OratsAPI:
             "ticker": ticker
         }
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=(5, 30))  # QW-5
             response.raise_for_status()
             data = response.json()
             
@@ -408,3 +411,63 @@ class OratsAPI:
             "callExpDateMap": call_map,
             "putExpDateMap": put_map
         }
+
+    # ═══════════════════════════════════════════════════════════════
+    # Phase 3: New API Methods (P0 prerequisites)
+    # ═══════════════════════════════════════════════════════════════
+
+    def get_live_summary(self, ticker):
+        """Fetch live/summaries for real-time IV term structure and skew.
+
+        Returns dict with 129 fields including:
+        - rSlp30: 30-day risk-neutral skew slope
+        - skewing: skew persistence metric
+        - contango: term structure shape
+        - dlt25Iv30d / dlt75Iv30d: 25-delta put/call IV (30-day)
+        """
+        ticker = self._clean_ticker(ticker)
+        url = f"{self.base_url}/live/summaries"
+        params = {"token": self.api_key, "ticker": ticker}
+
+        try:
+            response = requests.get(url, params=params, timeout=(5, 30))
+            response.raise_for_status()
+            data = response.json()
+            if "data" in data and len(data["data"]) > 0:
+                return data["data"][0]
+            return None
+        except Exception as e:
+            logger.warning(f"ORATS live/summaries error for {ticker}: {e}")
+            return None
+
+    def get_hist_cores(self, ticker, trade_date=None):
+        """Fetch hist/cores for historical IV rank, earnings, and dividend data.
+
+        Returns dict with 340 fields including:
+        - ivPctile1y: IV percentile (1-year lookback)
+        - ivPctile1m: IV percentile (1-month lookback)
+        - daysToNextErn: days to next earnings
+        - impliedEarningsMove: market-implied earnings move
+        - divDate: next dividend date
+        - contango: term structure shape
+        - slope: volatility slope
+
+        Note: T-1 delay (yesterday's data). Use for historical context.
+        """
+        ticker = self._clean_ticker(ticker)
+        url = f"{self.base_url}/hist/cores"
+        params = {"token": self.api_key, "ticker": ticker}
+        if trade_date:
+            params["tradeDate"] = trade_date  # YYYY-MM-DD
+
+        try:
+            response = requests.get(url, params=params, timeout=(5, 30))
+            response.raise_for_status()
+            data = response.json()
+            if "data" in data and len(data["data"]) > 0:
+                # Return the most recent entry (last in list)
+                return data["data"][-1]
+            return None
+        except Exception as e:
+            logger.warning(f"ORATS hist/cores error for {ticker}: {e}")
+            return None
