@@ -404,16 +404,28 @@ class TradierBroker(BrokerProvider):
         """Place a One-Cancels-Other order for SL/TP brackets (Point 4).
 
         Tradier OCO format uses indexed brackets for each leg.
+
+        P0-7 FIX: Leg 1 uses stop_limit (not naked stop) for options.
+        A naked stop on illiquid options can fill far below the stop price.
+        The limit price is set to 80% of the stop price as a floor
+        (configurable via sl_order['limit_floor_pct']).
         """
+        # P0-7: Calculate a limit floor for the stop-limit leg.
+        # Default floor = 80% of stop price (prevents catastrophic fills)
+        stop_price = float(sl_order["stop"])
+        limit_floor_pct = sl_order.get("limit_floor_pct", 0.80)
+        limit_price = round(stop_price * limit_floor_pct, 2)
+
         payload = {
             "class": "oco",
             "duration": "gtc",
-            # Leg 1: Stop Loss
+            # Leg 1: Stop Loss — P0-7: stop_limit with price floor
             "option_symbol[0]": sl_order["symbol"],
             "side[0]": sl_order.get("side", "sell_to_close"),
             "quantity[0]": str(sl_order["quantity"]),
-            "type[0]": "stop",
-            "stop[0]": str(sl_order["stop"]),
+            "type[0]": "stop_limit",
+            "stop[0]": str(stop_price),
+            "price[0]": str(limit_price),
             # Leg 2: Take Profit
             "option_symbol[1]": tp_order["symbol"],
             "side[1]": tp_order.get("side", "sell_to_close"),

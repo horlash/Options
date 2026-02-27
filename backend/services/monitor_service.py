@@ -831,33 +831,42 @@ class MonitorService:
             if new_tp is not None:
                 trade.tp_price = float(new_tp)
 
-            # If connected to Tradier, cancel+replace OCO
+            # P0-6 FIX: Cancel+recreate OCO (Tradier doesn't support edit).
+            # Emergency fallback: if recreate fails after cancel, log CRITICAL
+            # so the position is flagged as unprotected.
             user_settings = db.get(UserSettings, username)
             if user_settings and trade.tradier_order_id:
+                broker = None
+                cancel_succeeded = False
                 try:
                     broker = BrokerFactory.get_broker(user_settings)
 
-                    # Cancel existing bracket orders
+                    # Step 1: Cancel existing bracket orders
                     if trade.tradier_sl_order_id:
                         broker.cancel_order(trade.tradier_sl_order_id)
                     if trade.tradier_tp_order_id:
                         broker.cancel_order(trade.tradier_tp_order_id)
+                    cancel_succeeded = True
 
-                    # Place new OCO if both SL and TP are set
+                    # Clear stale IDs immediately
+                    trade.tradier_sl_order_id = None
+                    trade.tradier_tp_order_id = None
+
+                    # Step 2: Place new OCO if both SL and TP are set
                     if trade.sl_price and trade.tp_price:
-                        # Build OCC symbol:  TICKER + YYMMDD + C/P + Strike
                         occ_symbol = self._build_occ_symbol(trade)
 
+                        # P0-6: Fixed dict keys to match place_oco_order() signature
                         oco = broker.place_oco_order(
                             sl_order={
                                 'symbol': occ_symbol,
-                                'qty': trade.qty,
-                                'stop_price': trade.sl_price,
+                                'quantity': trade.qty,
+                                'stop': trade.sl_price,
                             },
                             tp_order={
                                 'symbol': occ_symbol,
-                                'qty': trade.qty,
-                                'limit_price': trade.tp_price,
+                                'quantity': trade.qty,
+                                'price': trade.tp_price,
                             },
                         )
 
@@ -866,11 +875,35 @@ class MonitorService:
                         if len(legs) >= 2:
                             trade.tradier_sl_order_id = str(legs[0].get('id', ''))
                             trade.tradier_tp_order_id = str(legs[1].get('id', ''))
+                        else:
+                            logger.warning(
+                                f"OCO recreate returned unexpected legs: {oco}"
+                            )
 
                 except BrokerException as e:
-                    logger.warning(
-                        f"Broker error adjusting bracket for trade {trade_id}: {e}"
-                    )
+                    if cancel_succeeded:
+                        # CRITICAL: brackets were cancelled but recreate failed
+                        # Position is now UNPROTECTED
+                        logger.critical(
+                            f"BRACKET GAP: Trade {trade_id} ({trade.ticker}) — "
+                            f"old OCO cancelled but new OCO failed: {e}. "
+                            f"Position is UNPROTECTED. Manual intervention required."
+                        )
+                    else:
+                        logger.warning(
+                            f"Broker error adjusting bracket for trade {trade_id}: {e}"
+                        )
+                except Exception as e:
+                    if cancel_succeeded:
+                        logger.critical(
+                            f"BRACKET GAP: Trade {trade_id} ({trade.ticker}) — "
+                            f"unexpected error after cancel: {e}. "
+                            f"Position may be UNPROTECTED."
+                        )
+                    else:
+                        logger.exception(
+                            f"Unexpected error in bracket adjust for trade {trade_id}: {e}"
+                        )
 
             trade.version += 1
             trade.updated_at = datetime.utcnow()
