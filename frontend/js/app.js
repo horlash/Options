@@ -289,22 +289,29 @@ function setupEventListeners() {
     }
 
     // Sort select
+    // F26 FIX: Null checks prevent TypeError if elements are missing from DOM
     const sortSelect = document.getElementById('sort-select');
-    sortSelect.addEventListener('change', (e) => {
-        opportunities.sort(e.target.value);
-    });
+    if (sortSelect) {
+        sortSelect.addEventListener('change', (e) => {
+            opportunities.sort(e.target.value);
+        });
+    }
 
     // Ticker filter
     const tickerFilter = document.getElementById('ticker-filter');
-    tickerFilter.addEventListener('change', (e) => {
-        opportunities.setFilter(e.target.value);
-    });
+    if (tickerFilter) {
+        tickerFilter.addEventListener('change', (e) => {
+            opportunities.setFilter(e.target.value);
+        });
+    }
 
     // Modal close
     const closeModalBtn = document.getElementById('close-modal');
-    closeModalBtn.addEventListener('click', () => {
-        analysisDetail.hide();
-    });
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', () => {
+            analysisDetail.hide();
+        });
+    }
 
     // Close modal on overlay click (click on backdrop area outside modal-content)
     const modal = document.getElementById('analysis-modal');

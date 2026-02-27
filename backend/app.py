@@ -246,11 +246,13 @@ def run_scan():
 def scan_ticker(ticker):
     """Run scan on a specific ticker"""
     try:
-        # Scan specific ticker doesn't need watchlist check strictly as per plan
         scanner_service = ScannerService()
-        # [MODIFIED] Use strict_mode=False for manual single-ticker scans
-        # This allows users to "force" a scan on speculative/poor-quality stocks (EOSE, etc.)
-        result = scanner_service.scan_ticker(ticker, strict_mode=False)
+        # F41 FIX: Accept direction from request body (default CALL)
+        data = request.get_json(silent=True) or {}
+        direction = data.get('direction', 'CALL').upper()
+        if direction not in ('CALL', 'PUT'):
+            direction = 'CALL'
+        result = scanner_service.scan_ticker(ticker, strict_mode=False, direction=direction)
         scanner_service.close()
         
         if result:

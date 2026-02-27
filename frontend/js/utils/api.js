@@ -27,6 +27,14 @@ const api = {
                 // toast.error("Please log in"); // managed by browser
             }
 
+            // F27 FIX: Check Content-Type before parsing as JSON
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                const text = await response.text();
+                console.error(`Non-JSON response from ${endpoint}:`, text.substring(0, 200));
+                return { success: false, error: `Server returned ${response.status} (non-JSON)` };
+            }
+
             return await response.json();
         } catch (error) {
             console.error(`API Request failed: ${endpoint}`, error);
@@ -57,8 +65,11 @@ const api = {
         return this.request('/scan', { method: 'POST' });
     },
 
-    async scanTicker(ticker) {
-        return this.request(`/scan/${ticker}`, { method: 'POST' });
+    async scanTicker(ticker, direction = 'CALL') {
+        return this.request(`/scan/${ticker}`, {
+            method: 'POST',
+            body: JSON.stringify({ direction })
+        });
     },
 
     async runDailyScan(weeksOut = 0) {
