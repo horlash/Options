@@ -1,8 +1,17 @@
+"""
+F10 FIX: Added proper logging (replacing print statements) and @retry_api
+decorator for transient failure resilience, matching Finnhub/ORATS/Tradier pattern.
+"""
 
 import os
+import logging
 import requests
 import time
 from datetime import datetime
+from backend.utils.retry import retry_api
+
+logger = logging.getLogger(__name__)
+
 
 class FMPAPI:
     # Stable API (v3 deprecated as of Aug 2025)
@@ -12,10 +21,15 @@ class FMPAPI:
         self.api_key = api_key or os.getenv("FMP_API_KEY")
         self.session = requests.Session()
 
+    def is_configured(self):
+        """Check if FMP API key is available. (F10: added for consistency with other APIs)"""
+        return bool(self.api_key)
+
+    @retry_api(max_retries=2, base_delay=1.0)
     def _get_stable(self, endpoint, params=None):
         """Make a request to the FMP stable API."""
         if not self.api_key:
-            print("❌ FMP API Key missing")
+            logger.warning("FMP API Key missing")
             return None
             
         if params is None:
@@ -24,16 +38,20 @@ class FMPAPI:
         
         url = f"{self.STABLE_URL}/{endpoint}"
         try:
-            response = self.session.get(url, params=params, timeout=5)
+            response = self.session.get(url, params=params, timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 if isinstance(data, list) and not data:
-                    return None # Empty list
+                    return None  # Empty list
                 return data
+            elif response.status_code >= 500:
+                response.raise_for_status()  # Let retry decorator handle 5xx
             else:
-                print(f"⚠️ FMP Error {response.status_code}: {response.text[:100]}")
+                logger.warning("FMP Error %d: %s", response.status_code, response.text[:100])
+        except requests.exceptions.HTTPError:
+            raise  # Propagate to retry decorator
         except Exception as e:
-            print(f"⚠️ FMP Request Error: {e}")
+            logger.error("FMP Request Failed: %s", e)
         return None
 
     def get_quote(self, ticker):
