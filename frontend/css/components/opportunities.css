@@ -39,23 +39,7 @@
 }
 
 /* --- CALL / PUT THEME VARIATIONS --- */
-.card-call {
-    border-top: 2px solid #059669;
-}
-
-.card-put {
-    border-top: 2px solid #dc2626;
-}
-
-/* Header Section (Color Coded) */
-.card-header {
-    padding: 0.85rem 1.25rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
+/* Left border for call/put (main styling in styles.css) */
 .card-call .card-header {
     background: linear-gradient(135deg, rgba(6, 78, 59, 0.85) 0%, rgba(6, 95, 70, 0.35) 100%);
 }

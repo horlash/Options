@@ -197,10 +197,11 @@ const scanner = {
         const btn = document.getElementById('btn-sector-scan');
         const sectorSelect = document.getElementById('sector-select');
         const industrySelect = document.getElementById('industry-select');
+        const extraFilters = document.getElementById('sector-extra-filters');
 
-        if (!btn || !sectorSelect) return;
+        if (!sectorSelect) return;
 
-        // Handle Sector Change -> Populate Subsectors
+        // Handle Sector Change -> Populate Subsectors + show progressive filters
         sectorSelect.addEventListener('change', (e) => {
             const sector = e.target.value;
             industrySelect.innerHTML = '<option value="">Any Subsector</option>';
@@ -213,11 +214,16 @@ const scanner = {
                     industrySelect.appendChild(opt);
                 });
                 industrySelect.style.display = 'block';
+                // Show extra filters (progressive disclosure)
+                if (extraFilters) extraFilters.style.display = 'flex';
             } else {
                 industrySelect.style.display = 'none';
+                // Hide extra filters
+                if (extraFilters) extraFilters.style.display = 'none';
             }
         });
 
+        if (btn) {
         btn.addEventListener('click', async (e) => {
             e.preventDefault();
             const sector = sectorSelect.value;
@@ -238,6 +244,7 @@ const scanner = {
 
             this.runSectorScan(sector, minCap, minVol, industry);
         });
+        }
     },
 
     async runSectorScan(sector, minCap, minVol, industry) {
@@ -383,8 +390,6 @@ const scanner = {
             progressEl.classList.remove('hidden');
         }
 
-        // Disable all ticker scan buttons contextually if possible, 
-        // but for now just safely handle missing btn
         const runScanBtn = document.getElementById('run-scan-btn');
         if (runScanBtn) {
             runScanBtn.disabled = true;

@@ -113,7 +113,13 @@ def logout():
 def index():
     return app.send_static_file('index.html')
 
-
+@app.route('/api/me', methods=['GET'])
+def get_current_user():
+    """Return the logged-in username for frontend display"""
+    username = session.get('user')
+    if username:
+        return jsonify({'success': True, 'username': username})
+    return jsonify({'success': False, 'username': None}), 401
 
 # Serve static data files (for tickers.json)
 @app.route('/api/data/<path:filename>')

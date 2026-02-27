@@ -1,6 +1,4 @@
 // ═══════════════════════════════════════════════════════
-// GLOBAL TOAST NOTIFICATION SYSTEM
-// ═══════════════════════════════════════════════════════
 function showToast(message, type = 'info', duration = 3500) {
     // Ensure container exists
     let container = document.getElementById('toast-container');
@@ -101,6 +99,20 @@ function switchTab(tabId, btn) {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Options Scanner initialized');
 
+    // Fetch and display logged-in username next to logout button
+    try {
+        const meResp = await fetch('/api/me');
+        if (meResp.ok) {
+            const meData = await meResp.json();
+            const userSpan = document.getElementById('logged-in-user');
+            if (userSpan && meData.username) {
+                userSpan.textContent = meData.username;
+            }
+        }
+    } catch (e) {
+        console.warn('Could not fetch current user:', e);
+    }
+
     // Initialize tabs with dynamic dates
     if (typeof scanner !== 'undefined') {
         scanner.init();
@@ -198,10 +210,6 @@ async function updateHistory(ticker) {
 }
 
 window.handleHistoryClick = (ticker) => {
-    // Determine mode based on active button? Or just stick to current mode?
-    // User: "Any Ticker I search should show up as history"
-    // We'll perform a scan for this ticker in current mode
-    // Also populate input box?
     document.getElementById('quick-scan-input').value = ticker;
     scanner.scanTicker(ticker);
 };
@@ -232,11 +240,6 @@ function setupEventListeners() {
             }
         });
     }
-
-    // Run scan button removed
-    // runScanBtn.addEventListener('click', () => {
-    //     scanner.run();
-    // });
 
     // Mode Toggle
     const modeLeaps = document.getElementById('mode-leaps');
@@ -292,7 +295,6 @@ function setupEventListeners() {
     }
 
     // Sort select
-    // F26 FIX: Null checks prevent TypeError if elements are missing from DOM
     const sortSelect = document.getElementById('sort-select');
     if (sortSelect) {
         sortSelect.addEventListener('change', (e) => {

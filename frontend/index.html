@@ -5,11 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Options Scanner - AI-Powered Options Analysis</title>
-    <link rel="stylesheet" href="css/styles.css?v=99">
-    <link rel="stylesheet" href="css/components/watchlist.css?v=99">
-    <link rel="stylesheet" href="css/components/scanner.css?v=99">
-    <link rel="stylesheet" href="css/components/opportunities.css?v=99">
-    <link rel="stylesheet" href="css/components/analysis-detail.css?v=99">
+    <link rel="stylesheet" href="css/styles.css?v=100">
+    <link rel="stylesheet" href="css/components/watchlist.css?v=100">
+    <link rel="stylesheet" href="css/components/scanner.css?v=100">
+    <link rel="stylesheet" href="css/components/opportunities.css?v=100">
+    <link rel="stylesheet" href="css/components/analysis-detail.css?v=100">
     <link rel="stylesheet" href="css/components/trading.css?v=103">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -45,7 +45,7 @@
                         <span class="stat-value" id="portfolio-heat" style="color: var(--accent);">4.1%</span>
                     </div>
                     <div class="stat-item">
-                        <a href="/logout" class="btn-logout" title="Sign Out" style="display:inline-flex;align-items:center;gap:4px;color:#94a3b8;text-decoration:none;font-size:0.85rem;padding:4px 10px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);transition:all 0.2s;" onmouseover="this.style.color='#ef4444';this.style.borderColor='#ef4444'" onmouseout="this.style.color='#94a3b8';this.style.borderColor='rgba(148,163,184,0.3)'">🚪 Logout</a>
+                        <a href="/logout" class="btn-logout" title="Sign Out" style="display:inline-flex;align-items:center;gap:4px;color:#94a3b8;text-decoration:none;font-size:0.85rem;padding:4px 10px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);transition:all 0.2s;" onmouseover="this.style.color='#ef4444';this.style.borderColor='#ef4444'" onmouseout="this.style.color='#94a3b8';this.style.borderColor='rgba(148,163,184,0.3)'"><span id="logged-in-user" style="font-weight:600;"></span> 🚩 Logout</a>
                     </div>
                 </div>
             </div>
@@ -71,137 +71,113 @@
         <!-- SCANNER TAB (existing content, untouched) -->
         <div id="tab-scanner" class="tab-panel active">
             <div class="container">
-                <!-- Control Panel -->
-                <section class="control-panel">
-                    <div class="panel-card">
-                        <h2>Scan Control</h2>
-                        <div class="scan-mode-toggle">
-                            <button id="mode-0dte" class="btn btn-mode"
-                                style="background: linear-gradient(135deg, #ff4d4d, #c62828); border-color: #ff4d4d;">⚡
-                                0DTE (Today)</button>
-                            <button id="mode-weekly-0" class="btn btn-mode active">This Week</button>
-                            <button id="mode-weekly-1" class="btn btn-mode">Next Week</button>
-                            <button id="mode-weekly-2" class="btn btn-mode">Next 2 Weeks</button>
-                            <button id="mode-leaps" class="btn btn-mode">Leaps</button>
-                        </div>
-                        <!-- Direction: Always BOTH (shows mixed CALL + PUT results) -->
-                        <!-- Run Scan button removed as requested -->
-                        <div id="scan-progress" class="scan-progress hidden">
-                            <div class="progress-bar">
-                                <div class="progress-fill"></div>
+                <!-- Scanner Body: Sidebar + Main -->
+                <div class="scanner-body">
+                    <!-- LEFT SIDEBAR (230px) -->
+                    <aside class="scanner-sidebar">
+                        <!-- Scan Control -->
+                        <div class="sidebar-section">
+                            <h2>Scan Control</h2>
+                            <div class="scan-mode-grid">
+                                <button id="mode-0dte" class="btn btn-mode btn-mode-0dte">⚡ 0DTE</button>
+                                <button id="mode-weekly-0" class="btn btn-mode active">This Week</button>
+                                <button id="mode-weekly-1" class="btn btn-mode">Next Week</button>
+                                <button id="mode-weekly-2" class="btn btn-mode">Next 2 Weeks</button>
+                                <button id="mode-leaps" class="btn btn-mode">Leaps</button>
                             </div>
-                            <p id="progress-text" class="progress-text">Scanning watchlist...</p>
+                            <div id="scan-progress" class="scan-progress hidden">
+                                <div class="progress-bar">
+                                    <div class="progress-fill"></div>
+                                </div>
+                                <p id="progress-text" class="progress-text">Scanning watchlist...</p>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="panel-card">
-                        <h2>Recent History</h2>
-                        <div id="search-history" class="history-list">
-                            <!-- History items -->
-                            <div class="empty-state-small">No recent searches</div>
+                        <!-- Recent History -->
+                        <div class="sidebar-section">
+                            <h2>Recent History</h2>
+                            <div id="search-history" class="history-list">
+                                <div class="empty-state-small">No recent searches</div>
+                            </div>
                         </div>
-                    </div>
 
+                        <!-- Smart Search -->
+                        <div class="sidebar-section">
+                            <h2>Smart Search</h2>
+                            <form id="quick-scan-form" class="ticker-form" autocomplete="off" style="position: relative;">
+                                <input type="text" id="quick-scan-input" class="input-field"
+                                    placeholder="Search Ticker (e.g. NVDA, AAPL)" autocomplete="off">
+                                <div id="autocomplete-list" class="autocomplete-list" style="z-index: 9999;"></div>
+                                <button type="button" class="btn btn-primary" style="width:100%;"
+                                    onclick="(() => { const t = document.getElementById('quick-scan-input').value.trim().toUpperCase(); if (!t) { toast.error('Please enter a ticker symbol'); return; } if (!scanner.isValidTicker(t)) { toast.error('Unknown ticker \'' + t + '\'. Use the autocomplete to find valid symbols.'); return; } updateHistory(t); scanner.scanTicker(t); })()">
+                                    Scan
+                                </button>
+                            </form>
+                        </div>
 
-
-                    <div class="panel-card">
-                        <h2>Smart Search</h2>
-                        <form id="quick-scan-form" class="ticker-form" autocomplete="off" style="position: relative;">
-                            <input type="text" id="quick-scan-input" class="input-field"
-                                placeholder="Search Ticker (e.g. NVDA, AAPL)" autocomplete="off">
-
-                            <!-- Floating Autocomplete List -->
-                            <div id="autocomplete-list" class="autocomplete-list" style="z-index: 9999;"></div>
-
-                            <button type="button" class="btn btn-primary"
-                                onclick="(() => { const t = document.getElementById('quick-scan-input').value.trim().toUpperCase(); if (!t) { toast.error('Please enter a ticker symbol'); return; } if (!scanner.isValidTicker(t)) { toast.error('Unknown ticker \'' + t + '\'. Use the autocomplete to find valid symbols.'); return; } updateHistory(t); scanner.scanTicker(t); })()">
-                                Scan
-                            </button>
-                        </form>
-                    </div>
-
-                    <div class="panel-card">
-                        <h2>Sector Scan</h2>
-                        <div class="sector-controls" style="display: flex; flex-direction: column; gap: 10px;">
-                            <select id="sector-select" class="select-field">
-                                <option value="">Select Sector...</option>
-                                <option value="Technology">Technology</option>
-                                <option value="Financial Services">Financial Services</option>
-                                <option value="Healthcare">Healthcare</option>
-                                <option value="Consumer Cyclical">Consumer Cyclical</option>
-                                <option value="Consumer Defensive">Consumer Defensive</option>
-                                <option value="Energy">Energy</option>
-                                <option value="Industrials">Industrials</option>
-                                <option value="Communication Services">Communication Services</option>
-                                <option value="Basic Materials">Basic Materials</option>
-                                <option value="Real Estate">Real Estate</option>
-                                <option value="Utilities">Utilities</option>
-                            </select>
-
-                            <select id="industry-select" class="select-field" style="display: none; margin-top: 10px;">
-                                <option value="">Any Subsector</option>
-                            </select>
-
-                            <div style="display: flex; gap: 10px;">
-                                <select id="cap-select" class="select-field"
-                                    style="flex: 1; width: 50%; padding: 6px 12px;">
-                                    <option value="0">Any Cap</option>
-                                    <option value="200000000000">Mega (>200B)</option>
-                                    <option value="10000000000">Large (>10B)</option>
-                                    <option value="2000000000">Mid (>2B)</option>
+                        <!-- Sector Scan -->
+                        <div class="sidebar-section">
+                            <h2>Sector Scan</h2>
+                            <div class="sector-controls" style="display: flex; flex-direction: column; gap: 10px;">
+                                <select id="sector-select" class="select-field">
+                                    <option value="">Select Sector...</option>
+                                    <option value="Technology">Technology</option>
+                                    <option value="Financial Services">Financial Services</option>
+                                    <option value="Healthcare">Healthcare</option>
+                                    <option value="Consumer Cyclical">Consumer Cyclical</option>
+                                    <option value="Consumer Defensive">Consumer Defensive</option>
+                                    <option value="Energy">Energy</option>
+                                    <option value="Industrials">Industrials</option>
+                                    <option value="Communication Services">Communication Services</option>
+                                    <option value="Basic Materials">Basic Materials</option>
+                                    <option value="Real Estate">Real Estate</option>
+                                    <option value="Utilities">Utilities</option>
                                 </select>
 
-                                <select id="vol-select" class="select-field"
-                                    style="flex: 1; width: 50%; padding: 6px 12px;">
-                                    <option value="0">Any Vol</option>
-                                    <option value="1000000">High (>1M)</option>
-                                    <option value="500000">Med (>500k)</option>
+                                <select id="industry-select" class="select-field" style="display: none;">
+                                    <option value="">Any Subsector</option>
                                 </select>
+
+                                <!-- Progressive disclosure: hidden until sector selected -->
+                                <div id="sector-extra-filters" style="display: none; flex-direction: column; gap: 10px;">
+                                    <div style="display: flex; gap: 10px;">
+                                        <select id="cap-select" class="select-field" style="flex: 1; padding: 6px 12px;">
+                                            <option value="0">Any Cap</option>
+                                            <option value="200000000000">Mega (>200B)</option>
+                                            <option value="10000000000">Large (>10B)</option>
+                                            <option value="2000000000">Mid (>2B)</option>
+                                        </select>
+                                        <select id="vol-select" class="select-field" style="flex: 1; padding: 6px 12px;">
+                                            <option value="0">Any Vol</option>
+                                            <option value="1000000">High (>1M)</option>
+                                            <option value="500000">Med (>500k)</option>
+                                        </select>
+                                    </div>
+                                    <button id="btn-sector-scan" class="btn btn-secondary full-width-btn">
+                                        Scan Top Picks
+                                    </button>
+                                </div>
                             </div>
-
-                            <button id="btn-sector-scan" class="btn btn-secondary full-width-btn">
-                                Scan Top Picks
-                            </button>
                         </div>
-                    </div>
-                </section>
+                    </aside>
 
-                <!-- Watchlist Dashboard Row -->
-                <section class="watchlist-dashboard-row">
-                    <!-- Add to Watchlist -->
-                    <div class="panel-card watchlist-add-card">
-                        <h2>Add to Watchlist</h2>
-                        <form id="watchlist-add-form" class="ticker-form" autocomplete="off"
-                            style="position: relative;">
-                            <input type="text" id="watchlist-input" class="input-field"
-                                placeholder="Add Ticker (e.g. AMD)" autocomplete="off">
-
-                            <!-- Floating Autocomplete List for Watchlist -->
-                            <div id="watchlist-autocomplete-list" class="autocomplete-list" style="z-index: 9999;">
+                    <!-- MAIN CONTENT AREA -->
+                    <div class="scanner-main">
+                        <!-- Watchlist Inline Row -->
+                        <section class="watchlist-inline-row">
+                            <form id="watchlist-add-form" class="watchlist-add-inline" autocomplete="off" style="position: relative;">
+                                <input type="text" id="watchlist-input" class="input-field" placeholder="Add Ticker (e.g. AMD)" autocomplete="off" style="width:120px; padding:6px 10px; font-size:0.85rem;">
+                                <div id="watchlist-autocomplete-list" class="autocomplete-list" style="z-index: 9999;"></div>
+                                <button type="button" id="btn-add-watchlist" class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem;">Add</button>
+                            </form>
+                            <div class="watchlist-inline-label">
+                                <span>My Watchlist</span>
+                                <span class="watchlist-count-badge"><span id="watchlist-count-display">0</span>/30</span>
                             </div>
-
-                            <button type="button" id="btn-add-watchlist" class="btn btn-primary">
-                                Add
-                            </button>
-                        </form>
-                    </div>
-
-                    <!-- My Watchlist Panel -->
-                    <div class="panel-card watchlist-list-card">
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <h2 style="margin: 0; font-size: 1.25rem;">My Watchlist</h2>
-                            <span
-                                style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;">
-                                <span id="watchlist-count-display">0</span>/30
-                            </span>
-                        </div>
-                        <div id="watchlist-container" class="watchlist-grid">
-                            <!-- Watchlist items will be inserted here -->
-                            <div class="empty-state-small">Watchlist is empty</div>
-                        </div>
-                    </div>
-                </section>
+                            <div id="watchlist-container" class="watchlist-chips">
+                                <span class="empty-state-small">Watchlist is empty</span>
+                            </div>
+                        </section>
 
                 <!-- Opportunities Section -->
                 <section class="opportunities-section">
@@ -235,6 +211,9 @@
                         <!-- Opportunity cards will be inserted here -->
                     </div>
                 </section>
+
+                    </div><!-- /scanner-main -->
+                </div><!-- /scanner-body -->
 
                 <!-- Detailed Analysis Modal -->
                 <div id="analysis-modal" class="modal hidden">
@@ -350,15 +329,15 @@
                             <button onclick="portfolio.resetHistoryDateFilter()" title="Reset date filter"
                                 style="background:transparent; border:1px solid var(--border); border-radius:6px; padding:0.25rem 0.5rem; font-size:0.78rem; color:var(--text-muted); cursor:pointer;"
                                 onmouseover="this.style.color='var(--text-primary)'"
-                                onmouseout="this.style.color='var(--text-muted)'">✕ Reset</button>
+                                onmouseout="this.style.color='var(--text-muted)'">&#x2715; Reset</button>
                         </div>
                         <div style="flex:1;"></div>
                         <div class="export-dropdown" style="position:relative;">
                             <button class="filter-pill" id="btn-export-history"
-                                onclick="portfolio.toggleExportMenu()">📥 Export ▼</button>
+                                onclick="portfolio.toggleExportMenu()">&#x1F4E5; Export &#x25BC;</button>
                             <div id="export-menu" class="export-menu hidden">
-                                <button onclick="portfolio.exportHistory('csv')">📄 Export CSV</button>
-                                <button onclick="portfolio.exportHistory('json')">🗂️ Export JSON</button>
+                                <button onclick="portfolio.exportHistory('csv')">&#x1F4C4; Export CSV</button>
+                                <button onclick="portfolio.exportHistory('json')">&#x1F5C2;&#xFE0F; Export JSON</button>
                             </div>
                         </div>
 
@@ -373,7 +352,7 @@
                                             id="sort-arrow-ticker"></span></th>
                                     <th class="sortable-th" onclick="portfolio.sortHistory('type')">Type <span
                                             id="sort-arrow-type"></span></th>
-                                    <th>Entry → Exit</th>
+                                    <th>Entry &rarr; Exit</th>
                                     <th class="sortable-th" onclick="portfolio.sortHistory('pnl')">P&L <span
                                             id="sort-arrow-pnl"></span></th>
                                     <th class="sortable-th" onclick="portfolio.sortHistory('held')">Held <span
@@ -394,7 +373,7 @@
                 <div id="portfolio-view-performance" class="portfolio-view hidden">
                     <!-- Charts & Analytics rendered here -->
                     <div class="loading-placeholder">
-                        ⏳ Loading Analytics...
+                        &#x23F3; Loading Analytics...
                     </div>
                 </div>
 
@@ -402,7 +381,7 @@
                 <div id="portfolio-view-settings" class="portfolio-view hidden">
                     <!-- Rendered by renderSettingsView() -->
                     <div class="loading-placeholder">
-                        ⏳ Loading Settings...
+                        &#x23F3; Loading Settings...
                     </div>
                 </div>
 
@@ -412,6 +391,10 @@
         <!-- RISK DASHBOARD TAB -->
         <div id="tab-risk" class="tab-panel">
             <div class="container">
+                <!-- Sandbox banner for Risk page -->
+                <div id="risk-mode-banner" class="mode-banner mode-sandbox" style="margin-top: 1rem;">
+                    🧪 SANDBOX MODE — Fake money (Tradier)
+                </div>
                 <div id="risk-content">
                     <!-- Rendered by risk-dashboard.js -->
                 </div>
@@ -429,19 +412,19 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Scripts -->
-    <script src="js/utils/api.js?v=17"></script>
-    <script src="js/utils/toast.js?v=17"></script>
-    <script src="js/utils/charts.js?v=17"></script>
+    <script src="js/utils/api.js?v=18"></script>
+    <script src="js/utils/toast.js?v=18"></script>
+    <script src="js/utils/charts.js?v=18"></script>
     <script src="js/utils/ai-cache.js?v=2"></script>
-    <script src="js/components/watchlist.js?v=17"></script>
-    <script src="js/components/scanner.js?v=17"></script>
-    <script src="js/components/opportunities.js?v=20"></script>
-    <script src="js/components/analysis-detail.js?v=18"></script>
+    <script src="js/components/watchlist.js?v=18"></script>
+    <script src="js/components/scanner.js?v=18"></script>
+    <script src="js/components/opportunities.js?v=21"></script>
+    <script src="js/components/analysis-detail.js?v=19"></script>
     <script src="js/components/trade-modal.js?v=24"></script>
     <script src="js/paper_api.js?v=1"></script>
-    <script src="js/components/portfolio.js?v=23"></script>
-    <script src="js/components/risk-dashboard.js?v=18"></script>
-    <script src="js/app.js?v=20"></script>
+    <script src="js/components/portfolio.js?v=24"></script>
+    <script src="js/components/risk-dashboard.js?v=19"></script>
+    <script src="js/app.js?v=21"></script>
     <!-- Custom Action Modal -->
     <div id="action-modal" class="portfolio-action-overlay hidden" onclick="portfolio.closeModal(event)">
         <div class="modal-card" onclick="event.stopPropagation()">
