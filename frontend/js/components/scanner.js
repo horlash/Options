@@ -2,6 +2,7 @@
 const scanner = {
     isScanning: false,
     scanMode: 'weekly-0', // Default to This Week
+    scanDirection: 'CALL', // F41 FIX: Default direction
     tickers: [], // Full list of cached tickers
 
     async init() {
@@ -168,6 +169,17 @@ const scanner = {
                 }
             }
         }
+    },
+
+    // F41 FIX: Direction toggle (CALL/PUT)
+    setDirection(direction) {
+        this.scanDirection = direction;
+        console.log(`Scanner direction set to: ${direction}`);
+        // Toggle active state on buttons
+        const callBtn = document.getElementById('dir-call');
+        const putBtn = document.getElementById('dir-put');
+        if (callBtn) callBtn.classList.toggle('active', direction === 'CALL');
+        if (putBtn) putBtn.classList.toggle('active', direction === 'PUT');
     },
 
     // Industry Mapping
@@ -343,8 +355,8 @@ const scanner = {
         try {
             let result;
             if (this.scanMode === 'leaps') {
-                toast.info(`Scanning ${ticker} (LEAPS)...`);
-                result = await api.scanTicker(ticker);
+                toast.info(`Scanning ${ticker} (LEAPS ${this.scanDirection})...`);
+                result = await api.scanTicker(ticker, this.scanDirection);
             } else if (this.scanMode === '0dte') {
                 toast.info(`⚡ Scanning ${ticker} (0DTE)...`);
                 result = await api.scan0DTE(ticker);

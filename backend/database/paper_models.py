@@ -185,6 +185,9 @@ class PriceSnapshot(Base):
     iv          = Column(Float, nullable=True)
     underlying  = Column(Float, nullable=True)
     snapshot_type = Column(String(20), default='PERIODIC')  # PERIODIC / OPEN_BOOKEND / CLOSE_BOOKEND
+    # F48: username column used for RLS row isolation. No FK to a users table
+    # because auth uses Flask-BasicAuth (no users table). If a users table is added,
+    # add: ForeignKey('users.username') here for referential integrity.
     username    = Column(String(50), nullable=False)  # Direct RLS column (mirrors trade.username)
 
     # --- Relationship ---

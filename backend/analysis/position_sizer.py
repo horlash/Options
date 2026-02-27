@@ -20,6 +20,10 @@ class PositionSizer:
     """
     Calculate optimal position size for a single-leg option trade.
 
+    F15 NOTE: Kelly criterion uses static win_rate (default 0.55).
+    Future: adapt win_rate from actual trade history in paper_trades table.
+    F16 NOTE: VIX adjustment is global. Future: per-ticker beta-adjusted sizing.
+
     Usage:
         ps = PositionSizer(account_size=50000)
         sizing = ps.calculate(opportunity, strategy='LEAP', vix_regime='NORMAL')

@@ -246,11 +246,13 @@ def run_scan():
 def scan_ticker(ticker):
     """Run scan on a specific ticker"""
     try:
-        # Scan specific ticker doesn't need watchlist check strictly as per plan
         scanner_service = ScannerService()
-        # [MODIFIED] Use strict_mode=False for manual single-ticker scans
-        # This allows users to "force" a scan on speculative/poor-quality stocks (EOSE, etc.)
-        result = scanner_service.scan_ticker(ticker, strict_mode=False)
+        # F41 FIX: Accept direction from request body (default CALL)
+        data = request.get_json(silent=True) or {}
+        direction = data.get('direction', 'CALL').upper()
+        if direction not in ('CALL', 'PUT'):
+            direction = 'CALL'
+        result = scanner_service.scan_ticker(ticker, strict_mode=False, direction=direction)
         scanner_service.close()
         
         if result:
@@ -367,7 +369,16 @@ def run_sector_scan():
         
         if not sector:
              return jsonify({'success': False, 'error': 'Sector is required'}), 400
-             
+        
+        # F43: Backend validation for 0DTE sector scans (frontend blocks this, but
+        # enforce server-side too). 0DTE requires same-day expiry on specific tickers,
+        # not broad sector sweeps.
+        if weeks_out == 0 or str(weeks_out) == '0':
+            return jsonify({
+                'success': False,
+                'error': '0DTE sector scans are not supported. Use single-ticker 0DTE scan instead.'
+            }), 400
+        
         service = get_scanner()
         print(f"Starting Sector Scan: {sector} (weeks_out={weeks_out}, industry={industry})", flush=True)
         

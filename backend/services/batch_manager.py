@@ -1,6 +1,7 @@
 import concurrent.futures
 import time
 import logging
+import threading
 from typing import List, Dict, Any
 from backend.api.orats import OratsAPI
 
@@ -19,6 +20,9 @@ class BatchManager:
         self.rate_limit = rate_limit_per_min
         self.delay = 60.0 / self.rate_limit if rate_limit_per_min > 0 else 0
         self.orats_api = OratsAPI()
+        # F12 FIX: Thread-safe rate limiter
+        self._lock = threading.Lock()
+        self._last_request_time = 0.0
 
     def fetch_option_chains(self, tickers: List[str]) -> Dict[str, Any]:
         """
@@ -50,14 +54,7 @@ class BatchManager:
                 except Exception as exc:
                     logger.error(f"BatchManager: Error fetching {ticker}: {exc}")
                 
-                # Simple Rate Limiting (Sleep ensures average rate)
-                # Note: In a thread pool, this sleeps the MAIN thread? No, 'as_completed' yields.
-                # To enforce rate limit on SUBMISSION, we should throttle the submission loop.
-                # Beause 'executor.submit' is fast.
-                # But here we submitted ALL at once.
-                # If we want to rate limit, we should throttle.
-                # For now, let's assume the API handles bursts or we rely on 'max_workers' to limit concurrency.
-                # 10 workers = max 10 concurrent requests.
+                # F12: Rate limiting now handled in _fetch_single_safe
                 pass
 
         elapsed = time.time() - start_time
@@ -66,11 +63,15 @@ class BatchManager:
 
     def _fetch_single_safe(self, ticker):
         """
-        Wrapper to fetch a single ticker safely.
+        Wrapper to fetch a single ticker safely with rate limiting.
         """
         try:
-            # Throttle if needed (naive)
-            # time.sleep(0.1) 
+            # F12 FIX: Thread-safe rate limiting
+            with self._lock:
+                elapsed = time.time() - self._last_request_time
+                if elapsed < self.delay:
+                    time.sleep(self.delay - elapsed)
+                self._last_request_time = time.time()
             return self.orats_api.get_option_chain(ticker)
         except Exception as e:
             logger.error(f"Error in thread for {ticker}: {e}")

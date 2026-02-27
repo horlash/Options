@@ -1,3 +1,14 @@
+# F4: Docker Compose File Guide
+# ─────────────────────────────────────────────────────────
+# docker-compose.yml          → Production (this file): scanner + SQLite
+# docker-compose.dev.yml      → Development: full stack with PostgreSQL paper trading
+# docker-compose.paper.yml    → Paper trading DB only: PostgreSQL for paper_trades
+#
+# Usage:
+#   Production:   docker compose up -d
+#   Development:  docker compose -f docker-compose.dev.yml up -d
+#   Paper DB:     docker compose -f docker-compose.paper.yml up -d
+# ─────────────────────────────────────────────────────────
 version: '3.8'
 
 services:

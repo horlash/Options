@@ -14,7 +14,7 @@ Dependencies:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, timezone
 
 from sqlalchemy import text
 
@@ -237,7 +237,7 @@ class MonitorService:
 
     def _handle_fill(self, db, trade, order):
         """Process a filled order — mark trade as closed with P&L."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         fill_price = order.get('avg_fill_price') or order.get('price') or trade.entry_price
         fill_price = float(fill_price)
@@ -298,7 +298,11 @@ class MonitorService:
             close_reason = 'EXPIRED'
 
         trade.exit_price = exit_price
-        trade.realized_pnl = (exit_price - trade.entry_price) * trade.qty * 100
+        # F21 FIX: Add direction_mult — previously always assumed BUY direction
+        direction_mult = 1 if trade.direction == 'BUY' else -1
+        trade.realized_pnl = round(
+            (exit_price - trade.entry_price) * trade.qty * 100 * direction_mult, 2
+        )
         trade.close_reason = close_reason
 
         # Lifecycle transition: OPEN → EXPIRED (Point 11)
@@ -331,7 +335,7 @@ class MonitorService:
                 f"Applying direct assignment as fallback."
             )
             trade.status = TradeStatus.CANCELED.value
-            trade.closed_at = datetime.utcnow()
+            trade.closed_at = datetime.now(timezone.utc)
             trade.version += 1
             self._log_transition(
                 db, trade,
@@ -445,7 +449,7 @@ class MonitorService:
                     "Fetching closing prices for open trades."
                 )
 
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             for trade in open_trades:
                 try:
@@ -595,7 +599,7 @@ class MonitorService:
                 return
 
             tickers = list(set(t.ticker for t in open_trades))
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             logger.info(
                 f"Capturing {snapshot_type} for {len(open_trades)} trades "
@@ -717,7 +721,7 @@ class MonitorService:
 
             # Get user's broker
             user_settings = db.get(UserSettings, username)
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             if user_settings and trade.tradier_order_id:
                 try:
@@ -761,9 +765,11 @@ class MonitorService:
             # Fallback chain: fresh quote → last known option price → entry price
             if exit_price is None:
                 # Guard current_price from stock fallback if it's clearly a stock price
-                if trade.current_price and trade.current_price > trade.entry_price * 5 and trade.entry_price > 0:
+                # F46: Raised threshold from 5x to 10x — deep ITM options can legitimately
+                # be worth several multiples of original entry price.
+                if trade.current_price and trade.current_price > trade.entry_price * 10 and trade.entry_price > 0:
                     logger.warning(
-                        f"trade.current_price ${trade.current_price:.2f} is >5x entry ${trade.entry_price:.2f} "
+                        f"trade.current_price ${trade.current_price:.2f} is >10x entry ${trade.entry_price:.2f} "
                         f"for {trade.ticker} — possible stock price contamination, "
                         f"falling back to entry price for current_price fallback"
                     )
@@ -772,9 +778,10 @@ class MonitorService:
                     exit_price = trade.current_price or trade.entry_price
 
             # Sanity check: exit price shouldn't be vastly higher than entry (likely stock price)
-            if exit_price > trade.entry_price * 5 and trade.entry_price > 0:
+            # F46: Raised threshold from 5x to 10x for deep ITM options
+            if exit_price > trade.entry_price * 10 and trade.entry_price > 0:
                 logger.warning(
-                    f"Exit price ${exit_price:.2f} is >5x entry ${trade.entry_price:.2f} "
+                    f"Exit price ${exit_price:.2f} is >10x entry ${trade.entry_price:.2f} "
                     f"for {trade.ticker} — possible stock price contamination, "
                     f"falling back to entry price"
                 )
@@ -937,7 +944,7 @@ class MonitorService:
                         )
 
             trade.version += 1
-            trade.updated_at = datetime.utcnow()
+            trade.updated_at = datetime.now(timezone.utc)
             db.commit()
 
             logger.info(
@@ -1011,7 +1018,7 @@ class MonitorService:
                             order.get('avg_fill_price') or trade.entry_price
                         )
                         trade.broker_fill_price = trade.entry_price
-                        trade.broker_fill_time = datetime.utcnow()
+                        trade.broker_fill_time = datetime.now(timezone.utc)
                         lifecycle.transition(
                             trade, TradeStatus.OPEN,
                             trigger='CRON_FILL_CHECK',
@@ -1086,12 +1093,13 @@ class MonitorService:
                     logger.warning(f"lifecycle_sync: invalid transition for trade {trade.id}: {e}")
 
             # 3. OPEN trades → check for expiration
-            from datetime import date
+            # F22 FIX: Use proper date comparison instead of fragile string comparison
+            today_str = date.today().isoformat()
             expired_trades = (
                 db.query(PaperTrade)
                 .filter(
                     PaperTrade.status == TradeStatus.OPEN.value,
-                    PaperTrade.expiry <= date.today().isoformat(),
+                    PaperTrade.expiry <= today_str,
                 )
                 .all()
             )
@@ -1112,6 +1120,20 @@ class MonitorService:
                     logger.warning(f"lifecycle_sync: invalid transition for trade {trade.id}: {e}")
 
             db.commit()
+
+            # F23 FIX: Run orphan guard independently so it executes even when
+            # sync_tradier_orders is skipped (no OPEN trades with order IDs)
+            try:
+                for user_settings in db.query(UserSettings).all():
+                    try:
+                        broker = BrokerFactory.get_broker(user_settings)
+                        self._orphan_guard(db, broker, user_settings.username)
+                    except Exception as e:
+                        logger.debug(f"lifecycle_sync orphan guard skip for {user_settings.username}: {e}")
+                db.commit()
+            except Exception as e:
+                logger.debug(f"lifecycle_sync orphan guard error: {e}")
+
             logger.debug("lifecycle_sync completed successfully.")
 
         except Exception as e:
@@ -1132,7 +1154,14 @@ class MonitorService:
         Format: TICKER + YYMMDD + C/P + Strike*1000 (zero-padded 8 digits)
         Example: AAPL260320C00150000 = AAPL March 20, 2026 $150 Call
         """
-        expiry_dt = datetime.strptime(trade.expiry, '%Y-%m-%d')
+        # F40 FIX: Handle both string and date objects for expiry
+        expiry = trade.expiry
+        if isinstance(expiry, str):
+            expiry_dt = datetime.strptime(expiry, '%Y-%m-%d')
+        elif hasattr(expiry, 'strftime'):
+            expiry_dt = expiry  # Already a date/datetime object
+        else:
+            expiry_dt = datetime.strptime(str(expiry), '%Y-%m-%d')
         opt_type = 'C' if trade.option_type.upper() == 'CALL' else 'P'
         strike_padded = f"{int(trade.strike * 1000):08d}"
 

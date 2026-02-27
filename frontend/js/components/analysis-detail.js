@@ -1,4 +1,6 @@
 // Analysis Detail Modal
+// F24: This component uses inline styles extensively. Future refactor: migrate
+// to CSS classes in styles.css for maintainability (e.g. .ai-verdict, .bear-case-card, etc.).
 window.analysisDetail = {
     async show(ticker, context = null) {
         const modal = document.getElementById('analysis-modal');
@@ -193,7 +195,8 @@ window.analysisDetail = {
                 console.log("[AI] Using generic ticker context (no specific trade selected)");
             }
 
-            const response = await fetch(`/api/analysis/ai/${ticker}`, {
+            // F28 FIX: Encode ticker in URL to handle special characters
+            const response = await fetch(`/api/analysis/ai/${encodeURIComponent(ticker)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -219,7 +222,7 @@ window.analysisDetail = {
         const container = document.getElementById('ai-result-container');
         const verdictColor = analysis.verdict === 'SAFE' ? 'var(--secondary)' : analysis.verdict === 'RISKY' ? '#eab308' : 'var(--danger)';
 
-        // Enhanced Markdown Parsing
+        // F29: Enhanced Markdown Parsing — added italic, ordered lists, horizontal rules
         const formatText = (text) => {
             if (!text) return '';
             let formatted = text
@@ -229,17 +232,34 @@ window.analysisDetail = {
                 .replace(/\{[^{}]*"score"\s*:\s*\d+[^{}]*\}\s*$/g, '')
                 // Bold
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                // Italic (single * or _ — after bold to avoid conflicts)
+                .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
+                .replace(/(?<!_)_([^_]+)_(?!_)/g, '<em>$1</em>')
                 // Headers (### and ##)
                 .replace(/^###\s+(.*)$/gm, '<h5 style="margin:0.75rem 0 0.25rem;color:var(--text-light);">$1</h5>')
                 .replace(/^##\s+(.*)$/gm, '<h4 style="margin:1rem 0 0.25rem;color:var(--text-light);">$1</h4>')
-                // Bullet points
+                // Horizontal rules
+                .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0;">')
+                // Ordered list items (1. 2. 3.)
+                .replace(/^\d+\.\s+(.*)$/gm, '<li class="ol-item">$1</li>')
+                // Unordered bullet points
                 .replace(/^[\*\-]\s+(.*)$/gm, '<li>$1</li>')
                 // Newlines to breaks
                 .replace(/\n/g, '<br>');
 
-            // Wrap in ul if we found list items (simple hack)
+            // Wrap ordered list items in <ol>
+            if (formatted.includes('<li class="ol-item">')) {
+                formatted = formatted.replace(/((?:<li class="ol-item">.*<\/li>\s*(?:<br>)?\s*)+)/g, (match) => {
+                    const cleaned = match.replace(/ class="ol-item"/g, '').replace(/<br>/g, '');
+                    return '<ol style="margin: 0.5rem 0 0.5rem 1.5rem; padding-left: 1rem;">' + cleaned + '</ol>';
+                });
+            }
+            // Wrap unordered list items in <ul>
             if (formatted.includes('<li>')) {
-                formatted = formatted.replace(/((?:<li>.*<\/li>\s*)+)/g, '<ul style="margin: 0.5rem 0 0.5rem 1.5rem; padding-left: 1rem;">$1</ul>');
+                formatted = formatted.replace(/((?:<li>.*<\/li>\s*(?:<br>)?\s*)+)/g, (match) => {
+                    const cleaned = match.replace(/<br>/g, '');
+                    return '<ul style="margin: 0.5rem 0 0.5rem 1.5rem; padding-left: 1rem;">' + cleaned + '</ul>';
+                });
             }
             return formatted;
         };

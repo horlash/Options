@@ -124,9 +124,10 @@ class OptionsAnalyzer:
             bid = option.get('bid', 0)
             last = option.get('last', 0)
             
-            # Use Mark Price (Midpoint) for fair value
+            # F8 FIX: Use ask price (worst-case buy fill) for profit calc
+            # Mark price (midpoint) understates real entry cost
             if ask > 0 and bid > 0:
-                premium = (ask + bid) / 2
+                premium = ask  # Worst-case fill for buyer
             else:
                 premium = last if last > 0 else ask
 
@@ -315,14 +316,19 @@ class OptionsAnalyzer:
         Returns:
             Liquidity score (0-100)
         """
+        import math
         volume = opportunity.get('volume', 0)
         open_interest = opportunity.get('open_interest', 0)
         
         # Score based on open interest (more important for LEAPs)
         oi_score = min(100, (open_interest / 1000) * 100)
         
-        # Score based on volume
-        vol_score = min(100, (volume / 100) * 100)
+        # F7: Log-scaled volume score — linear map was unfair to moderate-volume options.
+        # log10(100)=2, log10(10000)=4 → maps to 0-100 scale with diminishing returns.
+        if volume > 0:
+            vol_score = min(100, (math.log10(volume) / math.log10(10000)) * 100)
+        else:
+            vol_score = 0
         
         # Weighted average (open interest more important for LEAPs)
         liquidity_score = (oi_score * 0.7) + (vol_score * 0.3)
@@ -455,6 +461,8 @@ class OptionsAnalyzer:
         spread_limit = SPREAD_LIMITS.get(strategy, 0.15)
         
         # --- G4: DEFINE WEIGHTS BASED ON STRATEGY (all sum to 1.00) ---
+        # F6: Weights are currently hardcoded per strategy. Future enhancement:
+        # persist user-customized weights in UserSettings (JSONB) and load here.
         if strategy in ["WEEKLY", "0DTE"]:
             # Short Term: Momentum & Flow are King
             W_TECH   = 0.40    # Technicals (Momentum)
@@ -664,6 +672,9 @@ class OptionsAnalyzer:
         
         # --- Theta Efficiency ---
         # Theta/Premium ratio: how much daily decay costs as % of position
+        # F9 FIX: Weight theta penalty by DTE — near-expiry theta hurts more
+        dte = opp.get('daysToExpiration', 30) or 30
+        dte_factor = max(0.5, min(2.0, 30 / max(dte, 1)))  # 2x penalty at 15 DTE, 0.5x at 60+ DTE
         if premium > 0 and theta > 0:
             theta_pct = theta / premium  # Daily decay as fraction of premium
             if strategy == 'LEAP':
@@ -673,7 +684,7 @@ class OptionsAnalyzer:
                 elif theta_pct < 0.005:   # < 0.5% per day = acceptable
                     score += 5
                 else:
-                    score -= 10           # Expensive time decay
+                    score -= int(10 * dte_factor)  # Expensive time decay, weighted by DTE
             else:
                 # Short-term: theta decay is expected, less penalty
                 if theta_pct < 0.01:
@@ -681,7 +692,7 @@ class OptionsAnalyzer:
                 elif theta_pct < 0.03:
                     score += 0  # Neutral
                 else:
-                    score -= 5
+                    score -= int(5 * dte_factor)  # F9: DTE-weighted penalty
         
         # --- Gamma Risk/Reward ---
         if strategy in ['WEEKLY', '0DTE']:

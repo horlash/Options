@@ -1,21 +1,12 @@
-// Toast notification system
+// F25 FIX: Toast notification system — delegates to global showToast() in app.js
+// Previously had its own implementation that could conflict
 const toast = {
     show(message, type = 'info') {
-        const container = document.getElementById('toast-container');
-
-        const toastEl = document.createElement('div');
-        toastEl.className = `toast ${type}`;
-        toastEl.textContent = message;
-
-        container.appendChild(toastEl);
-
-        // Auto remove after 3 seconds
-        setTimeout(() => {
-            toastEl.style.animation = 'slideOut 0.3s ease';
-            setTimeout(() => {
-                container.removeChild(toastEl);
-            }, 300);
-        }, 3000);
+        if (typeof showToast === 'function') {
+            showToast(message, type);
+        } else {
+            console.warn(`[toast] ${type}: ${message}`);
+        }
     },
 
     success(message) {
@@ -28,5 +19,9 @@ const toast = {
 
     info(message) {
         this.show(message, 'info');
+    },
+
+    warning(message) {
+        this.show(message, 'warning');
     }
 };

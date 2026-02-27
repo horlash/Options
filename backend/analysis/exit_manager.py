@@ -20,6 +20,10 @@ class ExitManager:
     """
     Generates exit recommendations for a given opportunity.
 
+    F18 NOTE: Trailing stop logic is calculated at scan time as a
+    recommendation. It is NOT enforced in real-time by monitor_service.
+    Future: integrate trailing-stop monitoring into update_price_snapshots().
+
     Usage:
         em = ExitManager()
         plan = em.generate_exit_plan(opportunity, strategy='LEAP', vix_regime='NORMAL')

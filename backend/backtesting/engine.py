@@ -7,6 +7,7 @@ Architecture:
   - Uses ORATS hist/cores for historical IV, earnings, dividends
   - Simulates the full scanning pipeline over historical dates
   - Tracks P&L, win rate, max drawdown, Sharpe ratio
+  - F19: Per-ticker history via get_history(ticker) — not limited to SPY.
 
 Scope (single-leg only, per user requirement):
   - LEAP calls/puts
