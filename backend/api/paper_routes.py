@@ -42,9 +42,14 @@ def _get_username():
     """Get the current authenticated username.
 
     Reads from Flask session (set by security.login_user).
-    Falls back to 'demo' in development for testing without auth.
+    Returns 401 if no session exists — no silent fallback to 'demo'.
     """
-    return session.get('user', 'demo')
+    # P0-10: Require authentication — abort(401) instead of falling back to 'demo'
+    from flask import abort
+    user = session.get('user')
+    if not user:
+        abort(401)
+    return user
 
 
 def _trade_to_dict(trade):
@@ -347,6 +352,39 @@ def place_trade():
                     'error': f'Daily trade limit reached ({user_settings.max_daily_trades})'
                 }), 429
 
+        # ── P0-16: Max Positions enforcement ──
+        if user_settings and user_settings.max_positions:
+            open_count = (
+                db.query(func.count(PaperTrade.id))
+                .filter(
+                    PaperTrade.username == username,
+                    PaperTrade.status == TradeStatus.OPEN.value,
+                )
+                .scalar()
+            )
+            if open_count >= user_settings.max_positions:
+                return jsonify({
+                    'success': False,
+                    'error': f'Max open positions reached ({user_settings.max_positions}). Close a position first.'
+                }), 429
+
+        # ── P0-4: Daily Loss Limit enforcement ──
+        if user_settings and user_settings.daily_loss_limit:
+            todays_realized = (
+                db.query(func.coalesce(func.sum(PaperTrade.realized_pnl), 0))
+                .filter(
+                    PaperTrade.username == username,
+                    PaperTrade.status == TradeStatus.CLOSED.value,
+                    func.date(PaperTrade.closed_at) == date_type.today(),
+                )
+                .scalar()
+            )
+            if todays_realized is not None and float(todays_realized) <= -abs(user_settings.daily_loss_limit):
+                return jsonify({
+                    'success': False,
+                    'error': f'Daily loss limit breached (${abs(float(todays_realized)):.2f} lost today, limit: ${user_settings.daily_loss_limit:.2f})'
+                }), 429
+
         trade = PaperTrade(
             username=username,
             ticker=data['ticker'].upper(),
@@ -386,7 +424,7 @@ def place_trade():
                 entry_price=trade.entry_price,
             )
         except Exception as e:
-            log.warning(f'[place_trade] Context capture failed (non-fatal): {e}')
+            logger.warning(f'[place_trade] Context capture failed (non-fatal): {e}')  # P0-9: was `log.warning` (undefined)
 
         # ── Lifecycle Transition: PENDING → OPEN (Point 11) ──────────
         lifecycle = LifecycleManager(db)

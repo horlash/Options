@@ -12,6 +12,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from flask import Flask, jsonify, request, render_template, session, redirect, send_from_directory
 from flask_cors import CORS
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    HAS_LIMITER = True
+except ImportError:
+    HAS_LIMITER = False
 from backend.config import Config
 from backend.database.models import init_db, SearchHistory, get_db
 from backend.services.hybrid_scanner_service import HybridScannerService as ScannerService
@@ -30,12 +36,34 @@ app.config.from_object(Config)
 CORS(app)
 security_service = Security(app)
 
+# XC-7: Rate limiting on login endpoint to prevent brute-force attacks
+if HAS_LIMITER:
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=[],            # No global limit — only applied per-route
+        storage_uri="memory://",      # In-memory; works fine for single-process Pi deploy
+    )
+else:
+    limiter = None
+    logging.getLogger(__name__).warning(
+        "flask-limiter not installed — login rate limiting disabled. "
+        "Run: pip install flask-limiter>=3.5.0"
+    )
+
 # Register paper trading API routes (Phase 3)
 from backend.api.paper_routes import paper_bp
 app.register_blueprint(paper_bp)
 
 # Initialize database
 init_db()
+
+# P1-A12: Validate ENCRYPTION_KEY at startup (needed for Tradier token encryption)
+if not Config.ENCRYPTION_KEY:
+    logging.getLogger(__name__).warning(
+        "ENCRYPTION_KEY not set. Tradier token encryption/decryption will fail. "
+        "Set ENCRYPTION_KEY env var for paper trading with Tradier."
+    )
 
 # Global service instance
 scanner_service = None
@@ -69,6 +97,11 @@ def login_page():
 
     # GET request - serve login page
     return app.send_static_file('login.html')
+
+# XC-7: Apply rate limit to login — 5 attempts/minute per IP
+# Prevents brute-force attacks on the login endpoint
+if limiter is not None:
+    login_page = limiter.limit("5/minute")(login_page)
 
 @app.route('/logout')
 def logout():
@@ -539,6 +572,7 @@ def init_scheduler(app):
             id='pre_market_bookend',
             name='Pre-Market Bookend (9:25 AM ET)',
             replace_existing=True,
+            max_instances=1,  # P2-A3: prevent overlapping bookend runs
         )
 
         # Job 4: Post-market bookend (4:05 PM ET, Mon-Fri)
@@ -554,6 +588,17 @@ def init_scheduler(app):
             id='post_market_bookend',
             name='Post-Market Bookend (4:05 PM ET)',
             replace_existing=True,
+            max_instances=1,  # P2-A3: prevent overlapping bookend runs
+        )
+
+        # P0-8: Job 5: Lifecycle sync — process stale PENDING/CLOSING trades + expire
+        scheduler.add_job(
+            func=monitor.lifecycle_sync,
+            trigger=IntervalTrigger(seconds=120),
+            id='lifecycle_sync',
+            name='Lifecycle Sync (120s)',
+            replace_existing=True,
+            max_instances=1,
         )
 
         scheduler.start()
@@ -561,15 +606,16 @@ def init_scheduler(app):
 
         logger = logging.getLogger(__name__)
         logger.info(
-            "APScheduler started — 4 jobs registered "
-            "(order sync 60s, snapshots 40s, bookends 9:25/16:05 ET)"
+            "APScheduler started — 5 jobs registered "
+            "(order sync 60s, snapshots 40s, bookends 9:25/16:05 ET, lifecycle 120s)"
         )
         print(
-            "\n✅ [SCHEDULER] APScheduler started — 4 background jobs registered:\n"
+            "\n✅ [SCHEDULER] APScheduler started — 5 background jobs registered:\n"
             "   • sync_tradier_orders  (every 60s)\n"
             "   • update_price_snapshots (every 40s)\n"
             "   • pre_market_bookend   (9:25 AM ET Mon-Fri)\n"
-            "   • post_market_bookend  (4:05 PM ET Mon-Fri)\n",
+            "   • post_market_bookend  (4:05 PM ET Mon-Fri)\n"
+            "   • lifecycle_sync       (every 120s)\n",
             flush=True,
         )
 

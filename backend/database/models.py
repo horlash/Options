@@ -84,9 +84,10 @@ def init_db():
     Base.metadata.create_all(engine, tables=scanner_tables)
 
 def get_db():
-    """Get database session"""
-    db = SessionLocal()
-    try:
-        return db
-    finally:
-        db.close()
+    """Get database session.
+
+    QW-13 FIX: Previously used try/return/finally which closed the session
+    before the caller could use it. Now returns the session directly;
+    callers are responsible for closing.
+    """
+    return SessionLocal()

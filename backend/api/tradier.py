@@ -2,6 +2,7 @@ import requests
 import time
 from datetime import datetime, timedelta
 from backend.config import Config
+from backend.utils.retry import retry_api
 
 class TradierAPI:
     """Tradier API for options chains with Greeks"""
@@ -44,6 +45,7 @@ class TradierAPI:
         """Check if Tradier API is configured"""
         return self.api_key is not None
     
+    @retry_api(max_retries=2, base_delay=1.0)
     def get_quote(self, ticker):
         """Get real-time quote"""
         if not self.is_configured():
@@ -85,6 +87,7 @@ class TradierAPI:
             print(f"Error getting Tradier quote: {str(e)}")
             return None
     
+    @retry_api(max_retries=2, base_delay=1.0)
     def get_expirations(self, ticker):
         """Get available expiration dates for a ticker"""
         if not self.is_configured():
@@ -110,6 +113,7 @@ class TradierAPI:
             print(f"Error getting Tradier expirations: {str(e)}")
             return None
     
+    @retry_api(max_retries=2, base_delay=1.0)
     def get_options_chain(self, ticker, expiration, greeks=True):
         """
         Get options chain for a specific expiration with Greeks
@@ -148,6 +152,7 @@ class TradierAPI:
             print(f"Error getting Tradier options chain: {str(e)}")
             return None
     
+    @retry_api(max_retries=2, base_delay=1.0)
     def get_leap_options_chain(self, ticker, min_days=240):
         """
         Get LEAP options chains (8+ months out) with Greeks

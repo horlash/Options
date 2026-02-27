@@ -1,74 +1,166 @@
-from textblob import TextBlob
+"""
+Sentiment Analyzer — G3 Remediation
+Uses Finnhub institutional sentiment + Perplexity AI fallback for high-accuracy scoring.
+
+Signal hierarchy:
+  1. Finnhub news-sentiment endpoint (premium score, 0-1 scale)
+  2. Finnhub company-news headlines + Perplexity AI scoring
+  3. Neutral 50 (no data)
+"""
+
+import logging
+import requests
 from datetime import datetime, timedelta
-import numpy as np
+from backend.config import Config
+
+logger = logging.getLogger(__name__)
+
 
 class SentimentAnalyzer:
     def __init__(self):
-        self.time_decay_factor = 0.9  # Weight recent news more heavily
-        
-    def analyze_text_sentiment(self, text):
+        self.time_decay_factor = 0.9
+        self.perplexity_api_key = Config.PERPLEXITY_API_KEY
+        self.perplexity_url = "https://api.perplexity.ai/chat/completions"
+
+    # ------------------------------------------------------------------
+    # PRIMARY: Finnhub institutional sentiment (premium or free-tier)
+    # ------------------------------------------------------------------
+    def score_from_finnhub_premium(self, finnhub_data):
         """
-        Analyze sentiment of text using TextBlob
-        
-        Args:
-            text: Text to analyze
-        
-        Returns:
-            Sentiment score (-1 to 1)
+        Convert Finnhub news-sentiment response to 0-100.
+        Returns (score, source_label) or (None, None) if unavailable.
         """
-        if not text:
-            return 0
-        
+        if not finnhub_data or finnhub_data == "FORBIDDEN":
+            return None, None
+        if 'sentiment' not in finnhub_data:
+            return None, None
+
+        # companyNewsScore (0-1): Best single metric
+        if 'companyNewsScore' in finnhub_data:
+            score = finnhub_data['companyNewsScore'] * 100
+            return max(0, min(100, score)), "Finnhub Institutional (companyNewsScore)"
+
+        # Fallback: bullishPercent
+        bp = finnhub_data.get('sentiment', {}).get('bullishPercent', None)
+        if bp is not None:
+            return max(0, min(100, bp * 100)), "Finnhub Institutional (bullishPercent)"
+
+        return None, None
+
+    # ------------------------------------------------------------------
+    # SECONDARY: Perplexity AI headline scoring
+    # ------------------------------------------------------------------
+    def score_headlines_with_perplexity(self, ticker, headlines):
+        """
+        Use Perplexity sonar-pro to score a batch of headlines 0-100.
+        Returns (score, breakdown_list) or (50, []) on failure.
+        """
+        if not self.perplexity_api_key or not headlines:
+            return 50, []
+
+        bullet_list = "\n".join(f"- {h}" for h in headlines[:15])
+
+        prompt = (
+            f"You are a quantitative sentiment scorer for options trading.\n"
+            f"Rate the overall sentiment of these {ticker} headlines on a 0-100 scale:\n"
+            f"0 = extremely bearish, 50 = neutral, 100 = extremely bullish.\n\n"
+            f"Headlines:\n{bullet_list}\n\n"
+            f"Respond with ONLY a JSON object: {{\"score\": <int>, \"rationale\": \"<1 sentence>\"}}"
+        )
+
         try:
-            blob = TextBlob(text)
-            # Polarity ranges from -1 (negative) to 1 (positive)
-            return blob.sentiment.polarity
+            resp = requests.post(
+                self.perplexity_url,
+                json={
+                    "model": "sonar-pro",
+                    "messages": [
+                        {"role": "system", "content": "You are a financial sentiment scoring engine. Return only JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.0
+                },
+                headers={
+                    "Authorization": f"Bearer {self.perplexity_api_key}",
+                    "Content-Type": "application/json"
+                },
+                timeout=15
+            )
+
+            if resp.status_code != 200:
+                logger.warning("Perplexity sentiment API returned %d", resp.status_code)
+                return 50, []
+
+            content = resp.json()['choices'][0]['message']['content']
+
+            # Extract JSON from response
+            import json, re
+            json_match = re.search(r'\{[^}]*"score"\s*:\s*(\d+)[^}]*\}', content)
+            if json_match:
+                parsed = json.loads(json_match.group(0))
+                score = max(0, min(100, int(parsed.get('score', 50))))
+                rationale = parsed.get('rationale', '')
+                logger.info("Perplexity sentiment for %s: %d (%s)", ticker, score, rationale)
+                return score, [{"source": "Perplexity AI", "score": score, "rationale": rationale}]
+
         except Exception as e:
-            print(f"Error analyzing sentiment: {str(e)}")
-            return 0
-    
-    def calculate_time_weight(self, published_date):
+            logger.warning("Perplexity sentiment failed for %s: %s", ticker, e)
+
+        return 50, []
+
+    # ------------------------------------------------------------------
+    # UNIFIED ENTRY POINT
+    # ------------------------------------------------------------------
+    def analyze_sentiment(self, ticker, finnhub_premium_data=None, headlines=None):
         """
-        Calculate weight based on how recent the news is
-        More recent news gets higher weight
-        
-        Args:
-            published_date: Publication date string or datetime
-        
+        Unified sentiment analysis pipeline (G3 fix).
+
+        Priority:
+          1. Finnhub premium sentiment → 0-100
+          2. Perplexity AI headline scoring → 0-100
+          3. Default neutral → 50
+
         Returns:
-            Weight factor (0-1)
+            dict with 'score' (0-100), 'source', 'breakdown', 'headlines'
         """
-        try:
-            if isinstance(published_date, str):
-                # Try parsing different date formats
-                try:
-                    pub_date = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
-                except:
-                    pub_date = datetime.strptime(published_date[:10], '%Y-%m-%d')
-            else:
-                pub_date = published_date
-            
-            days_old = (datetime.now() - pub_date.replace(tzinfo=None)).days
-            
-            # Exponential decay - news older than 7 days gets significantly less weight
-            weight = self.time_decay_factor ** days_old
-            
-            return max(0.1, weight)  # Minimum weight of 0.1
-            
-        except Exception as e:
-            print(f"Error calculating time weight: {str(e)}")
-            return 0.5  # Default weight
-    
+        result = {
+            'score': 50,
+            'source': 'default_neutral',
+            'signal': 'neutral',
+            'breakdown': [],
+            'headlines': headlines or [],
+            'article_count': 0,
+        }
+
+        # 1. Try Finnhub premium
+        fh_score, fh_source = self.score_from_finnhub_premium(finnhub_premium_data)
+        if fh_score is not None:
+            result['score'] = fh_score
+            result['source'] = fh_source
+            result['article_count'] = finnhub_premium_data.get('buzz', {}).get('articlesInLastWeek', 0)
+            result['breakdown'].append({
+                'method': 'finnhub_premium',
+                'score': fh_score,
+                'source': fh_source,
+            })
+        elif headlines:
+            # 2. Try Perplexity AI scoring
+            px_score, px_breakdown = self.score_headlines_with_perplexity(ticker, headlines)
+            result['score'] = px_score
+            result['source'] = 'Perplexity AI (headline analysis)'
+            result['article_count'] = len(headlines)
+            result['breakdown'].extend(px_breakdown)
+        # else: stays at neutral 50
+
+        # Derive signal
+        result['signal'] = self.get_sentiment_signal(result['score'])
+
+        return result
+
+    # ------------------------------------------------------------------
+    # LEGACY COMPATIBILITY — kept for callers that still use old interface
+    # ------------------------------------------------------------------
     def analyze_articles(self, articles):
-        """
-        Analyze sentiment across multiple news articles
-        
-        Args:
-            articles: List of article dictionaries with headline, summary, published_date
-        
-        Returns:
-            Dictionary with overall sentiment score and breakdown
-        """
+        """Legacy wrapper — extracts headlines and routes through new pipeline."""
         if not articles:
             return {
                 'overall_score': 0,
@@ -76,99 +168,59 @@ class SentimentAnalyzer:
                 'positive_count': 0,
                 'negative_count': 0,
                 'neutral_count': 0,
-                'weighted_score': 0
+                'weighted_score': 0,
+                'headlines': [],
             }
-        
-        sentiments = []
-        weights = []
-        positive_count = 0
-        negative_count = 0
-        neutral_count = 0
-        
-        for article in articles:
-            # Combine headline and summary for analysis
-            text = f"{article.get('headline', '')} {article.get('summary', '')}"
-            
-            # Get sentiment score
-            if 'sentiment_score' in article and article['sentiment_score'] is not None:
-                # Use pre-calculated sentiment if available (from Alpha Vantage)
-                sentiment = article['sentiment_score']
-            else:
-                # Calculate sentiment using TextBlob
-                sentiment = self.analyze_text_sentiment(text)
-            
-            # Calculate time weight
-            published_date = article.get('published_date')
-            weight = self.calculate_time_weight(published_date) if published_date else 0.5
-            
-            sentiments.append(sentiment)
-            weights.append(weight)
-            
-            # Count sentiment types
-            if sentiment > 0.1:
-                positive_count += 1
-            elif sentiment < -0.1:
-                negative_count += 1
-            else:
-                neutral_count += 1
-        
-        # Calculate weighted average sentiment
-        if sentiments:
-            weighted_score = float(np.average(sentiments, weights=weights))
-            overall_score = float(np.mean(sentiments))
-        else:
-            weighted_score = 0
-            overall_score = 0
-        
+
+        headlines = [a.get('headline', '') for a in articles if a.get('headline')]
+        ticker = ''  # Caller should use analyze_sentiment directly
+        px_score, _ = self.score_headlines_with_perplexity(ticker, headlines)
+
+        # Map to legacy format
         return {
-            'overall_score': overall_score,
-            'weighted_score': weighted_score,
+            'overall_score': (px_score / 50.0) - 1.0,       # Map 0-100 → -1 to +1
+            'weighted_score': (px_score / 50.0) - 1.0,
             'article_count': len(articles),
-            'positive_count': positive_count,
-            'negative_count': negative_count,
-            'neutral_count': neutral_count,
+            'positive_count': 1 if px_score > 55 else 0,
+            'negative_count': 1 if px_score < 45 else 0,
+            'neutral_count': 1 if 45 <= px_score <= 55 else 0,
+            'headlines': headlines,
             'sentiment_breakdown': [
                 {
-                    'headline': article.get('headline'),
-                    'sentiment': float(sentiments[i]),
-                    'weight': float(weights[i]),
-                    'published_date': article.get('published_date')
+                    'headline': a.get('headline'),
+                    'sentiment': (px_score / 50.0) - 1.0,
+                    'weight': 1.0,
+                    'published_date': a.get('published_date')
                 }
-                for i, article in enumerate(articles)
+                for a in articles
             ]
         }
-    
-    def get_sentiment_signal(self, sentiment_score):
-        """
-        Convert sentiment score to signal
-        
-        Args:
-            sentiment_score: Sentiment score (-1 to 1)
-        
-        Returns:
-            Signal string: 'bullish', 'bearish', or 'neutral'
-        """
-        if sentiment_score > 0.2:
-            return 'bullish'
-        elif sentiment_score < -0.2:
-            return 'bearish'
-        else:
-            return 'neutral'
-    
+
     def calculate_sentiment_score(self, sentiment_analysis):
-        """
-        Convert sentiment analysis to 0-100 score
-        
-        Args:
-            sentiment_analysis: Dictionary from analyze_articles
-        
-        Returns:
-            Score from 0-100
-        """
-        # Use weighted score for better accuracy
-        weighted_score = sentiment_analysis.get('weighted_score', 0)
-        
-        # Convert from -1 to 1 range to 0 to 100 range
-        score = ((weighted_score + 1) / 2) * 100
-        
+        """Legacy: convert analysis dict to 0-100 score."""
+        ws = sentiment_analysis.get('weighted_score', 0)
+        score = ((ws + 1) / 2) * 100
         return max(0, min(100, score))
+
+    def get_sentiment_signal(self, score):
+        """Convert 0-100 score to signal string."""
+        if score >= 65:
+            return 'bullish'
+        elif score <= 35:
+            return 'bearish'
+        return 'neutral'
+
+    def calculate_time_weight(self, published_date):
+        """Calculate time-decay weight (kept for compatibility)."""
+        try:
+            if isinstance(published_date, str):
+                try:
+                    pub_date = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
+                except Exception:
+                    pub_date = datetime.strptime(published_date[:10], '%Y-%m-%d')
+            else:
+                pub_date = published_date
+            days_old = (datetime.now() - pub_date.replace(tzinfo=None)).days
+            return max(0.1, self.time_decay_factor ** days_old)
+        except Exception:
+            return 0.5

@@ -1,7 +1,10 @@
 import pandas as pd
 import ta
 import numpy as np
+import logging
 from backend.config import Config
+
+logger = logging.getLogger(__name__)
 
 class TechnicalIndicators:
     def __init__(self):
@@ -200,7 +203,7 @@ class TechnicalIndicators:
         sma_200 = sma_200_indicator.sma_indicator().iloc[-1]
         current_price = df['Close'].iloc[-1]
         
-        print(f"DEBUG: Calculated SMA5={sma_5}, SMA50={sma_50}")
+        logger.debug(f"Calculated SMA5={sma_5}, SMA50={sma_50}")
         
         # 5-zone trend analysis with SMA200 safety net
         if sma_50 > sma_200 and current_price > sma_50:
@@ -319,13 +322,10 @@ class TechnicalIndicators:
         macd_values, macd_signal = self.calculate_macd(df)
         bb_values, bb_signal = self.calculate_bollinger_bands(df)
         ma_values, ma_signal = self.calculate_moving_averages(df)
-        volume_values, volume_signal = self.analyze_volume(df)
-        volume_values, volume_signal = self.analyze_volume(df)
+        volume_values, volume_signal = self.analyze_volume(df)  # QW-6: removed duplicate call
         sr_levels = self.calculate_support_resistance(df)
         atr = self.calculate_atr(df)
         hv_rank = self.calculate_hv_rank(df)
-        
-        print(f"DEBUG TI RETURN MA_VALUES: {ma_values}")
         
         return {
             'rsi': {
@@ -360,7 +360,11 @@ class TechnicalIndicators:
     
     def calculate_technical_score(self, indicators):
         """
-        Calculate overall technical score from all indicators
+        Calculate overall technical score from all indicators.
+        
+        G19: Improved normalization — each indicator scored independently on [-1, +1],
+        then weighted and mapped to 0-100 via consistent linear transform.
+        Volume acts as a confidence multiplier (not additive) to avoid range overflow.
         
         Args:
             indicators: Dictionary of all indicators
@@ -371,77 +375,75 @@ class TechnicalIndicators:
         if not indicators:
             return 0
         
-        score = 0
-        # Rebalanced weights: faster indicators get more weight for weekly options
-        weights = {
-            'rsi': 20,              # Leading indicator — unchanged
-            'macd': 20,             # Reduced from 25 — lagging for weeklies
-            'bollinger_bands': 25,  # Increased from 20 — squeeze is highest-value signal
-            'moving_averages': 20,  # Reduced from 25 — slowest indicator
-            'volume': 15            # Increased from 10 — confirms everything
-        }
+        # --- G19: Score each indicator on [-1.0, +1.0] scale independently ---
+        indicator_scores = {}
         
-        # RSI score (5-zone)
+        # RSI (5-zone)
         rsi_sig = indicators['rsi']['signal']
-        if rsi_sig == 'oversold':
-            score += weights['rsi']
-        elif rsi_sig == 'near oversold':
-            score += weights['rsi'] * 0.5
-        elif rsi_sig == 'overbought':
-            score -= weights['rsi']
-        elif rsi_sig == 'near overbought':
-            score -= weights['rsi'] * 0.5
+        rsi_map = {
+            'oversold': 1.0, 'near oversold': 0.5, 'neutral': 0.0,
+            'near overbought': -0.5, 'overbought': -1.0
+        }
+        indicator_scores['rsi'] = rsi_map.get(rsi_sig, 0.0)
         
-        # MACD score (with histogram momentum)
+        # MACD (with histogram momentum)
         macd_sig = indicators['macd']['signal']
-        if macd_sig == 'bullish':
-            score += weights['macd']
-        elif macd_sig == 'weakening bullish':
-            score += weights['macd'] * 0.5     # Half — trend intact but fading
-        elif macd_sig == 'bearish':
-            score -= weights['macd']
-        elif macd_sig == 'weakening bearish':
-            score -= weights['macd'] * 0.5     # Half — bear trend fading
+        macd_map = {
+            'bullish': 1.0, 'weakening bullish': 0.5, 'neutral': 0.0,
+            'weakening bearish': -0.5, 'bearish': -1.0
+        }
+        indicator_scores['macd'] = macd_map.get(macd_sig, 0.0)
         
-        # Bollinger Bands score (squeeze-aware, 5-zone)
+        # Bollinger Bands (squeeze-aware)
         bb_sig = indicators['bollinger_bands']['signal']
-        if bb_sig == 'squeeze':
-            pass  # 0 directional pts — flagged separately for AI
-        elif bb_sig == 'oversold':
-            score += weights['bollinger_bands']
-        elif bb_sig == 'near oversold':
-            score += weights['bollinger_bands'] * 0.5
-        elif bb_sig == 'overbought':
-            score -= weights['bollinger_bands']
-        elif bb_sig == 'near overbought':
-            score -= weights['bollinger_bands'] * 0.5
+        bb_map = {
+            'oversold': 1.0, 'near oversold': 0.5, 'squeeze': 0.0,
+            'neutral': 0.0, 'near overbought': -0.5, 'overbought': -1.0
+        }
+        indicator_scores['bollinger_bands'] = bb_map.get(bb_sig, 0.0)
         
-        # Moving Averages score (with pullback/breakdown zones)
+        # Moving Averages (with pullback/breakdown)
         ma_sig = indicators['moving_averages']['signal']
-        if ma_sig == 'bullish':
-            score += weights['moving_averages']
-        elif ma_sig == 'pullback bullish':
-            score += weights['moving_averages'] * 0.5  # Half — dip in uptrend
-        elif ma_sig == 'breakdown':
-            score -= weights['moving_averages'] * 0.75  # Penalty — uptrend failing
-        elif ma_sig == 'bearish':
-            score -= weights['moving_averages']
-        elif ma_sig == 'rally bearish':
-            score -= weights['moving_averages'] * 0.5  # Half — dead cat bounce
+        ma_map = {
+            'bullish': 1.0, 'pullback bullish': 0.5, 'neutral': 0.0,
+            'rally bearish': -0.5, 'breakdown': -0.75, 'bearish': -1.0
+        }
+        indicator_scores['moving_averages'] = ma_map.get(ma_sig, 0.0)
         
-        # Volume confirmation (z-score based)
+        # --- Weighted sum (weights sum to 1.0, volume excluded as multiplier) ---
+        weights = {
+            'rsi': 0.235,              # Leading indicator
+            'macd': 0.235,             # Momentum
+            'bollinger_bands': 0.295,  # Squeeze = highest-value signal
+            'moving_averages': 0.235,  # Trend direction
+        }
+        # Weights sum: 0.235 + 0.235 + 0.295 + 0.235 = 1.00
+        
+        weighted_sum = sum(
+            indicator_scores[k] * weights[k]
+            for k in weights
+        )  # Range: [-1.0, +1.0]
+        
+        # Volume confirmation (multiplier, not additive — avoids range overflow)
         vol_sig = indicators['volume']['signal']
-        if vol_sig == 'surging':
-            score *= 1.2   # 20% boost — institutional conviction
-        elif vol_sig == 'strong':
-            score *= 1.1   # 10% boost
-        elif vol_sig == 'normal':
-            pass            # No impact — fair baseline
-        elif vol_sig == 'weak':
-            score *= 0.95   # 5% reduction — less reliable signals
+        vol_multiplier_map = {
+            'surging': 1.15, 'strong': 1.08, 'normal': 1.0, 'weak': 0.95
+        }
+        vol_multiplier = vol_multiplier_map.get(vol_sig, 1.0)
         
-        # Normalize to 0-100 scale
-        normalized_score = ((score + 100) / 200) * 100
+        weighted_sum *= vol_multiplier  # Still bounded near [-1.15, +1.15]
+        
+        # --- G19: Linear normalization from [-1.15, +1.15] to [0, 100] ---
+        normalized_score = ((weighted_sum + 1.15) / 2.30) * 100
+        
+        # Store indicator breakdown for audit trail (G20)
+        indicators['_score_breakdown'] = {
+            'indicator_scores': indicator_scores,
+            'weights': weights,
+            'weighted_sum': round(weighted_sum, 4),
+            'volume_signal': vol_sig,
+            'volume_multiplier': vol_multiplier,
+        }
         
         return max(0, min(100, normalized_score))
     
@@ -468,6 +470,9 @@ class TechnicalIndicators:
         """
         if df is None or len(df) < 30: # Need some data
             return 50 # Default neutral
+        
+        # XC-5: Work on a copy to avoid SettingWithCopyWarning on caller's DataFrame
+        df = df.copy()
             
         # Calculate Log Returns
         df['log_ret'] = np.log(df['Close'] / df['Close'].shift(1))

@@ -53,11 +53,20 @@ class Config:
     
     # Server
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')
-    FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'True') == 'True'
+    FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'False') == 'True'  # P0-5: Default to False (was 'True')
     PORT = int(os.getenv('PORT', 5000))
     
     # Rate Limiting
     NEWS_CACHE_HOURS = 6  # cache news for 6 hours
+
+    # G17: Maximum position limits
+    MAX_POSITIONS_PER_TICKER = int(os.getenv('MAX_POSITIONS_PER_TICKER', 3))
+    MAX_TOTAL_POSITIONS = int(os.getenv('MAX_TOTAL_POSITIONS', 15))
+    MAX_PORTFOLIO_EXPOSURE_PCT = float(os.getenv('MAX_PORTFOLIO_EXPOSURE_PCT', 25.0))
+
+    # G18: Sector concentration limits
+    MAX_SECTOR_CONCENTRATION_PCT = float(os.getenv('MAX_SECTOR_CONCENTRATION_PCT', 30.0))
+    MAX_SINGLE_TICKER_PCT = float(os.getenv('MAX_SINGLE_TICKER_PCT', 10.0))
 
     @staticmethod
     def get_paper_db_url():

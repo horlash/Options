@@ -7,6 +7,7 @@ from backend.api.finnhub import FinnhubAPI
 from backend.analysis.technical_indicators import TechnicalIndicators
 from backend.analysis.sentiment_analyzer import SentimentAnalyzer
 from backend.analysis.options_analyzer import OptionsAnalyzer
+from backend.analysis.exit_manager import ExitManager
 from backend.services.watchlist_service import WatchlistService
 from backend.services.batch_manager import BatchManager # [NEW]
 from backend.database.models import ScanResult, Opportunity, NewsCache, SessionLocal
@@ -28,6 +29,7 @@ class HybridScannerService:
         self.technical_analyzer = TechnicalIndicators()
         self.sentiment_analyzer = SentimentAnalyzer()
         self.options_analyzer = OptionsAnalyzer()
+        self.exit_manager = ExitManager()  # G2: Exit logic framework
         self.reasoning_engine = ReasoningEngine()
         self.watchlist_service = WatchlistService()
         self.batch_manager = BatchManager() # [NEW] ORATS Batch Manager
@@ -146,16 +148,17 @@ class HybridScannerService:
         ticker = ticker.upper().strip()
         return ticker
 
-    def scan_ticker(self, ticker, strict_mode=True, pre_fetched_data=None):
+    def scan_ticker(self, ticker, strict_mode=True, pre_fetched_data=None, direction='CALL'):
         """
-        Perform complete LEAP analysis on a single ticker
+        Perform complete LEAP analysis on a single ticker.
         strict_mode: If True, blocks tickers with poor fundamentals (ROE/Margin).
                      If False, allows them but marks as "Speculative".
         pre_fetched_data: Optional injected option chain data (for batch processing)
+        direction: 'CALL' (bullish LEAPs) or 'PUT' (bearish LEAPs) — P0-17
         """
         ticker = self._normalize_ticker(ticker)
         print(f"\n{'='*50}")
-        print(f"Scanning {ticker} (LEAPS)...")
+        print(f"Scanning {ticker} (LEAPS — {direction})...")
         print(f"{'='*50}")
         
         # [ORATS COVERAGE CHECK] Skip tickers not in ORATS universe
@@ -178,6 +181,17 @@ class HybridScannerService:
             
             if is_non_corporate:
                 print(f"   ℹ️  Exempt from Corporate Fundamentals (Index/ETF): {ticker}")
+                # G16: Use Perplexity macro sentiment for indices/ETFs
+                try:
+                    macro = self.reasoning_engine.get_macro_sentiment(
+                        vix_level=vix_level_leap if 'vix_level_leap' in dir() else None,
+                        vix_regime='NORMAL'
+                    )
+                    if macro and macro.get('score'):
+                        sentiment_score = macro['score']
+                        print(f"   G16 Macro Sentiment (Index): {sentiment_score}/100")
+                except Exception as e:
+                    print(f"   ⚠️ G16 macro sentiment failed: {e}")
             elif self.finnhub_api:
                 financials = self.finnhub_api.get_basic_financials(clean_ticker)
                 
@@ -249,6 +263,8 @@ class HybridScannerService:
                 print("❌ Insufficient Data for Analysis.")
                 return None
             
+            # P0-17 FIX: Direction-aware SMA filter.
+            # Calls require price > SMA (uptrend). Puts require price < SMA (downtrend).
             # Use SMA 200 (Daily) as proxy for Long-Term Trend
             current_price = df['Close'].iloc[-1]
             sma_200 = df['Close'].rolling(window=200).mean().iloc[-1]
@@ -257,11 +273,16 @@ class HybridScannerService:
             if str(sma_200) == 'nan':
                  sma_200 = df['Close'].rolling(window=50).mean().iloc[-1]
             
-            if str(sma_200) != 'nan' and current_price < sma_200:
-                print(f"❌ Downtrend (Price {current_price:.2f} < Long-Term SMA {sma_200:.2f})")
-                return None
+            if str(sma_200) != 'nan':
+                if direction == 'CALL' and current_price < sma_200:
+                    print(f"\u274c Downtrend for CALL LEAPs (Price {current_price:.2f} < SMA {sma_200:.2f})")
+                    return None
+                elif direction == 'PUT' and current_price > sma_200:
+                    print(f"\u274c Uptrend for PUT LEAPs (Price {current_price:.2f} > SMA {sma_200:.2f})")
+                    return None
             
-            print(f"✓ Trend Bullish (Price > Long-Term SMA)")
+            trend_label = "Bullish" if current_price > sma_200 else "Bearish"
+            print(f"\u2713 Trend {trend_label} for {direction} LEAPs (Price vs Long-Term SMA)")
 
             # 1. Get Fundamental Data (Hybrid Strategy)
             print(f"[1/5] Fetching Fundamentals (FMP + Yahoo)...")
@@ -279,6 +300,8 @@ class HybridScannerService:
             except Exception as e:
                 print(f"⚠️ Fundamental fetch warning: {e}")
 
+            # P0-11: Preserve history price as ORATS fallback
+            history_price = current_price  # from df['Close'].iloc[-1] above
             current_price = 0
             pe_ratio = 0
             
@@ -292,8 +315,13 @@ class HybridScannerService:
                     print(f"✓ Price (ORATS): ${current_price:.2f}")
             
             if not current_price:
-                 print("❌ Strict Mode: ORATS Price Failed")
-                 return None
+                # P0-11: Fall back to history price instead of returning None
+                if history_price and history_price > 0:
+                    current_price = history_price
+                    print(f"⚠️ ORATS price failed — using history price: ${current_price:.2f} (T-1 delay)")
+                else:
+                    print("❌ Strict Mode: No price available (ORATS + history both failed)")
+                    return None
                 
             # 3. Calculate Fundamental Score
             # fund_score and fund_badges already initialized at top
@@ -419,27 +447,127 @@ class HybridScannerService:
                      opportunities.extend(leap_opps)
             
             # [PHASE 3] VOLATILITY SKEW ANALYSIS
-            # Calculate Skew (Call IV - Put IV) to detect "Smart Money" sentiment
-            skew_score = 50 # Default Neutral
-            if self.use_schwab and options_data:
-                skew_raw, skew_score = self.options_analyzer.calculate_skew(options_data, current_price)
-                
-                skew_label = "Neutral"
-                if skew_raw > 0.03: skew_label = "Bullish"
-                elif skew_raw < -0.05: skew_label = "Bearish"
-                
-                print(f"   • Volatility Skew: {skew_raw:.1%} ({skew_label}) [Score: {skew_score:.0f}]")
+            # P0-2: Skew was always 50 because use_schwab=False. Now uses ORATS live/summaries
+            skew_score = 50  # Default Neutral
+            skew_raw = 0.0
 
-            # Rank
+            # Option A: Use ORATS live/summaries for pre-calculated skew (preferred)
+            if self.use_orats:
+                try:
+                    summary = self.batch_manager.orats_api.get_live_summary(ticker)
+                    if summary:
+                        # rSlp30 = 30-day risk-neutral skew slope
+                        r_slp30 = summary.get('rSlp30', 0) or 0
+                        skewing = summary.get('skewing', 0) or 0
+
+                        # Normalize rSlp30 to 0-100 score
+                        # rSlp30 typically ranges from -0.10 to +0.10
+                        skew_raw = r_slp30
+                        skew_score = max(0, min(100, 50 + (r_slp30 * 500)))
+
+                        skew_label = "Neutral"
+                        if r_slp30 > 0.02: skew_label = "Bullish"
+                        elif r_slp30 < -0.03: skew_label = "Bearish"
+
+                        print(f"   • ORATS Skew: rSlp30={r_slp30:.4f}, skewing={skewing:.2f} -> Score={skew_score:.0f} ({skew_label})")
+                except Exception as e:
+                    print(f"   ⚠️ ORATS skew fetch failed (using default 50): {e}")
+
+            # Option B: Fallback to chain-based calculate_skew if ORATS didn't work
+            if skew_score == 50 and options_data:
+                try:
+                    skew_raw, skew_score = self.options_analyzer.calculate_skew(options_data, current_price)
+                    skew_label = "Neutral"
+                    if skew_raw > 0.03: skew_label = "Bullish"
+                    elif skew_raw < -0.05: skew_label = "Bearish"
+                    print(f"   • Chain Skew: {skew_raw:.1%} ({skew_label}) [Score: {skew_score:.0f}]")
+                except Exception as e:
+                    print(f"   ⚠️ Chain skew calculation failed: {e}")
+
+            # --- G8: VIX REGIME for LEAPs ---
+            vix_level_leap = None
+            vix_regime_leap = 'NORMAL'
+            try:
+                if self.use_orats:
+                    vix_q = self.batch_manager.orats_api.get_quote('VIX')
+                    if vix_q and vix_q.get('price'):
+                        vix_level_leap = vix_q['price']
+                        if vix_level_leap > 30:
+                            vix_regime_leap = 'CRISIS'
+                        elif vix_level_leap > 20:
+                            vix_regime_leap = 'ELEVATED'
+                        print(f"   VIX Regime (LEAP): {vix_level_leap:.1f} ({vix_regime_leap})")
+            except Exception as e:
+                print(f"   ⚠️ VIX fetch failed for LEAP: {e}")
+
+            # --- G9: IV Percentile Rank from ORATS ---
+            iv_percentile = 50  # default neutral
+            try:
+                if self.use_orats:
+                    cores = self.batch_manager.orats_api.get_hist_cores(clean_ticker)
+                    if cores:
+                        iv_percentile = cores.get('ivPctile1y', 50) or 50
+                        print(f"   IV Percentile (1Y): {iv_percentile}")
+            except Exception as e:
+                print(f"   ⚠️ IV Percentile fetch failed: {e}")
+
+            # --- G14: Earnings Proximity Check for LEAPs ---
+            days_to_earnings = None
+            implied_earnings_move = None
+            try:
+                if self.use_orats:
+                    if not cores:  # re-fetch if needed
+                        cores = self.batch_manager.orats_api.get_hist_cores(clean_ticker)
+                    if cores:
+                        days_to_earnings = cores.get('daysToNextErn')
+                        implied_earnings_move = cores.get('impliedEarningsMove')
+                        if days_to_earnings is not None and days_to_earnings <= 14:
+                            print(f"   ⚠️ EARNINGS in {days_to_earnings} days (implied move: {implied_earnings_move})")
+            except Exception as e:
+                print(f"   ⚠️ Earnings check failed: {e}")
+
+            # --- G15: Dividend Impact Check ---
+            div_date = None
+            try:
+                if self.use_orats and cores:
+                    div_date_str = cores.get('divDate')
+                    if div_date_str:
+                        from datetime import datetime as dt_parse
+                        div_date = dt_parse.strptime(str(div_date_str)[:10], '%Y-%m-%d').date()
+                        days_to_div = (div_date - datetime.now().date()).days
+                        if 0 < days_to_div <= 30:
+                            print(f"   ⚠️ DIVIDEND in {days_to_div} days ({div_date})")
+            except Exception as e:
+                print(f"   ⚠️ Dividend check failed: {e}")
+
+            # Rank with enriched context
             ranked_opportunities = self.options_analyzer.rank_opportunities(
                 opportunities, 
                 technical_score, 
                 sentiment_score,
                 skew_score=skew_score,
                 strategy="LEAP",
-                current_price=current_price
+                current_price=current_price,
+                fundamental_score=fund_score,
+                vix_regime=vix_regime_leap,
+                iv_percentile=iv_percentile,
+                days_to_earnings=days_to_earnings,
+                implied_earnings_move=implied_earnings_move,
             )
-            
+
+            # --- G2: Attach exit plans to ranked opportunities ---
+            for opp in ranked_opportunities:
+                try:
+                    opp['exit_plan'] = self.exit_manager.generate_exit_plan(
+                        opp,
+                        strategy='LEAP',
+                        vix_regime=vix_regime_leap,
+                        days_to_earnings=days_to_earnings,
+                        iv_percentile=iv_percentile,
+                    )
+                except Exception as e:
+                    opp['exit_plan'] = {'summary': f'Exit plan generation failed: {e}'}
+
             # Save Results
             self._save_scan_results(ticker, technical_score, sentiment_score, ranked_opportunities)
 
@@ -500,8 +628,6 @@ class HybridScannerService:
         results.sort(key=lambda x: x['opportunities'][0]['opportunity_score'] if x['opportunities'] else 0, reverse=True)
         return results
 
-        return final_results
-
     def _calculate_greeks_black_scholes(self, S, K, T, sigma, r=0.045, opt_type='call'):
         """
         Estimate Greeks using Black-Scholes (Pure Python, no scipy).
@@ -551,7 +677,7 @@ class HybridScannerService:
 
     def _enrich_greeks(self, ticker, strike, expiry_date_str, opt_type, current_price, iv, context_greeks):
         """
-        Ensure Greeks are populated on weekends.
+        G5: Ensure Greeks are populated even outside market hours (weekends/after-hours).
         Strategy: ORATS (Live) -> Tradier (Live/Last) -> Black-Scholes (Est) -> Unavailable
         """
         # 1. Check if ORATS gave us good Greeks (Delta != 0)
@@ -686,6 +812,26 @@ class HybridScannerService:
                 print(f"⚠️ Batch Fetch Failed: {e}")
 
         # 2. Deep Scan
+        # XC-1: VIX Regime Filter — adjust scan behavior based on market volatility
+        vix_level = None
+        vix_regime = 'NORMAL'  # Default: NORMAL (<20), ELEVATED (20-30), CRISIS (>30)
+        try:
+            vix_quote = None
+            if self.use_orats:
+                vix_quote = self.batch_manager.orats_api.get_quote('VIX')
+            if vix_quote and vix_quote.get('price'):
+                vix_level = vix_quote['price']
+                if vix_level > 30:
+                    vix_regime = 'CRISIS'
+                elif vix_level > 20:
+                    vix_regime = 'ELEVATED'
+                print(f"\U0001f30a VIX Regime: {vix_level:.1f} ({vix_regime})")
+                if vix_regime == 'CRISIS':
+                    print(f"\u26a0\ufe0f CRISIS mode: tightening filters, reducing position sizes recommended")
+            else:
+                print(f"\u26a0\ufe0f VIX quote unavailable, proceeding with NORMAL regime")
+        except Exception as e:
+            print(f"\u26a0\ufe0f VIX fetch failed: {e} (proceeding with NORMAL regime)")
         all_results = []
         for cand in candidates:
             ticker = cand['symbol']
@@ -695,7 +841,15 @@ class HybridScannerService:
             if weeks_out is not None:
                 res = self.scan_weekly_options(ticker, weeks_out=weeks_out, pre_fetched_data=opts)
             else:
-                res = self.scan_ticker(ticker, pre_fetched_data=opts) # LEAP
+                res = self.scan_ticker(ticker, pre_fetched_data=opts, direction='CALL') # LEAP (calls)
+                # P0-17: Also scan for put LEAPs (bearish)
+                res_put = self.scan_ticker(ticker, pre_fetched_data=opts, direction='PUT')
+                if res_put and res_put.get('opportunities'):
+                    if res and res.get('opportunities'):
+                        # Merge put opportunities into the call result
+                        res['opportunities'].extend(res_put['opportunities'])
+                    else:
+                        res = res_put
             
             if res and res.get('opportunities'):
                 all_results.append(res)
@@ -761,18 +915,41 @@ class HybridScannerService:
             # Let's call reasoning_engine directly using the data we JUST fetched to save time!
             
             # Construct Context from existing result
+            # P0-13: Populate full technicals + sentiment for AI reasoning engine
+            indicators = res.get('indicators', {})
             context = {
                 'current_price': res.get('current_price'),
                 'headlines': res.get('sentiment_analysis', {}).get('headlines', []),
                 'technicals': {
-                    'rsi': f"{res.get('indicators', {}).get('rsi', 0):.1f}",
-                    'trend': res.get('indicators', {}).get('trend', 'Neutral'),
-                    'atr': f"{res.get('indicators', {}).get('atr', 0):.2f}",
-                     'hv_rank': f"{res.get('indicators', {}).get('hv_rank', 0):.1f}"
+                    'score': res.get('technical_score', 50),
+                    'rsi': f"{indicators.get('rsi', 0):.1f}",
+                    'rsi_signal': indicators.get('rsi_signal', 'neutral'),
+                    'macd_signal': indicators.get('macd_signal', 'neutral'),
+                    'bb_signal': indicators.get('bb_signal', 'neutral'),
+                    'bb_bandwidth_pct': indicators.get('bb_bandwidth_pct', 'N/A'),
+                    'bb_squeeze': indicators.get('bb_squeeze', False),
+                    'ma_signal': indicators.get('ma_signal', 'neutral'),
+                    'sma_5': indicators.get('sma_5', 'N/A'),
+                    'sma_50': indicators.get('sma_50', 'N/A'),
+                    'sma_200': indicators.get('sma_200', 'N/A'),
+                    'trend': indicators.get('trend', 'Neutral'),
+                    'atr': f"{indicators.get('atr', 0):.2f}",
+                    'hv_rank': f"{indicators.get('hv_rank', 0):.1f}",
+                    'volume_signal': indicators.get('volume_signal', 'normal'),
+                    'volume_ratio': indicators.get('volume_ratio', 'N/A'),
+                    'volume_zscore': indicators.get('volume_zscore', 0),
+                },
+                'sentiment': {
+                    'score': res.get('sentiment_score', 50),
                 },
                 'gex': {
                     'call_wall': res.get('gex_data', {}).get('call_wall', 'N/A'),
                     'put_wall': res.get('gex_data', {}).get('put_wall', 'N/A')
+                },
+                # XC-1: VIX regime context for AI reasoning
+                'vix': {
+                    'level': vix_level,
+                    'regime': vix_regime,
                 }
             }
             
@@ -855,7 +1032,7 @@ class HybridScannerService:
         print(f"Scanning {ticker} (WEEKLY + {weeks_out}) [Advanced Mode]...")
         # 0. Date Setup
         today = datetime.now().date()
-        target_friday = today + timedelta((3-today.weekday()) % 7) # This Friday
+        target_friday = today + timedelta((4-today.weekday()) % 7) # P0-12: Friday=4 (was 3=Thursday)
         target_friday += timedelta(weeks=weeks_out)
         target_friday_str = target_friday.strftime('%Y-%m-%d')
         print(f"📅 Target Expiry: {target_friday_str} (Friday)")
@@ -1029,7 +1206,35 @@ class HybridScannerService:
 
             earnings_date = None
             has_earnings_risk = False
-            # (Yahoo Earnings Check Removed - Strict Mode)
+            earnings_move = None
+
+            # P0-3: Re-enable earnings risk check via Finnhub (was stripped during Strict Mode migration)
+            try:
+                from datetime import date, timedelta as td
+                today_str = date.today().isoformat()
+                future_str = (date.today() + td(days=7)).isoformat()
+
+                earnings = self.finnhub_api.get_earnings_calendar(
+                    symbol=ticker,
+                    from_date=today_str,
+                    to_date=future_str
+                )
+                if earnings:
+                    nearest = earnings[0]
+                    earnings_date = nearest.get('date')
+                    has_earnings_risk = True
+                    # Try to get implied move from ORATS hist/cores
+                    if self.use_orats:
+                        try:
+                            cores = self.batch_manager.orats_api.get_hist_cores(ticker)
+                            if cores:
+                                earnings_move = cores.get('impliedEarningsMove')
+                        except:
+                            pass
+                    print(f"   ⚠️ EARNINGS in {earnings_date} (EPS est: {nearest.get('epsEstimate', 'N/A')}, "
+                          f"implied move: {earnings_move or 'N/A'})")
+            except Exception as e:
+                print(f"   ⚠️ Earnings check failed (non-fatal): {e}")
 
             # 4. Fetch Options & GEX
             print(f"[3/6] Fetching Options Chain...")
@@ -1340,15 +1545,39 @@ class HybridScannerService:
                 
                 opportunities.append(opp_dict)
         
+            # --- G8/G9/G14: Enriched context for Weekly/0DTE ---
+            vix_regime_weekly = 'NORMAL'
+            iv_percentile_weekly = 50
+            days_to_earnings_weekly = None
+            implied_earnings_move_weekly = None
+            try:
+                if self.use_orats:
+                    vix_q_w = self.batch_manager.orats_api.get_quote('VIX')
+                    if vix_q_w and vix_q_w.get('price'):
+                        vl_w = vix_q_w['price']
+                        if vl_w > 30: vix_regime_weekly = 'CRISIS'
+                        elif vl_w > 20: vix_regime_weekly = 'ELEVATED'
+                    
+                    cores_w = self.batch_manager.orats_api.get_hist_cores(ticker.replace('$', ''))
+                    if cores_w:
+                        iv_percentile_weekly = cores_w.get('ivPctile1y', 50) or 50
+                        days_to_earnings_weekly = cores_w.get('daysToNextErn')
+                        implied_earnings_move_weekly = cores_w.get('impliedEarningsMove')
+            except Exception as e:
+                print(f"   ⚠️ Weekly enrichment fetch failed: {e}")
+
             # Use Centralized Ranker with Strategy Logic (WEEKLY/0DTE)
-            # This applies the correct weights and profit normalization
             ranked_opps_dicts = self.options_analyzer.rank_opportunities(
                 opportunities,
                 technical_score,
                 sentiment_score,
-                skew_score=50, # Default for now in Weekly
-                strategy=strategy_tag, # "WEEKLY" or "0DTE"
-                current_price=current_price
+                skew_score=50,
+                strategy=strategy_tag,
+                current_price=current_price,
+                vix_regime=vix_regime_weekly,
+                iv_percentile=iv_percentile_weekly,
+                days_to_earnings=days_to_earnings_weekly,
+                implied_earnings_move=implied_earnings_move_weekly,
             )
             
             # Convert back to Objects for existing API compatibility (lines 1000+)
@@ -1480,7 +1709,8 @@ class HybridScannerService:
         context = {
             'headlines': [],
             'technicals': {},
-            'gex': {}
+            'gex': {},
+            'vix': {},  # XC-1: VIX regime context
         }
         
         try:
@@ -1548,6 +1778,17 @@ class HybridScannerService:
                         'call_wall': gex.get('call_wall', 'N/A'),
                         'put_wall': gex.get('put_wall', 'N/A')
                     }
+
+                # XC-1: VIX regime context for AI reasoning
+                try:
+                    if self.use_orats:
+                        vix_q = self.batch_manager.orats_api.get_quote('VIX')
+                        if vix_q and vix_q.get('price'):
+                            vl = vix_q['price']
+                            vr = 'CRISIS' if vl > 30 else ('ELEVATED' if vl > 20 else 'NORMAL')
+                            context['vix'] = {'level': vl, 'regime': vr}
+                except Exception:
+                    pass  # VIX is supplementary, don't block on failure
 
                 # E. Option Greeks (Fix 3: Find specific option if strike+type provided)
                 req_strike = kwargs.get('strike')
