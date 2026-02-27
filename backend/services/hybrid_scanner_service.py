@@ -7,6 +7,7 @@ from backend.api.finnhub import FinnhubAPI
 from backend.analysis.technical_indicators import TechnicalIndicators
 from backend.analysis.sentiment_analyzer import SentimentAnalyzer
 from backend.analysis.options_analyzer import OptionsAnalyzer
+from backend.analysis.exit_manager import ExitManager
 from backend.services.watchlist_service import WatchlistService
 from backend.services.batch_manager import BatchManager # [NEW]
 from backend.database.models import ScanResult, Opportunity, NewsCache, SessionLocal
@@ -28,6 +29,7 @@ class HybridScannerService:
         self.technical_analyzer = TechnicalIndicators()
         self.sentiment_analyzer = SentimentAnalyzer()
         self.options_analyzer = OptionsAnalyzer()
+        self.exit_manager = ExitManager()  # G2: Exit logic framework
         self.reasoning_engine = ReasoningEngine()
         self.watchlist_service = WatchlistService()
         self.batch_manager = BatchManager() # [NEW] ORATS Batch Manager
@@ -179,6 +181,17 @@ class HybridScannerService:
             
             if is_non_corporate:
                 print(f"   ℹ️  Exempt from Corporate Fundamentals (Index/ETF): {ticker}")
+                # G16: Use Perplexity macro sentiment for indices/ETFs
+                try:
+                    macro = self.reasoning_engine.get_macro_sentiment(
+                        vix_level=vix_level_leap if 'vix_level_leap' in dir() else None,
+                        vix_regime='NORMAL'
+                    )
+                    if macro and macro.get('score'):
+                        sentiment_score = macro['score']
+                        print(f"   G16 Macro Sentiment (Index): {sentiment_score}/100")
+                except Exception as e:
+                    print(f"   ⚠️ G16 macro sentiment failed: {e}")
             elif self.finnhub_api:
                 financials = self.finnhub_api.get_basic_financials(clean_ticker)
                 
@@ -471,16 +484,90 @@ class HybridScannerService:
                 except Exception as e:
                     print(f"   ⚠️ Chain skew calculation failed: {e}")
 
-            # Rank
+            # --- G8: VIX REGIME for LEAPs ---
+            vix_level_leap = None
+            vix_regime_leap = 'NORMAL'
+            try:
+                if self.use_orats:
+                    vix_q = self.batch_manager.orats_api.get_quote('VIX')
+                    if vix_q and vix_q.get('price'):
+                        vix_level_leap = vix_q['price']
+                        if vix_level_leap > 30:
+                            vix_regime_leap = 'CRISIS'
+                        elif vix_level_leap > 20:
+                            vix_regime_leap = 'ELEVATED'
+                        print(f"   VIX Regime (LEAP): {vix_level_leap:.1f} ({vix_regime_leap})")
+            except Exception as e:
+                print(f"   ⚠️ VIX fetch failed for LEAP: {e}")
+
+            # --- G9: IV Percentile Rank from ORATS ---
+            iv_percentile = 50  # default neutral
+            try:
+                if self.use_orats:
+                    cores = self.batch_manager.orats_api.get_hist_cores(clean_ticker)
+                    if cores:
+                        iv_percentile = cores.get('ivPctile1y', 50) or 50
+                        print(f"   IV Percentile (1Y): {iv_percentile}")
+            except Exception as e:
+                print(f"   ⚠️ IV Percentile fetch failed: {e}")
+
+            # --- G14: Earnings Proximity Check for LEAPs ---
+            days_to_earnings = None
+            implied_earnings_move = None
+            try:
+                if self.use_orats:
+                    if not cores:  # re-fetch if needed
+                        cores = self.batch_manager.orats_api.get_hist_cores(clean_ticker)
+                    if cores:
+                        days_to_earnings = cores.get('daysToNextErn')
+                        implied_earnings_move = cores.get('impliedEarningsMove')
+                        if days_to_earnings is not None and days_to_earnings <= 14:
+                            print(f"   ⚠️ EARNINGS in {days_to_earnings} days (implied move: {implied_earnings_move})")
+            except Exception as e:
+                print(f"   ⚠️ Earnings check failed: {e}")
+
+            # --- G15: Dividend Impact Check ---
+            div_date = None
+            try:
+                if self.use_orats and cores:
+                    div_date_str = cores.get('divDate')
+                    if div_date_str:
+                        from datetime import datetime as dt_parse
+                        div_date = dt_parse.strptime(str(div_date_str)[:10], '%Y-%m-%d').date()
+                        days_to_div = (div_date - datetime.now().date()).days
+                        if 0 < days_to_div <= 30:
+                            print(f"   ⚠️ DIVIDEND in {days_to_div} days ({div_date})")
+            except Exception as e:
+                print(f"   ⚠️ Dividend check failed: {e}")
+
+            # Rank with enriched context
             ranked_opportunities = self.options_analyzer.rank_opportunities(
                 opportunities, 
                 technical_score, 
                 sentiment_score,
                 skew_score=skew_score,
                 strategy="LEAP",
-                current_price=current_price
+                current_price=current_price,
+                fundamental_score=fund_score,
+                vix_regime=vix_regime_leap,
+                iv_percentile=iv_percentile,
+                days_to_earnings=days_to_earnings,
+                implied_earnings_move=implied_earnings_move,
             )
-            
+
+            # --- G2: Attach exit plans to ranked opportunities ---
+            for opp in ranked_opportunities:
+                try:
+                    opp['exit_plan'] = self.exit_manager.generate_exit_plan(
+                        opp,
+                        strategy='LEAP',
+                        vix_regime=vix_regime_leap,
+                        days_to_earnings=days_to_earnings,
+                        iv_percentile=iv_percentile,
+                    )
+                except Exception as e:
+                    opp['exit_plan'] = {'summary': f'Exit plan generation failed: {e}'}
+
             # Save Results
             self._save_scan_results(ticker, technical_score, sentiment_score, ranked_opportunities)
 
@@ -590,7 +677,7 @@ class HybridScannerService:
 
     def _enrich_greeks(self, ticker, strike, expiry_date_str, opt_type, current_price, iv, context_greeks):
         """
-        Ensure Greeks are populated on weekends.
+        G5: Ensure Greeks are populated even outside market hours (weekends/after-hours).
         Strategy: ORATS (Live) -> Tradier (Live/Last) -> Black-Scholes (Est) -> Unavailable
         """
         # 1. Check if ORATS gave us good Greeks (Delta != 0)
@@ -1458,15 +1545,39 @@ class HybridScannerService:
                 
                 opportunities.append(opp_dict)
         
+            # --- G8/G9/G14: Enriched context for Weekly/0DTE ---
+            vix_regime_weekly = 'NORMAL'
+            iv_percentile_weekly = 50
+            days_to_earnings_weekly = None
+            implied_earnings_move_weekly = None
+            try:
+                if self.use_orats:
+                    vix_q_w = self.batch_manager.orats_api.get_quote('VIX')
+                    if vix_q_w and vix_q_w.get('price'):
+                        vl_w = vix_q_w['price']
+                        if vl_w > 30: vix_regime_weekly = 'CRISIS'
+                        elif vl_w > 20: vix_regime_weekly = 'ELEVATED'
+                    
+                    cores_w = self.batch_manager.orats_api.get_hist_cores(ticker.replace('$', ''))
+                    if cores_w:
+                        iv_percentile_weekly = cores_w.get('ivPctile1y', 50) or 50
+                        days_to_earnings_weekly = cores_w.get('daysToNextErn')
+                        implied_earnings_move_weekly = cores_w.get('impliedEarningsMove')
+            except Exception as e:
+                print(f"   ⚠️ Weekly enrichment fetch failed: {e}")
+
             # Use Centralized Ranker with Strategy Logic (WEEKLY/0DTE)
-            # This applies the correct weights and profit normalization
             ranked_opps_dicts = self.options_analyzer.rank_opportunities(
                 opportunities,
                 technical_score,
                 sentiment_score,
-                skew_score=50, # Default for now in Weekly
-                strategy=strategy_tag, # "WEEKLY" or "0DTE"
-                current_price=current_price
+                skew_score=50,
+                strategy=strategy_tag,
+                current_price=current_price,
+                vix_regime=vix_regime_weekly,
+                iv_percentile=iv_percentile_weekly,
+                days_to_earnings=days_to_earnings_weekly,
+                implied_earnings_move=implied_earnings_move_weekly,
             )
             
             # Convert back to Objects for existing API compatibility (lines 1000+)
