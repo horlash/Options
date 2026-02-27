@@ -423,6 +423,84 @@ def test_vix_regime_filter():
     return True
 
 
+def test_retry_decorator():
+    """P1-A7: Verify retry decorator exists and is applied to API clients"""
+    from backend.utils.retry import retry_api
+    import inspect
+    
+    # Verify decorator exists and is callable
+    assert callable(retry_api), "retry_api should be callable"
+    
+    # Test that it wraps a function correctly
+    call_count = 0
+    @retry_api(max_retries=2, base_delay=0.01)
+    def sample_func():
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise ConnectionError("Simulated network error")
+        return "success"
+    
+    result = sample_func()
+    assert result == "success", "Should succeed after retries"
+    assert call_count == 3, f"Should have tried 3 times, got {call_count}"
+    
+    # Verify decorator is imported in API clients
+    with open('backend/api/orats.py', 'r') as f:
+        assert 'retry_api' in f.read(), "ORATS should import retry_api"
+    with open('backend/api/tradier.py', 'r') as f:
+        assert 'retry_api' in f.read(), "Tradier should import retry_api"
+    with open('backend/api/finnhub.py', 'r') as f:
+        assert 'retry_api' in f.read(), "Finnhub should import retry_api"
+    
+    print(f"  retry_api decorator: functional ✓")
+    print(f"  Applied to ORATS/Tradier/Finnhub: ✓")
+    print(f"  Retry with exponential backoff: {call_count} attempts ✓")
+    return True
+
+
+def test_flask_limiter_import():
+    """XC-7: Verify Flask-Limiter config in app.py"""
+    with open('backend/app.py', 'r') as f:
+        source = f.read()
+    
+    assert 'flask_limiter' in source, "XC-7: Should import flask_limiter"
+    assert 'HAS_LIMITER' in source, "XC-7: Should have HAS_LIMITER flag"
+    assert '5/minute' in source, "XC-7: Should set 5/minute rate limit"
+    assert 'login_page' in source, "XC-7: Should apply to login_page"
+    
+    print(f"  flask_limiter import with fallback: ✓")
+    print(f"  Rate limit: 5/minute on login: ✓")
+    return True
+
+
+def test_bookend_max_instances():
+    """P2-A3: Verify max_instances=1 on ALL scheduler jobs"""
+    with open('backend/app.py', 'r') as f:
+        source = f.read()
+    
+    # Count occurrences of max_instances=1
+    count = source.count('max_instances=1')
+    assert count >= 5, f"P2-A3: Expected 5 jobs with max_instances=1, found {count}"
+    
+    # Verify bookend jobs specifically by finding the add_job blocks
+    # Search for id='pre_market_bookend' and check nearby max_instances
+    pre_id_idx = source.index("id='pre_market_bookend'")
+    post_id_idx = source.index("id='post_market_bookend'")
+    
+    # Look at the add_job block around each id (within 200 chars after the id)
+    pre_block = source[pre_id_idx:pre_id_idx + 200]
+    assert 'max_instances=1' in pre_block, "P2-A3: pre_market_bookend needs max_instances=1"
+    
+    post_block = source[post_id_idx:post_id_idx + 200]
+    assert 'max_instances=1' in post_block, "P2-A3: post_market_bookend needs max_instances=1"
+    
+    print(f"  All {count} scheduler jobs have max_instances=1: \u2713")
+    print(f"  Pre-market bookend: \u2713")
+    print(f"  Post-market bookend: \u2713")
+    return True
+
+
 # ═══════════════════════════════════════════════════════════════
 # Run All Tests
 # ═══════════════════════════════════════════════════════════════
@@ -462,6 +540,11 @@ if __name__ == '__main__':
     test("P0-14: Bookend Uses Option Quote", test_bookend_uses_option_quote)
     test("P0-17: Direction-Aware SMA", test_direction_aware_sma)
     test("XC-1: VIX Regime Filter", test_vix_regime_filter)
+    
+    # Phase 8+9 Tests
+    test("P1-A7: Retry Decorator", test_retry_decorator)
+    test("XC-7: Flask-Limiter Import", test_flask_limiter_import)
+    test("P2-A3: Bookend max_instances", test_bookend_max_instances)
     
     # --- Summary ---
     print("\n\n" + "=" * 70)

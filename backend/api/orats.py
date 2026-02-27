@@ -4,6 +4,7 @@ import logging
 import time
 from datetime import datetime, timedelta
 from backend.config import Config
+from backend.utils.retry import retry_api
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ class OratsAPI:
         clean = ticker.replace('$', '').replace('.X', '').strip().upper()
         return self.INDEX_ALIASES.get(clean, clean)
 
+    @retry_api(max_retries=2, base_delay=1.0)
     def get_ticker_universe(self):
         """Fetch complete ORATS ticker universe with date ranges.
         Returns dict: {ticker: {minDate, maxDate}} for all ~5,000+ supported symbols.
@@ -56,6 +58,7 @@ class OratsAPI:
             logger.warning(f"ORATS Ticker Universe Error: {e}")
             return {}
 
+    @retry_api(max_retries=2, base_delay=1.0)
     def check_ticker(self, ticker):
         """Check if a specific ticker exists in ORATS coverage."""
         ticker = self._clean_ticker(ticker)
@@ -69,6 +72,7 @@ class OratsAPI:
         except:
             return False
 
+    @retry_api(max_retries=2, base_delay=1.0)
     def get_option_chain(self, ticker):
         """
         Fetch option chain (strikes) for a ticker.
@@ -93,6 +97,7 @@ class OratsAPI:
             logger.warning(f"ORATS Connection Error: {e}")
             return None
 
+    @retry_api(max_retries=2, base_delay=1.0)
     def get_history(self, ticker, days=365):
         """
         Fetch historical price data via /hist/dailies.
@@ -149,6 +154,7 @@ class OratsAPI:
             logger.warning(f"ORATS History Connection Error: {e}")
             return None
 
+    @retry_api(max_retries=2, base_delay=1.0)
     def get_quote(self, ticker):
         """
         Fetch real-time (snapshot) quote using /live/strikes endpoint (or /strikes).
@@ -203,6 +209,7 @@ class OratsAPI:
             logger.warning(f"ORATS Quote Connection Error: {e}")
             return None
 
+    @retry_api(max_retries=2, base_delay=1.0)
     def get_option_quote(self, ticker, strike, expiry_date, option_type='CALL'):
         """
         Fetch real-time price for a specific option contract.
@@ -416,6 +423,7 @@ class OratsAPI:
     # Phase 3: New API Methods (P0 prerequisites)
     # ═══════════════════════════════════════════════════════════════
 
+    @retry_api(max_retries=2, base_delay=1.0)
     def get_live_summary(self, ticker):
         """Fetch live/summaries for real-time IV term structure and skew.
 
@@ -440,6 +448,7 @@ class OratsAPI:
             logger.warning(f"ORATS live/summaries error for {ticker}: {e}")
             return None
 
+    @retry_api(max_retries=2, base_delay=1.0)
     def get_hist_cores(self, ticker, trade_date=None):
         """Fetch hist/cores for historical IV rank, earnings, and dividend data.
 

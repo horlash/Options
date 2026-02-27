@@ -2,6 +2,7 @@ import os
 import requests
 import logging
 import datetime
+from backend.utils.retry import retry_api
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ class FinnhubAPI:
     def is_configured(self):
         return bool(self.api_key)
 
+    @retry_api(max_retries=2, base_delay=1.0)
     def _get(self, endpoint, params=None):
         if not self.api_key:
             return None
@@ -28,12 +30,16 @@ class FinnhubAPI:
             if resp.status_code == 200:
                 return resp.json()
             elif resp.status_code == 403:
-                print(f"⚠️ Finnhub 403 (Premium Feature Blocked): {endpoint}")
+                logger.warning("Finnhub 403 (Premium Feature Blocked): %s", endpoint)
                 return "FORBIDDEN"
+            elif resp.status_code >= 500:
+                resp.raise_for_status()  # Let retry decorator handle 5xx
             else:
-                print(f"⚠️ Finnhub Error {resp.status_code}: {resp.text[:100]}")
+                logger.warning("Finnhub Error %d: %s", resp.status_code, resp.text[:100])
+        except requests.exceptions.HTTPError:
+            raise  # Propagate to retry decorator
         except Exception as e:
-            print(f"❌ Finnhub Request Failed: {e}")
+            logger.error("Finnhub Request Failed: %s", e)
         return None
 
     def get_news_sentiment(self, ticker):

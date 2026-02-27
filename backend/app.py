@@ -572,6 +572,7 @@ def init_scheduler(app):
             id='pre_market_bookend',
             name='Pre-Market Bookend (9:25 AM ET)',
             replace_existing=True,
+            max_instances=1,  # P2-A3: prevent overlapping bookend runs
         )
 
         # Job 4: Post-market bookend (4:05 PM ET, Mon-Fri)
@@ -587,6 +588,7 @@ def init_scheduler(app):
             id='post_market_bookend',
             name='Post-Market Bookend (4:05 PM ET)',
             replace_existing=True,
+            max_instances=1,  # P2-A3: prevent overlapping bookend runs
         )
 
         # P0-8: Job 5: Lifecycle sync — process stale PENDING/CLOSING trades + expire
