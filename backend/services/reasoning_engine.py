@@ -2,7 +2,11 @@
 import requests
 import json
 import re
+import time
+import logging
 from backend.config import Config
+
+logger = logging.getLogger(__name__)
 
 class ReasoningEngine:
     """
@@ -299,7 +303,23 @@ class ReasoningEngine:
 
         try:
             print(f"DEBUG: Calling Perplexity ({self.model}) for {ticker}...", flush=True)
-            response = requests.post(self.base_url, json=payload, headers=self.headers, timeout=30)
+            # F13 FIX: Retry up to 2 times on transient failures
+            response = None
+            last_error = None
+            for attempt in range(3):
+                try:
+                    response = requests.post(self.base_url, json=payload, headers=self.headers, timeout=30)
+                    if response.status_code < 500:
+                        break  # Success or client error — don't retry
+                    logger.warning(f"Perplexity {response.status_code} on attempt {attempt+1}/3")
+                except (requests.ConnectionError, requests.Timeout) as e:
+                    last_error = e
+                    logger.warning(f"Perplexity network error attempt {attempt+1}/3: {e}")
+                if attempt < 2:
+                    time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s
+            
+            if response is None:
+                return {"error": f"Perplexity unreachable after 3 attempts: {last_error}"}
             
             if response.status_code != 200:
                 print(f"Perplexity API Error: {response.text}", flush=True)

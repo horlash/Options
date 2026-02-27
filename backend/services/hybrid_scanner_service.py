@@ -14,7 +14,15 @@ from backend.database.models import ScanResult, Opportunity, NewsCache, SessionL
 from backend.services.reasoning_engine import ReasoningEngine
 
 class HybridScannerService:
-    """Scanner service using ORATS + Finnhub for options analysis"""
+    """Scanner service using ORATS + Finnhub for options analysis.
+
+    F2 NOTE: At 2,064+ lines this class is a God Object. Future refactoring
+    should split into sub-services:
+      - ScanOrchestrator   (scan_ticker, scan_watchlist, sector_scan)
+      - TechnicalAnalysis   (indicator calculations, scoring)
+      - OpportunityBuilder  (filtering, ranking, result construction)
+    For now, the monolith is preserved for API contract stability.
+    """
     
     _ticker_cache = []
     _orats_universe = None  # Loaded from orats_universe.json

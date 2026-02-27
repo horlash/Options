@@ -124,9 +124,10 @@ class OptionsAnalyzer:
             bid = option.get('bid', 0)
             last = option.get('last', 0)
             
-            # Use Mark Price (Midpoint) for fair value
+            # F8 FIX: Use ask price (worst-case buy fill) for profit calc
+            # Mark price (midpoint) understates real entry cost
             if ask > 0 and bid > 0:
-                premium = (ask + bid) / 2
+                premium = ask  # Worst-case fill for buyer
             else:
                 premium = last if last > 0 else ask
 

@@ -1,5 +1,6 @@
 import requests
 import time
+import threading
 from datetime import datetime, timedelta
 from backend.config import Config
 from backend.utils.retry import retry_api
@@ -16,16 +17,19 @@ class TradierAPI:
         
         self.last_request_time = 0
         self.min_request_interval = 1.0  # 60 requests/minute = 1 per second
+        # F14 FIX: Thread-safe rate limiting
+        self._rate_lock = threading.Lock()
         
     def _rate_limit(self):
-        """Rate limiting - 60 requests per minute"""
-        current_time = time.time()
-        time_since_last = current_time - self.last_request_time
-        
-        if time_since_last < self.min_request_interval:
-            time.sleep(self.min_request_interval - time_since_last)
-        
-        self.last_request_time = time.time()
+        """Rate limiting - 60 requests per minute (thread-safe)"""
+        with self._rate_lock:
+            current_time = time.time()
+            time_since_last = current_time - self.last_request_time
+            
+            if time_since_last < self.min_request_interval:
+                time.sleep(self.min_request_interval - time_since_last)
+            
+            self.last_request_time = time.time()
     
     def _get_headers(self):
         """Get request headers with API key"""

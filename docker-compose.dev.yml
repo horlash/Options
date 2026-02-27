@@ -15,7 +15,7 @@ version: '3.8'
 services:
   # ── Paper Trading Database ──────────────────────────────
   paper_db:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: paper_trading_dev_db
     restart: unless-stopped
     ports:
