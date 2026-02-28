@@ -30,7 +30,7 @@ class ReasoningEngine:
         Returns a dict with 'analysis', 'verdict', 'score', 'error'.
         """
         if not self.api_key:
-            print("ReasoningEngine Error: No API Key found.")
+            logger.error("ReasoningEngine Error: No API Key found.")
             return {"error": "AI Reasoning is disabled (No API Key)."}
 
         # Contextualize based on strategy
@@ -61,7 +61,7 @@ class ReasoningEngine:
                 
                 # [FIX] Auto-Switch Persona based on Timeframe
                 if days_left <= 1:
-                    print(f"⚡ 0DTE Detected ({days_left} days). Switching to SNIPER Persona.")
+                    logger.info(f"⚡ 0DTE Detected ({days_left} days). Switching to SNIPER Persona.")
                     strategy = "0DTE" # Force Sniper Persona
                     strat_context = "Ultra Short-Term (0DTE/1DTE) - SCALP/GAMMA FOCUS"
                 elif days_left <= 5:
@@ -73,7 +73,7 @@ class ReasoningEngine:
                 else:
                     strat_context = "Long-Term LEAP (3+ months)"
             except Exception as e:
-                print(f"⚠️ Date parsing error: {e}")
+                logger.warning(f"⚠️ Date parsing error: {e}")
         
         # Parse optional specific trade details
         strike = data.get('strike')
@@ -282,11 +282,11 @@ class ReasoningEngine:
             f"2. **Setup Quality:** Does the data align with your Persona's rules?\n"
             f"{rr_section}\n"
             f"4. **Trade Viability:** Is strictly this ${strike if strike else 'ATM'} {opt_type if opt_type else 'Play'} reasonable?\n"
-            f"5. **Verdict:** [SAFE / RISKY / AVOID]\n"
-            f"6. **Conviction Score:** (0-100) where >70 is Safe/Buy, <40 is Avoid. **Target Range: {score_low}-{score_high}** (Base: {base_score})\n\n"
+            f"5. **Verdict:** [FAVORABLE / RISKY / AVOID]\n"
+            f"6. **Conviction Score:** (0-100) where >=66 is Safe/Buy, <=40 is Avoid. **Target Range: {score_low}-{score_high}** (Base: {base_score})\n\n"
             f"CRITICAL: At the very end of your response, you MUST include a JSON block in this exact format:\n"
             f"```json\n"
-            f'{{"score": <0-100>, "verdict": "<SAFE|RISKY|AVOID>", "summary": "<2-3 sentence plain text summary of your analysis>", "risks": ["<risk 1>", "<risk 2>"], "thesis": "<1 sentence core thesis>"}}\n'
+            f'{{"score": <0-100>, "verdict": "<FAVORABLE|RISKY|AVOID>", "summary": "<2-3 sentence plain text summary of your analysis>", "risks": ["<risk 1>", "<risk 2>"], "thesis": "<1 sentence core thesis>"}}\n'
             f"```\n"
             f"This JSON block is MANDATORY. Do not skip it."
             f"{final_reminder}"
@@ -302,7 +302,7 @@ class ReasoningEngine:
         }
 
         try:
-            print(f"DEBUG: Calling Perplexity ({self.model}) for {ticker}...", flush=True)
+            logger.debug(f"DEBUG: Calling Perplexity ({self.model}) for {ticker}...")
             # F13 FIX: Retry up to 2 times on transient failures
             response = None
             last_error = None
@@ -322,7 +322,7 @@ class ReasoningEngine:
                 return {"error": f"Perplexity unreachable after 3 attempts: {last_error}"}
             
             if response.status_code != 200:
-                print(f"Perplexity API Error: {response.text}", flush=True)
+                logger.error(f"Perplexity API Error: {response.text}")
                 return {"error": f"API Error: {response.status_code}"}
                 
             data = response.json()
@@ -335,10 +335,10 @@ class ReasoningEngine:
                 score = min(100, max(0, int(parsed.get('score', 0))))
                 # OVERRIDE: Enforce verdict based on score thresholds
                 # AI model sometimes returns wrong verdict for the score.
-                # Our rules: 66+ = SAFE (FAVORABLE), 40-65 = RISKY, <40 = AVOID
+                # Our rules: 66+ = FAVORABLE, 41-65 = RISKY, 0-40 = AVOID
                 if score >= 66:
-                    verdict = 'SAFE'
-                elif score >= 40:
+                    verdict = 'FAVORABLE'
+                elif score >= 41:
                     verdict = 'RISKY'
                 else:
                     verdict = 'AVOID'
@@ -354,12 +354,12 @@ class ReasoningEngine:
                 }
             else:
                 # Fallback: regex extraction (legacy)
-                print(f"  ⚠️ JSON extraction failed for {ticker}, falling back to regex")
+                logger.warning(f"  ⚠️ JSON extraction failed for {ticker}, falling back to regex")
                 score = self._extract_score(content)
                 # OVERRIDE: Enforce verdict based on score thresholds
                 if score >= 66:
-                    verdict = 'SAFE'
-                elif score >= 40:
+                    verdict = 'FAVORABLE'
+                elif score >= 41:
                     verdict = 'RISKY'
                 else:
                     verdict = 'AVOID'
@@ -375,7 +375,7 @@ class ReasoningEngine:
                 }
             
         except Exception as e:
-            print(f"Reasoning Engine Failed: {e}", flush=True)
+            logger.error(f"Reasoning Engine Failed: {e}")
             return {"error": str(e)}
 
     def calculate_base_score(self, technicals, sentiment):
@@ -401,7 +401,7 @@ class ReasoningEngine:
         # 3. Volume Confirmation (worth ±15 points)
         try:
             vol_z = float(technicals.get('volume_zscore', 0))
-        except:
+        except (ValueError, TypeError):
             vol_z = 0
             
         if vol_z > 2.0:      score += 15   # Super surging
@@ -428,19 +428,19 @@ class ReasoningEngine:
             if json_match:
                 parsed = json.loads(json_match.group(1))
                 if 'score' in parsed and 'verdict' in parsed:
-                    print(f"  ✓ Extracted JSON block: score={parsed['score']}, verdict={parsed['verdict']}")
+                    logger.info(f"  ✓ Extracted JSON block: score={parsed['score']}, verdict={parsed['verdict']}")
                     return parsed
             
             # Fallback: find last JSON object in text (no fencing)
             json_objects = re.findall(r'\{[^{}]*"score"\s*:\s*\d+[^{}]*"verdict"\s*:[^{}]*\}', text)
             if json_objects:
                 parsed = json.loads(json_objects[-1])
-                print(f"  ✓ Extracted inline JSON: score={parsed['score']}, verdict={parsed['verdict']}")
+                logger.info(f"  ✓ Extracted inline JSON: score={parsed['score']}, verdict={parsed['verdict']}")
                 return parsed
                 
             return None
         except (json.JSONDecodeError, KeyError, IndexError) as e:
-            print(f"  ⚠️ JSON parse error: {e}")
+            logger.warning(f"  ⚠️ JSON parse error: {e}")
             return None
 
     def _extract_score(self, text):
@@ -458,20 +458,20 @@ class ReasoningEngine:
                     val = int(match.group(1))
                     return min(100, max(0, val))  # Clamp 0-100
             return 0  # Default to 0 (Risk!) if not found
-        except:
+        except (ValueError, TypeError, AttributeError):
             return 0
 
     def _extract_verdict(self, text):
         """Extract Classification"""
         upper_text = text.upper()
-        if "VERDICT: SAFE" in upper_text or "VERDICT:** SAFE" in upper_text: return "SAFE"
+        if "VERDICT: SAFE" in upper_text or "VERDICT:** SAFE" in upper_text or "VERDICT: FAVORABLE" in upper_text or "VERDICT:** FAVORABLE" in upper_text: return "FAVORABLE"
         if "VERDICT: AVOID" in upper_text or "VERDICT:** AVOID" in upper_text: return "AVOID"
         if "VERDICT: RISKY" in upper_text or "VERDICT:** RISKY" in upper_text: return "RISKY"
         
         # Fallback keyword search
         if "AVOID" in upper_text: return "AVOID"
         if "RISKY" in upper_text: return "RISKY"
-        if "SAFE" in upper_text: return "SAFE"
+        if "SAFE" in upper_text or "FAVORABLE" in upper_text: return "FAVORABLE"
         
         return "NEUTRAL"
 
@@ -522,9 +522,9 @@ class ReasoningEngine:
                     parsed = json.loads(json_match.group(0))
                     score = max(0, min(100, int(parsed.get('score', 50))))
                     summary = parsed.get('summary', '')
-                    print(f"   G16 Macro Sentiment: {score}/100 — {summary}")
+                    logger.info(f"   G16 Macro Sentiment: {score}/100 — {summary}")
                     return {'score': score, 'summary': summary, 'regime': vix_regime}
         except Exception as e:
-            print(f"   ⚠️ G16 Macro Sentiment failed: {e}")
+            logger.warning(f"   ⚠️ G16 Macro Sentiment failed: {e}")
 
         return {'score': 50, 'summary': 'Analysis unavailable', 'regime': vix_regime}
