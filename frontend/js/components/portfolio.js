@@ -522,18 +522,18 @@ const portfolio = (() => {
 
             let html = `
                 <tr class="pos-row portfolio-row-expandable ${isExpanded ? 'expanded' : ''}" onclick="portfolio.toggleRow(${pos.id})">
-                    <td class="font-bold">${pos.ticker}</td>
-                    <td style="color:${typeColor}">${pos.type}</td>
-                    <td>$${pos.strike}</td>
-                    <td>$${pos.entry.toFixed(2)}</td>
-                    <td class="font-bold">$${pos.current.toFixed(2)}</td>
-                    <td class="${isProfit ? 'pnl-positive' : 'pnl-negative'}">
+                    <td data-label="Ticker" class="font-bold">${pos.ticker}</td>
+                    <td data-label="Type" style="color:${typeColor}">${pos.type}</td>
+                    <td data-label="Strike">$${pos.strike}</td>
+                    <td data-label="Entry">$${pos.entry.toFixed(2)}</td>
+                    <td data-label="Current" class="font-bold">$${pos.current.toFixed(2)}</td>
+                    <td data-label="P&L" class="${isProfit ? 'pnl-positive' : 'pnl-negative'}">
                         ${isProfit ? '+' : ''}$${pnl.toFixed(2)} (${isProfit ? '+' : ''}${pnlPct.toFixed(1)}%)
                         ${isProfit ? '🟢' : '🔴'}
                     </td>
-                    <td>${pos.sl != null ? `$${pos.sl.toFixed(2)}` : '—'} / ${pos.tp != null ? `$${pos.tp.toFixed(2)}` : '—'}</td>
-                    <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
-                    <td>
+                    <td data-label="SL / TP">${pos.sl != null ? `$${pos.sl.toFixed(2)}` : '—'} / ${pos.tp != null ? `$${pos.tp.toFixed(2)}` : '—'}</td>
+                    <td data-label="Status"><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+                    <td data-label="Actions">
                         ${isPending
                     ? `<span style="color:var(--text-muted);font-size:0.8rem;">Awaiting fill…</span>`
                     : `<button class="btn-sm btn-secondary" onclick="event.stopPropagation(); portfolio.adjStop(${pos.id})">Adjust SL</button>
@@ -725,16 +725,16 @@ const portfolio = (() => {
 
             let html = `
                 <tr class="pos-row portfolio-row-expandable ${isExpanded ? 'expanded' : ''}" onclick="portfolio.toggleHistoryRow(${t.id})">
-                    <td class="font-bold">${t.ticker}</td>
-                    <td style="color:${t.type === 'CALL' ? 'var(--secondary)' : 'var(--danger)'}">${t.type}</td>
-                    <td>$${t.entryPrice.toFixed(2)} → $${t.exitPrice.toFixed(2)}</td>
-                    <td class="${pnlClass}">
+                    <td data-label="Ticker" class="font-bold">${t.ticker}</td>
+                    <td data-label="Type" style="color:${t.type === 'CALL' ? 'var(--secondary)' : 'var(--danger)'}">${t.type}</td>
+                    <td data-label="Entry → Exit">$${t.entryPrice.toFixed(2)} → $${t.exitPrice.toFixed(2)}</td>
+                    <td data-label="P&L" class="${pnlClass}">
                         ${isWin ? '+' : ''}$${typeof t.pnl === 'number' ? t.pnl.toFixed(2) : t.pnl} ${pnlEmoji}
                     </td>
-                    <td>${t.held}</td>
-                    <td>${t.reason}</td>
-                    <td style="font-size:0.8rem; color:${t.efficiency && t.efficiency !== '—' ? 'var(--text-primary)' : 'var(--text-muted)'}; font-weight:${t.efficiency && t.efficiency !== '—' ? '600' : '400'}">${t.efficiency || '—'}</td>
-                    <td>${t.date}</td>
+                    <td data-label="Held">${t.held}</td>
+                    <td data-label="Reason">${t.reason}</td>
+                    <td data-label="Exit Eff." style="font-size:0.8rem; color:${t.efficiency && t.efficiency !== '—' ? 'var(--text-primary)' : 'var(--text-muted)'}; font-weight:${t.efficiency && t.efficiency !== '—' ? '600' : '400'}">${t.efficiency || '—'}</td>
+                    <td data-label="Date">${t.date}</td>
                 </tr>
             `;
 
