@@ -665,21 +665,19 @@ def init_scheduler(app):
             "(order sync 60s, snapshots 40s, bookends 9:25/16:05 ET, lifecycle 120s)"
         )
         logger.info(
-            "APScheduler started - 5 background jobs registered"
+            "APScheduler started - 5 background jobs registered\n"
             "   • sync_tradier_orders  (every 60s)\n"
             "   • update_price_snapshots (every 40s)\n"
             "   • pre_market_bookend   (9:25 AM ET Mon-Fri)\n"
             "   • post_market_bookend  (4:05 PM ET Mon-Fri)\n"
-            "   • lifecycle_sync       (every 120s)\n",
-            flush=True,
+            "   • lifecycle_sync       (every 120s)\n"
         )
 
     except ImportError:
         logger.warning(
             "apscheduler not installed - "
             "Run: pip install apscheduler pytz\n"
-            "   Background monitoring engine will NOT run.\n",
-            flush=True,
+            "   Background monitoring engine will NOT run.\n"
         )
     except Exception as e:
         logger.error(f"Scheduler failed to start: {e}")
