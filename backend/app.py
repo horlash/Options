@@ -192,7 +192,8 @@ def add_to_watchlist():
         # ISSUE-E2 FIX: Updated regex to accept extended ticker formats:
         # $SPX (dollar-prefixed indices), BRK.B (dot separator), BRK/A (slash class)
         ticker = ticker.strip().upper()
-        if not re.match(r'^[A-Z.$\/]{1,10}$', ticker):
+        # E2-REGEX FIX: Require at least one letter; allow dots, slashes, dollar signs for BRK.B, $SPX etc.
+        if not re.match(r'^[$]?[A-Z]{1,9}([./][A-Z]{1,2})?$', ticker):
             return jsonify({
                 'success': False,
                 'error': f'Invalid ticker format: {ticker}. Use up to 10 chars (e.g. AAPL, $SPX, BRK.B).'
@@ -265,6 +266,11 @@ def run_scan():
 def scan_ticker(ticker):
     """Run scan on a specific ticker. Supports direction: CALL, PUT, or BOTH (default)."""
     try:
+        # NB-3 FIX: Add auth check consistent with other scan routes (E3/E4)
+        current_user = session.get('user')
+        if not current_user:
+            return jsonify({'success': False, 'error': 'Authentication required'}), 401
+
         scanner_service = get_scanner()
         data = request.get_json(silent=True) or {}
         direction = data.get('direction', 'BOTH').upper()
@@ -526,7 +532,8 @@ def add_history():
         # ISSUE-E2 FIX: Updated regex to accept extended ticker formats:
         # $SPX (dollar-prefixed indices), BRK.B (dot separator), BRK/A (slash class)
         ticker = ticker.strip().upper()
-        if not re.match(r'^[A-Z.$\/]{1,10}$', ticker):
+        # E2-REGEX FIX: Require at least one letter; allow dots, slashes, dollar signs for BRK.B, $SPX etc.
+        if not re.match(r'^[$]?[A-Z]{1,9}([./][A-Z]{1,2})?$', ticker):
             return jsonify({'success': False, 'error': f'Invalid ticker format: {ticker}'}), 400
             
         db = get_db()
