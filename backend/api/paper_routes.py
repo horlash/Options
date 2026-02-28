@@ -171,13 +171,9 @@ def list_trades():
         trades = query.order_by(PaperTrade.created_at.desc()).limit(limit).all()
 
         # ── Inline price refresh for stale OPEN trades ──
-        # If current_price hasn't been updated yet (still None or == entry_price),
-        # do a quick ORATS fetch so the first page load shows live prices.
-        # Also backfill Greeks into trade_context if missing.
         if status_filter == 'OPEN' and trades:
             stale = [t for t in trades if t.current_price is None
                      or t.current_price == t.entry_price]
-            # Also check for trades missing Greeks
             needs_greeks = [t for t in trades
                            if not t.delta_at_entry
                            or not (t.trade_context or {}).get('greeks')]
@@ -198,7 +194,6 @@ def list_trades():
                             if not quote:
                                 continue
 
-                            # Update price if stale
                             if quote.get('mark') and (
                                 trade.current_price is None
                                 or trade.current_price == trade.entry_price
@@ -210,7 +205,6 @@ def list_trades():
                                     * trade.qty * 100 * direction, 2
                                 )
 
-                            # Backfill Greeks into trade_context
                             if quote.get('delta') or quote.get('theta'):
                                 ctx = dict(trade.trade_context or {})
                                 ctx['greeks'] = {
@@ -224,14 +218,13 @@ def list_trades():
                                 ctx['open_interest'] = quote.get('oi', 0)
                                 trade.trade_context = ctx
 
-                            # Backfill delta_at_entry / iv_at_entry
                             if not trade.delta_at_entry and quote.get('delta'):
                                 trade.delta_at_entry = quote['delta']
                             if not trade.iv_at_entry and quote.get('iv'):
                                 trade.iv_at_entry = quote['iv']
 
                         except Exception:
-                            pass  # Non-fatal: scheduler will catch up
+                            pass
                     db.commit()
                 except Exception as e:
                     logger.warning(f"Inline price refresh failed (non-fatal): {e}")
@@ -269,7 +262,6 @@ def get_trade(trade_id):
         if not trade:
             return jsonify({'success': False, 'error': 'Trade not found'}), 404
 
-        # Get price snapshots for P&L chart
         snapshots = (
             db.query(PriceSnapshot)
             .filter(PriceSnapshot.trade_id == trade_id)
@@ -295,22 +287,13 @@ def get_trade(trade_id):
 
 @paper_bp.route('/trades', methods=['POST'])
 def place_trade():
-    """Place a new paper trade.
-
-    Request body (JSON):
-      Required: ticker, option_type, strike, expiry, entry_price
-      Optional: qty, sl_price, tp_price, strategy, card_score,
-                ai_score, ai_verdict, gate_verdict, technical_score,
-                sentiment_score, delta_at_entry, iv_at_entry,
-                idempotency_key, direction
-    """
+    """Place a new paper trade."""
     username = _get_username()
     data = request.get_json()
 
     if not data:
         return jsonify({'success': False, 'error': 'No JSON body provided'}), 400
 
-    # Validate required fields
     required = ['ticker', 'option_type', 'strike', 'expiry', 'entry_price']
     missing = [f for f in required if f not in data]
     if missing:
@@ -321,7 +304,6 @@ def place_trade():
 
     db = get_paper_db_with_user(username)
     try:
-        # Idempotency check (Point 10)
         if data.get('idempotency_key'):
             existing = (
                 db.query(PaperTrade)
@@ -335,7 +317,6 @@ def place_trade():
                     'deduplicated': True,
                 })
 
-        # ── Max Daily Trades enforcement ──
         user_settings = db.query(UserSettings).filter_by(username=username).first()
         if user_settings and user_settings.max_daily_trades:
             today_count = (
@@ -352,7 +333,6 @@ def place_trade():
                     'error': f'Daily trade limit reached ({user_settings.max_daily_trades})'
                 }), 429
 
-        # ── P0-16: Max Positions enforcement ──
         if user_settings and user_settings.max_positions:
             open_count = (
                 db.query(func.count(PaperTrade.id))
@@ -368,7 +348,6 @@ def place_trade():
                     'error': f'Max open positions reached ({user_settings.max_positions}). Close a position first.'
                 }), 429
 
-        # ── P0-4: Daily Loss Limit enforcement ──
         if user_settings and user_settings.daily_loss_limit:
             todays_realized = (
                 db.query(func.coalesce(func.sum(PaperTrade.realized_pnl), 0))
@@ -385,6 +364,59 @@ def place_trade():
                     'error': f'Daily loss limit breached (${abs(float(todays_realized)):.2f} lost today, limit: ${user_settings.daily_loss_limit:.2f})'
                 }), 429
 
+        # ── P1 BUG-E1: Server-side card_score + AI verdict gate enforcement ──
+        card_score = data.get('card_score')
+        ai_verdict = data.get('ai_verdict')
+
+        if card_score is not None and float(card_score) < 40:
+            return jsonify({
+                'success': False,
+                'error': 'Trade rejected: card score below minimum threshold'
+            }), 400
+
+        if ai_verdict and str(ai_verdict).upper() in ('AVOID', 'STRONG_AVOID'):
+            return jsonify({
+                'success': False,
+                'error': 'Trade rejected: AI verdict is AVOID'
+            }), 400
+
+        # ── P3 BUG-E2: Recompute gate_verdict server-side ──
+        if card_score is not None and float(card_score) < 40:
+            server_gate_verdict = 'FAIL'
+        elif ai_verdict and str(ai_verdict).upper() in ('AVOID', 'STRONG_AVOID'):
+            server_gate_verdict = 'FAIL'
+        elif card_score is not None and float(card_score) >= 70:
+            server_gate_verdict = 'STRONG_PASS'
+        elif card_score is not None and float(card_score) >= 40:
+            server_gate_verdict = 'PASS'
+        else:
+            server_gate_verdict = data.get('gate_verdict', 'PASS')
+
+        # ── P1 CRIT-3: Portfolio heat limit enforcement ──
+        if user_settings and user_settings.heat_limit_pct and user_settings.account_balance:
+            open_positions_for_heat = (
+                db.query(PaperTrade)
+                .filter(
+                    PaperTrade.username == username,
+                    PaperTrade.status == TradeStatus.OPEN.value,
+                )
+                .all()
+            )
+            current_heat_value = sum(
+                t.entry_price * t.qty * 100 for t in open_positions_for_heat
+            )
+            proposed_cost = float(data['entry_price']) * int(data.get('qty', 1)) * 100
+            total_heat_value = current_heat_value + proposed_cost
+            heat_pct = (total_heat_value / user_settings.account_balance) * 100
+            if heat_pct > user_settings.heat_limit_pct:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'Trade rejected: portfolio heat {heat_pct:.1f}% would exceed '
+                        f'limit {user_settings.heat_limit_pct:.1f}%'
+                    )
+                }), 400
+
         trade = PaperTrade(
             username=username,
             ticker=data['ticker'].upper(),
@@ -397,22 +429,21 @@ def place_trade():
             sl_price=float(data['sl_price']) if data.get('sl_price') else None,
             tp_price=float(data['tp_price']) if data.get('tp_price') else None,
             strategy=data.get('strategy'),
-            card_score=data.get('card_score'),
+            card_score=card_score,
             ai_score=data.get('ai_score'),
-            ai_verdict=data.get('ai_verdict'),
-            gate_verdict=data.get('gate_verdict'),
+            ai_verdict=ai_verdict,
+            gate_verdict=server_gate_verdict,
             technical_score=data.get('technical_score'),
             sentiment_score=data.get('sentiment_score'),
             delta_at_entry=data.get('delta_at_entry'),
             iv_at_entry=data.get('iv_at_entry'),
             idempotency_key=data.get('idempotency_key'),
-            status=TradeStatus.PENDING.value,  # Start as PENDING, transition to OPEN below
+            status=TradeStatus.PENDING.value,
         )
 
         db.add(trade)
-        db.flush()  # Get trade.id for StateTransition FK
+        db.flush()
 
-        # ── Point 6: Capture backtesting context (non-blocking) ────
         try:
             from backend.api.orats import OratsAPI
             ctx_svc = ContextService(orats_api=OratsAPI())
@@ -424,9 +455,8 @@ def place_trade():
                 entry_price=trade.entry_price,
             )
         except Exception as e:
-            logger.warning(f'[place_trade] Context capture failed (non-fatal): {e}')  # P0-9: was `log.warning` (undefined)
+            logger.warning(f'[place_trade] Context capture failed (non-fatal): {e}')
 
-        # ── Lifecycle Transition: PENDING → OPEN (Point 11) ────────
         lifecycle = LifecycleManager(db)
         lifecycle.transition(
             trade, TradeStatus.OPEN,
@@ -438,17 +468,33 @@ def place_trade():
             },
         )
 
-        # ── Tradier Order Placement (Step 4.2) ────────────
         broker_msg = None
         try:
             user_settings = db.query(UserSettings).filter_by(username=username).first()
-            if user_settings and (
-                user_settings.tradier_sandbox_token or user_settings.tradier_live_token
-            ):
+
+            # ── P2 CRIT-4: Strict broker mode guard ──
+            broker_ready = False
+            if user_settings:
+                _broker_mode = (user_settings.broker_mode or 'SANDBOX').upper()
+                if 'LIVE' in _broker_mode:
+                    if user_settings.tradier_live_token:
+                        broker_ready = True
+                    else:
+                        logger.warning(
+                            f"[place_trade] broker_mode={_broker_mode} but no live token — "
+                            f"skipping broker order for {username}"
+                        )
+                        broker_msg = "Paper-only (LIVE mode selected but no live token configured)"
+                else:
+                    if user_settings.tradier_sandbox_token:
+                        broker_ready = True
+                    else:
+                        broker_msg = "Paper-only (no sandbox token configured)"
+
+            if user_settings and broker_ready:
                 broker = BrokerFactory.get_broker(user_settings)
                 occ = MonitorService._build_occ_symbol(trade)
 
-                # 1. Place entry order
                 entry_order = broker.place_order({
                     'symbol': occ,
                     'underlying': trade.ticker,
@@ -465,7 +511,6 @@ def place_trade():
                 )
                 broker_msg = f"Tradier order {trade.tradier_order_id} placed"
 
-                # 2. Place OCO brackets (SL + TP) if both are set
                 if trade.sl_price and trade.tp_price:
                     try:
                         oco = broker.place_oco_order(
@@ -494,7 +539,6 @@ def place_trade():
                         broker_msg += f" (brackets failed: {e})"
 
         except BrokerException as e:
-            # Tradier rejected the order — rollback the trade entirely
             db.rollback()
             logger.warning(f"Tradier order failed — trade rolled back: {e}")
             return jsonify({
@@ -537,11 +581,7 @@ def place_trade():
 
 @paper_bp.route('/trades/<int:trade_id>/close', methods=['POST'])
 def close_trade(trade_id):
-    """Manually close an open position.
-
-    Request body (JSON):
-      version: Current version for optimistic locking (Point 8)
-    """
+    """Manually close an open position."""
     username = _get_username()
     data = request.get_json() or {}
 
@@ -560,7 +600,6 @@ def close_trade(trade_id):
         if not trade:
             return jsonify({'success': False, 'error': 'Trade not found or already closed'}), 404
 
-        # Optimistic lock check (Point 8)
         client_version = data.get('version')
         if client_version is not None and int(client_version) != trade.version:
             return jsonify({
@@ -569,9 +608,8 @@ def close_trade(trade_id):
                 'stale': True,
             }), 409
 
-        db.close()  # Release this session
+        db.close()
 
-        # Delegate to MonitorService for full close logic (bracket cleanup etc.)
         result = monitor.manual_close_position(trade_id, username)
 
         if result:
@@ -591,12 +629,7 @@ def close_trade(trade_id):
 
 @paper_bp.route('/trades/<int:trade_id>/adjust', methods=['POST'])
 def adjust_trade(trade_id):
-    """Adjust stop loss or take profit for an open trade.
-
-    Request body (JSON):
-      new_sl: New stop loss price (optional)
-      new_tp: New take profit price (optional)
-    """
+    """Adjust stop loss or take profit for an open trade."""
     username = _get_username()
     data = request.get_json() or {}
 
@@ -626,10 +659,6 @@ def adjust_trade(trade_id):
         logger.exception(f"adjust_trade failed: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ═══════════════════════════════════════════════════════════════
-# 6. User Settings  (see section below line ~888 for implementation)
-# ═══════════════════════════════════════════════════════════════
-
 
 # ═══════════════════════════════════════════════════════════════
 # 7. Portfolio Stats (Aggregate)
@@ -637,20 +666,14 @@ def adjust_trade(trade_id):
 
 @paper_bp.route('/stats', methods=['GET'])
 def get_stats():
-    """Get aggregate portfolio statistics for the stat cards.
-
-    Returns: portfolio_value, todays_pnl, open_positions_count,
-             cash_available, total_pnl, win_rate, profit_factor
-    """
+    """Get aggregate portfolio statistics for the stat cards."""
     username = _get_username()
     db = get_paper_db_with_user(username)
     try:
-        # Get user settings for account balance
         settings = db.get(UserSettings, username)
         account_balance = settings.account_balance if settings else 5000.0
         max_positions = settings.max_positions if settings else 5
 
-        # Open positions
         open_trades = (
             db.query(PaperTrade)
             .filter(
@@ -660,7 +683,6 @@ def get_stats():
             .all()
         )
 
-        # Closed trades (for win rate, P&L)
         closed_trades = (
             db.query(PaperTrade)
             .filter(
@@ -670,7 +692,6 @@ def get_stats():
             .all()
         )
 
-        # Calculate stats
         total_unrealized = sum(t.unrealized_pnl or 0 for t in open_trades)
         total_invested = sum(t.entry_price * t.qty * 100 for t in open_trades)
         total_realized = sum(t.realized_pnl or 0 for t in closed_trades)
@@ -679,8 +700,6 @@ def get_stats():
         losses = [t for t in closed_trades if (t.realized_pnl or 0) < 0]
         win_rate = (len(wins) / len(closed_trades) * 100) if closed_trades else 0
 
-        # Compute consecutive loss streak (most-recent closed trades first)
-        # Walk from most-recent backward; first win (or breakeven) ends the streak
         sorted_closed = sorted(
             closed_trades,
             key=lambda t: t.closed_at or datetime.min,
@@ -691,20 +710,37 @@ def get_stats():
             if (t.realized_pnl or 0) < 0:
                 consecutive_losses += 1
             else:
-                break  # First win stops the streak count
+                break
 
         gross_profit = sum(t.realized_pnl for t in wins) if wins else 0
         gross_loss = abs(sum(t.realized_pnl for t in losses)) if losses else 0
-        profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else 0
+        # P2 BUG-P5: Return 999.0 (perfect record) when there are no losses
+        if gross_loss == 0:
+            profit_factor = 999.0 if gross_profit > 0 else 0.0
+        else:
+            profit_factor = gross_profit / gross_loss
 
         portfolio_value = account_balance + total_unrealized + total_realized
+
+        # P2 BUG-P3: todays_pnl filters only TODAY's trades
+        today_utc = datetime.utcnow().date()
+        todays_pnl = sum(
+            (t.unrealized_pnl or 0)
+            for t in open_trades
+            if t.created_at and t.created_at.date() >= today_utc
+        ) + sum(
+            (t.realized_pnl or 0)
+            for t in closed_trades
+            if t.closed_at and t.closed_at.date() >= today_utc
+        )
+
         cash_available = account_balance - total_invested + total_realized
 
         return jsonify({
             'success': True,
             'stats': {
                 'portfolio_value': round(portfolio_value, 2),
-                'todays_pnl': round(total_unrealized, 2),
+                'todays_pnl': round(todays_pnl, 2),
                 'open_positions': len(open_trades),
                 'max_positions': max_positions,
                 'cash_available': round(cash_available, 2),
@@ -734,7 +770,7 @@ def get_stats():
 
 @paper_bp.route('/market-status', methods=['GET'])
 def market_status():
-    """Get current market status (open/closed, time, forced override)."""
+    """Get current market status."""
     return jsonify({
         'success': True,
         'market': get_market_status(),
@@ -742,12 +778,11 @@ def market_status():
 
 
 # ═══════════════════════════════════════════════════════════════
-# 9. Analytics (Phase 5: Intelligence)
+# 9. Analytics
 # ═══════════════════════════════════════════════════════════════
 
 @paper_bp.route('/analytics/summary', methods=['GET'])
 def analytics_summary():
-    """Get comprehensive performance summary (10 metrics + expectancy)."""
     username = _get_username()
     db = get_paper_db_with_user(username)
     try:
@@ -766,7 +801,6 @@ def analytics_summary():
 
 @paper_bp.route('/analytics/equity-curve', methods=['GET'])
 def analytics_equity_curve():
-    """Get cumulative P&L data points for equity curve chart."""
     username = _get_username()
     db = get_paper_db_with_user(username)
     try:
@@ -785,7 +819,6 @@ def analytics_equity_curve():
 
 @paper_bp.route('/analytics/drawdown', methods=['GET'])
 def analytics_drawdown():
-    """Get max drawdown (worst peak-to-trough decline)."""
     username = _get_username()
     db = get_paper_db_with_user(username)
     try:
@@ -804,7 +837,6 @@ def analytics_drawdown():
 
 @paper_bp.route('/analytics/by-ticker', methods=['GET'])
 def analytics_by_ticker():
-    """Get per-ticker performance breakdown."""
     username = _get_username()
     db = get_paper_db_with_user(username)
     try:
@@ -823,7 +855,6 @@ def analytics_by_ticker():
 
 @paper_bp.route('/analytics/by-strategy', methods=['GET'])
 def analytics_by_strategy():
-    """Get per-strategy performance breakdown."""
     username = _get_username()
     db = get_paper_db_with_user(username)
     try:
@@ -842,7 +873,6 @@ def analytics_by_strategy():
 
 @paper_bp.route('/analytics/monthly', methods=['GET'])
 def analytics_monthly():
-    """Get monthly P&L aggregation for bar chart."""
     username = _get_username()
     db = get_paper_db_with_user(username)
     try:
@@ -861,7 +891,6 @@ def analytics_monthly():
 
 @paper_bp.route('/analytics/mfe-mae', methods=['GET'])
 def analytics_mfe_mae():
-    """Get MFE/MAE exit quality analysis."""
     username = _get_username()
     db = get_paper_db_with_user(username)
     try:
@@ -880,44 +909,21 @@ def analytics_mfe_mae():
 
 @paper_bp.route('/analytics/export/csv', methods=['GET'])
 def analytics_export_csv():
-    """Export closed trades as CSV download."""
     import csv
     import io
-
     username = _get_username()
     db = get_paper_db_with_user(username)
     try:
         from backend.services.analytics_service import AnalyticsService
         service = AnalyticsService(db)
         trades = service.get_export_data()
-
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow([
-            'ID', 'Ticker', 'Type', 'Strike', 'Direction', 'Entry',
-            'Exit', 'Qty', 'P&L', 'Strategy', 'Status', 'Close Reason',
-            'Hold Time (hrs)', 'Opened', 'Closed'
-        ])
-
+        writer.writerow(['ID','Ticker','Type','Strike','Direction','Entry','Exit','Qty','P&L','Strategy','Status','Close Reason','Hold Time (hrs)','Opened','Closed'])
         for t in trades:
-            writer.writerow([
-                t.get('id', ''), t.get('ticker', ''), t.get('option_type', ''),
-                t.get('strike', ''), t.get('direction', ''),
-                t.get('entry_price', ''), t.get('exit_price', ''),
-                t.get('qty', ''), t.get('realized_pnl', ''),
-                t.get('strategy', ''), t.get('status', ''),
-                t.get('close_reason', ''), t.get('hold_hours', ''),
-                t.get('opened_at', ''), t.get('closed_at', ''),
-            ])
-
+            writer.writerow([t.get('id',''),t.get('ticker',''),t.get('option_type',''),t.get('strike',''),t.get('direction',''),t.get('entry_price',''),t.get('exit_price',''),t.get('qty',''),t.get('realized_pnl',''),t.get('strategy',''),t.get('status',''),t.get('close_reason',''),t.get('hold_hours',''),t.get('opened_at',''),t.get('closed_at','')])
         from flask import Response
-        return Response(
-            output.getvalue(),
-            mimetype='text/csv',
-            headers={
-                'Content-Disposition': 'attachment;filename=paper_trades.csv'
-            }
-        )
+        return Response(output.getvalue(), mimetype='text/csv', headers={'Content-Disposition':'attachment;filename=paper_trades.csv'})
     except Exception as e:
         logger.exception(f"analytics_export_csv failed: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -927,17 +933,14 @@ def analytics_export_csv():
 
 @paper_bp.route('/analytics/export/json', methods=['GET'])
 def analytics_export_json():
-    """Export closed trades as JSON download."""
     username = _get_username()
     db = get_paper_db_with_user(username)
     try:
         from backend.services.analytics_service import AnalyticsService
         service = AnalyticsService(db)
         trades = service.get_export_data()
-
         response = jsonify(trades)
-        response.headers['Content-Disposition'] = \
-            'attachment;filename=paper_trades.json'
+        response.headers['Content-Disposition'] = 'attachment;filename=paper_trades.json'
         return response
     except Exception as e:
         logger.exception(f"analytics_export_json failed: {e}")
@@ -947,58 +950,18 @@ def analytics_export_json():
 
 
 # ═══════════════════════════════════════════════════════════════
-# Settings: GET + PUT (risk limits, broker tokens)
+# Settings
 # ═══════════════════════════════════════════════════════════════
 
 @paper_bp.route('/settings', methods=['GET'])
 def settings_get():
-    """Load user settings (risk limits + broker config)."""
     username = _get_username()
     db = get_paper_db_with_user(username)
     try:
         settings = db.query(UserSettings).filter_by(username=username).first()
         if not settings:
-            # Return defaults — row will be created on first PUT
-            return jsonify({
-                'success': True,
-                'settings': {
-                    'max_positions': 5,
-                    'daily_loss_limit': 500.0,
-                    'account_balance': 5000.0,
-                    'default_sl_pct': 20.0,
-                    'default_tp_pct': 50.0,
-                    'max_daily_trades': 10,
-                    'theme': 'dark',
-                    'alert_on_bracket_hit': True,
-                    'auto_close_expiry': True,
-                    'require_trade_confirm': True,
-                    'broker_mode': 'TRADIER_SANDBOX',
-                    'tradier_account_id': None,
-                    # Never return raw tokens — only presence flag
-                    'has_sandbox_token': False,
-                    'has_live_token': False,
-                }
-            })
-
-        return jsonify({
-            'success': True,
-            'settings': {
-                'max_positions': settings.max_positions,
-                'daily_loss_limit': settings.daily_loss_limit,
-                'account_balance': settings.account_balance,
-                'default_sl_pct': settings.default_sl_pct,
-                'default_tp_pct': settings.default_tp_pct,
-                'max_daily_trades': settings.max_daily_trades,
-                'theme': settings.theme,
-                'alert_on_bracket_hit': settings.alert_on_bracket_hit,
-                'auto_close_expiry': settings.auto_close_expiry,
-                'require_trade_confirm': settings.require_trade_confirm,
-                'broker_mode': settings.broker_mode,
-                'tradier_account_id': settings.tradier_account_id,
-                'has_sandbox_token': bool(settings.tradier_sandbox_token),
-                'has_live_token': bool(settings.tradier_live_token),
-            }
-        })
+            return jsonify({'success': True, 'settings': {'max_positions': 5,'daily_loss_limit': 500.0,'account_balance': 5000.0,'default_sl_pct': 20.0,'default_tp_pct': 50.0,'max_daily_trades': 10,'theme': 'dark','alert_on_bracket_hit': True,'auto_close_expiry': True,'require_trade_confirm': True,'broker_mode': 'TRADIER_SANDBOX','tradier_account_id': None,'has_sandbox_token': False,'has_live_token': False}})
+        return jsonify({'success': True, 'settings': {'max_positions': settings.max_positions,'daily_loss_limit': settings.daily_loss_limit,'account_balance': settings.account_balance,'default_sl_pct': settings.default_sl_pct,'default_tp_pct': settings.default_tp_pct,'max_daily_trades': settings.max_daily_trades,'theme': settings.theme,'alert_on_bracket_hit': settings.alert_on_bracket_hit,'auto_close_expiry': settings.auto_close_expiry,'require_trade_confirm': settings.require_trade_confirm,'broker_mode': settings.broker_mode,'tradier_account_id': settings.tradier_account_id,'has_sandbox_token': bool(settings.tradier_sandbox_token),'has_live_token': bool(settings.tradier_live_token)}})
     except Exception as e:
         logger.exception(f"settings_get failed: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1008,7 +971,6 @@ def settings_get():
 
 @paper_bp.route('/settings', methods=['PUT'])
 def settings_update():
-    """Save user settings. Upserts the UserSettings row."""
     username = _get_username()
     data = request.get_json() or {}
     db = get_paper_db_with_user(username)
@@ -1017,44 +979,23 @@ def settings_update():
         if not settings:
             settings = UserSettings(username=username)
             db.add(settings)
-
-        # ── Risk limits ──
-        if 'max_positions' in data:
-            settings.max_positions = int(data['max_positions'])
-        if 'daily_loss_limit' in data:
-            settings.daily_loss_limit = float(data['daily_loss_limit'])
-        if 'account_balance' in data:
-            settings.account_balance = float(data['account_balance'])
-        if 'default_sl_pct' in data:
-            settings.default_sl_pct = float(data['default_sl_pct'])
-        if 'default_tp_pct' in data:
-            settings.default_tp_pct = float(data['default_tp_pct'])
-        if 'max_daily_trades' in data:
-            settings.max_daily_trades = int(data['max_daily_trades'])
-
-        # ── Preferences + behavior ──
-        if 'theme' in data:
-            settings.theme = data['theme']
-        if 'alert_on_bracket_hit' in data:
-            settings.alert_on_bracket_hit = bool(data['alert_on_bracket_hit'])
-        if 'auto_close_expiry' in data:
-            settings.auto_close_expiry = bool(data['auto_close_expiry'])
-        if 'require_trade_confirm' in data:
-            settings.require_trade_confirm = bool(data['require_trade_confirm'])
-
-        # ── Broker config ──
-        if 'broker_mode' in data:
-            settings.broker_mode = data['broker_mode']
-        if data.get('tradier_account_id'):
-            settings.tradier_account_id = data['tradier_account_id']
-
-        # ── Tokens: only update when non-empty (avoid wiping) ──
+        if 'max_positions' in data: settings.max_positions = int(data['max_positions'])
+        if 'daily_loss_limit' in data: settings.daily_loss_limit = float(data['daily_loss_limit'])
+        if 'account_balance' in data: settings.account_balance = float(data['account_balance'])
+        if 'default_sl_pct' in data: settings.default_sl_pct = float(data['default_sl_pct'])
+        if 'default_tp_pct' in data: settings.default_tp_pct = float(data['default_tp_pct'])
+        if 'max_daily_trades' in data: settings.max_daily_trades = int(data['max_daily_trades'])
+        if 'theme' in data: settings.theme = data['theme']
+        if 'alert_on_bracket_hit' in data: settings.alert_on_bracket_hit = bool(data['alert_on_bracket_hit'])
+        if 'auto_close_expiry' in data: settings.auto_close_expiry = bool(data['auto_close_expiry'])
+        if 'require_trade_confirm' in data: settings.require_trade_confirm = bool(data['require_trade_confirm'])
+        if 'broker_mode' in data: settings.broker_mode = data['broker_mode']
+        if data.get('tradier_account_id'): settings.tradier_account_id = data['tradier_account_id']
         if data.get('tradier_sandbox_token'):
             try:
                 from backend.security.crypto import encrypt
                 settings.tradier_sandbox_token = encrypt(data['tradier_sandbox_token'])
             except Exception:
-                # Fallback: store plain if crypto unavailable
                 settings.tradier_sandbox_token = data['tradier_sandbox_token']
         if data.get('tradier_live_token'):
             try:
@@ -1062,19 +1003,12 @@ def settings_update():
                 settings.tradier_live_token = encrypt(data['tradier_live_token'])
             except Exception:
                 settings.tradier_live_token = data['tradier_live_token']
-
         settings.updated_at = datetime.utcnow()
-
-        # Capture values before commit (commit expires the ORM object;
-        # RLS may prevent lazy-reload of the row afterwards).
         _max = settings.max_positions
         _daily = settings.daily_loss_limit
-
         db.commit()
-
         logger.info(f"Settings updated for {username}: max_pos={_max}, daily_loss={_daily}")
         return jsonify({'success': True, 'message': 'Settings saved'})
-
     except Exception as e:
         db.rollback()
         logger.exception(f"settings_update failed: {e}")
@@ -1085,18 +1019,15 @@ def settings_update():
 
 @paper_bp.route('/settings/test-connection', methods=['GET'])
 def settings_test_connection():
-    """Test the stored Tradier broker connection."""
     username = _get_username()
     db = get_paper_db_with_user(username)
     try:
         settings = db.query(UserSettings).filter_by(username=username).first()
         if not settings or not (settings.tradier_sandbox_token or settings.tradier_live_token):
             return jsonify({'success': False, 'error': 'No broker credentials stored'})
-
         broker = BrokerFactory.get_broker(settings)
         result = broker.test_connection()
         return jsonify({'success': True, 'result': result})
-
     except BrokerException as e:
         return jsonify({'success': False, 'error': str(e)})
     except Exception as e:

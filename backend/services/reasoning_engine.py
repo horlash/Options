@@ -27,7 +27,7 @@ class ReasoningEngine:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-        self.model = "sonar-pro" # High reasoning, online capabilities
+        self.model = "sonar-pro"
 
     def analyze_ticker(self, ticker, strategy="LEAP", expiry_date=None, data={}, context={}):
         """
@@ -38,9 +38,7 @@ class ReasoningEngine:
             logger.error("ReasoningEngine Error: No API Key found.")
             return {"error": "AI Reasoning is disabled (No API Key)."}
 
-        # Contextualize based on strategy
         days = 5 if strategy in ["WEEKLY", "0DTE"] else 30
-        
         strat_context = "Intraday Scalp/Gamma Flow"
         if strategy == "WEEKLY":
             strat_context = "Short-Term Gamma/Momentum (5-10 days)"
@@ -50,7 +48,6 @@ class ReasoningEngine:
         expiry_str = str(expiry_date) if expiry_date else "General"
         days_to_expiry_str = ""
         
-        # Calculate days to expiry if provided to give AI proper timeline context
         if expiry_date:
             try:
                 import datetime
@@ -60,14 +57,10 @@ class ReasoningEngine:
                     exp_dt = expiry_date.date()
                 else:
                     exp_dt = expiry_date
-                    
                 days_left = (exp_dt - datetime.datetime.now().date()).days
                 days_to_expiry_str = f" ({days_left} DTE)"
-                
-                # [FIX] Auto-Switch Persona based on Timeframe
                 if days_left <= 1:
-                    logger.info(f"⚡ 0DTE Detected ({days_left} days). Switching to SNIPER Persona.")
-                    strategy = "0DTE" # Force Sniper Persona
+                    strategy = "0DTE"
                     strat_context = "Ultra Short-Term (0DTE/1DTE) - SCALP/GAMMA FOCUS"
                 elif days_left <= 5:
                     strat_context = "Short-Term Swing (2-5 DTE)"
@@ -78,16 +71,14 @@ class ReasoningEngine:
                 else:
                     strat_context = "Long-Term LEAP (3+ months)"
             except Exception as e:
-                logger.warning(f"⚠️ Date parsing error: {e}")
+                logger.warning(f"Date parsing error: {e}")
         
-        # Parse optional specific trade details
         strike = data.get('strike')
         opt_type = data.get('type')
         trade_details_str = ""
         moneyness_str = ""
         if strike and opt_type:
             trade_details_str = f"Specific Trade: {ticker} {strike} {opt_type}"
-            # Calculate ITM/OTM context so AI doesn't have to guess
             spot = context.get('current_price')
             if spot and float(spot) > 0:
                 spot_f = float(spot)
@@ -99,7 +90,7 @@ class ReasoningEngine:
                     else:
                         otm_pct = ((strike_f - spot_f) / spot_f) * 100
                         moneyness_str = f"OTM ({otm_pct:.1f}% above spot)"
-                else:  # PUT
+                else:
                     intrinsic = max(0, strike_f - spot_f)
                     if intrinsic > 0:
                         moneyness_str = f"ITM (${intrinsic:.2f} intrinsic value, {(intrinsic/spot_f)*100:.1f}% ITM)"
@@ -108,9 +99,6 @@ class ReasoningEngine:
                         moneyness_str = f"OTM ({otm_pct:.1f}% below spot)"
                 trade_details_str += f" — Currently {moneyness_str}"
         
-        # PROMPT ENGINEERING (Refined for V2)
-        # PROMPT ENGINEERING (Refined for V2)
-        # PERSONA DEFINITIONS
         PERSONAS = {
             "0DTE": (
                 "You are an Elite 0DTE Scalper (Sniper). "
@@ -139,7 +127,6 @@ class ReasoningEngine:
         }
         
         persona_base = PERSONAS.get(strategy, PERSONAS["LEAP"])
-        
         system_prompt = (
             f"{persona_base} "
             "CRITICAL PROTOCOL: You must prioritize the 'HARD DATA' provided in the user prompt over your internal training data. "
@@ -147,7 +134,6 @@ class ReasoningEngine:
             "Do not hallucinate prices. Trust the context."
         )
         
-        # Parse Context (Data Injection) to build user_prompt
         news_text = "No recent news."
         if context and context.get('headlines'):
             news_text = "\n".join([f"- {h}" for h in context.get('headlines')[:10]])
@@ -164,16 +150,26 @@ class ReasoningEngine:
                 f"ATR: {t.get('atr', 'N/A')} | HV Rank: {t.get('hv_rank', 'N/A')} | "
                 f"Volume: {t.get('volume_signal', 'normal')} (Ratio: {t.get('volume_ratio', 'N/A')}, Z-Score: {t.get('volume_zscore', 'N/A')})"
             )
-            # Add squeeze alert if detected
             if t.get('bb_squeeze'):
-                tech_text += "\n⚠️ BOLLINGER SQUEEZE DETECTED — Volatility at 100-bar low. Explosive move imminent. Determine direction from news + RSI."
+                tech_text += "\nBOLLINGER SQUEEZE DETECTED — Volatility at 100-bar low. Explosive move imminent."
             
         gex_text = "No GEX data."
         if context and context.get('gex'):
             g = context.get('gex')
             gex_text = f"Call Wall: ${g.get('call_wall', 'N/A')} | Put Wall: ${g.get('put_wall', 'N/A')}"
 
-        # Option Greeks context (Fix 3)
+        # ISSUE-C1: VIX regime injection
+        vix_regime_val = context.get('vix_regime', 'UNKNOWN') if context else 'UNKNOWN'
+        vix_level_val = context.get('vix_level', None) if context else None
+        if vix_level_val is not None:
+            try:
+                vix_level_val = float(vix_level_val)
+                vix_regime_text = f"Current VIX Regime: {vix_regime_val} (VIX: {vix_level_val:.2f})"
+            except (ValueError, TypeError):
+                vix_regime_text = f"Current VIX Regime: {vix_regime_val} (VIX: N/A)"
+        else:
+            vix_regime_text = f"Current VIX Regime: {vix_regime_val} (VIX: N/A)"
+
         greeks_text = "No option-specific Greeks available."
         if context and context.get('option_greeks'):
             og = context.get('option_greeks')
@@ -183,7 +179,6 @@ class ReasoningEngine:
                 f"OI: {og.get('oi', 'N/A'):,} | Volume: {og.get('volume', 'N/A'):,}"
             )
 
-        # Company name lookup (Fix 4)
         company_names = {
             'COIN': 'Coinbase', 'AAPL': 'Apple', 'TSLA': 'Tesla', 'NVDA': 'NVIDIA',
             'GOOGL': 'Google/Alphabet', 'GOOG': 'Google/Alphabet', 'AMZN': 'Amazon',
@@ -208,66 +203,50 @@ class ReasoningEngine:
         }
         company_name = company_names.get(ticker.upper(), ticker)
 
-        # DYNAMIC PROMPT CONSTRUCTION (Direction Aware)
         is_put = opt_type and str(opt_type).lower() == 'put'
-        
-        # Header - FORCE VISIBILITY
         header_section = f"ANALYSIS REQUEST: {ticker} ({company_name})"
-        
-        # Spot Price Context & Simulation Logic
         spot_price = context.get('current_price', 'Unknown')
         spot_str = f"OFFICIAL SPOT PRICE: ${spot_price}"
-        
-        # Detect Future/Current Date Override
         import datetime
-        sim_note = ""
-        current_year = datetime.datetime.now().year
-        
         sim_note = (
-            "⚠️ **PROTOCOL: BLACK BOX MODE (YEAR 2026)** ⚠️\n"
+            "PROTOCOL: BLACK BOX MODE (YEAR 2026)\n"
             "You are an Expert Trading Engine in a sealed environment.\n"
-            "1. **RETAIN SKILLS**: Use your full knowledge of Options, Greeks, and Strategy Personas.\n"
-            "2. **SUPPRESS INTERNAL DATA**: You have NO memory of 'current' market prices or news. Your internal data is obsolete (2025).\n"
-            "3. **TRUST THE FEED**: The data below (Spot Price, News, Technicals) is the ONLY reality. It is 2026.\n"
-            f"   -> **OFFICIAL SPOT PRICE: ${spot_price}** (Fact)"
+            "1. RETAIN SKILLS: Use your full knowledge of Options, Greeks, and Strategy Personas.\n"
+            "2. SUPPRESS INTERNAL DATA: You have NO memory of 'current' market prices or news. Your internal data is obsolete (2025).\n"
+            "3. TRUST THE FEED: The data below (Spot Price, News, Technicals) is the ONLY reality. It is 2026.\n"
+            f"   -> OFFICIAL SPOT PRICE: ${spot_price} (Fact)"
         )
-        
         if strike and opt_type:
             header_section += f" | Exp: {expiry_str}{days_to_expiry_str} | ${strike} {opt_type.upper()}"
         else:
-             header_section += f" | Strategy: {strategy}"
+            header_section += f" | Strategy: {strategy}"
 
-        # Risk/Reward Framing
         if is_put:
-             rr_section = (
-                 "3. **Risk/Reward Analysis (SHORT TERM PUT):**\n"
-                 "   - **My Thesis (Bear Case):** Why will it drop?\n"
-                 "   - **The Risk (Bull Case):** What could squeeze it up against us?"
-             )
+            rr_section = (
+                "3. **Risk/Reward Analysis (SHORT TERM PUT):**\n"
+                "   - **My Thesis (Bear Case):** Why will it drop?\n"
+                "   - **The Risk (Bull Case):** What could squeeze it up against us?"
+            )
         else:
-             rr_section = (
-                 "3. **Risk/Reward Analysis:**\n"
-                 "   - **My Thesis (Bull Case):** Why will it rise?\n"
-                 "   - **The Risk (Bear Case):** What could crash it?"
-             )
+            rr_section = (
+                "3. **Risk/Reward Analysis:**\n"
+                "   - **My Thesis (Bull Case):** Why will it rise?\n"
+                "   - **The Risk (Bear Case):** What could crash it?"
+            )
 
-        # 5. Base Score Calculation (Enhancement #2)
         base_score = self.calculate_base_score(
             technicals=context.get('technicals', {}),
             sentiment=context.get('sentiment', {})
         )
-        
-        # 6. Score Range Instructions
         score_low = max(0, base_score - 20)
         score_high = min(100, base_score + 20)
-        
         final_reminder = (
-            f"\n\n🛑 **FINAL REMINDER before you answer:**\n"
+            f"\n\nFINAL REMINDER before you answer:\n"
             f"- The Stock Price is **${spot_price}**.\n"
             f"- Imagine it is **2026**.\n"
-            f"- **BASE CONVICTION SCORE: {base_score}** (Calculated from Hard Data).\n"
-            f"- You may adjust this score ±20 points based on news, catalysts, and specific trade risks.\n"
-            f"- Your Final Conviction Score MUST be between **{score_low}** and **{score_high}**.\n"
+            f"- BASE CONVICTION SCORE: {base_score} (Calculated from Hard Data).\n"
+            f"- You may adjust this score +/-20 points based on news, catalysts, and specific trade risks.\n"
+            f"- Your Final Conviction Score MUST be between {score_low} and {score_high}.\n"
             f"- JUST ANALYZE THE TRADE at ${spot_price}."
         )
 
@@ -280,15 +259,16 @@ class ReasoningEngine:
             f"2. **TECHNICALS:** {tech_text}\n"
             f"3. **GAMMA LEVELS:** {gex_text}\n"
             f"4. **OPTION GREEKS:** {greeks_text}\n"
-            f"{f'5. **MONEYNESS:** {trade_details_str}' if trade_details_str else ''}\n\n"
+            f"5. **MARKET REGIME:** {vix_regime_text}\n"
+            f"{f'6. **MONEYNESS:** {trade_details_str}' if trade_details_str else ''}\n\n"
             f"### REQUIRED OUTPUT\n"
-            f"0. **Data Integrity Check:** Explicitly state: 'Using Live Spot Price: ${spot_price}' to confirm you are not hallucinating.\n"
-            f"1. **News/Event Check:** Does the news support this {opt_type.upper() if opt_type else 'Trade'}? (Crucial)\n"
+            f"0. **Data Integrity Check:** Explicitly state: 'Using Live Spot Price: ${spot_price}'\n"
+            f"1. **News/Event Check:** Does the news support this {opt_type.upper() if opt_type else 'Trade'}?\n"
             f"2. **Setup Quality:** Does the data align with your Persona's rules?\n"
             f"{rr_section}\n"
             f"4. **Trade Viability:** Is strictly this ${strike if strike else 'ATM'} {opt_type if opt_type else 'Play'} reasonable?\n"
             f"5. **Verdict:** [FAVORABLE / RISKY / AVOID]\n"
-            f"6. **Conviction Score:** (0-100) where >=66 is Safe/Buy, <=40 is Avoid. **Target Range: {score_low}-{score_high}** (Base: {base_score})\n\n"
+            f"6. **Conviction Score:** (0-100) where >=66 is Safe/Buy, <=40 is Avoid. Target Range: {score_low}-{score_high} (Base: {base_score})\n\n"
             f"CRITICAL: At the very end of your response, you MUST include a JSON block in this exact format:\n"
             f"```json\n"
             f'{{"score": <0-100>, "verdict": "<FAVORABLE|RISKY|AVOID>", "summary": "<2-3 sentence plain text summary of your analysis>", "risks": ["<risk 1>", "<risk 2>"], "thesis": "<1 sentence core thesis>"}}\n'
@@ -298,228 +278,136 @@ class ReasoningEngine:
         )
 
         payload = {
-            "model": self.model, 
+            "model": self.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            "temperature": 0.1 # Low temp for factual/critical analysis
+            "temperature": 0.1
         }
 
         try:
-            logger.debug(f"DEBUG: Calling Perplexity ({self.model}) for {ticker}...")
-            # F13 FIX: Retry up to 2 times on transient failures
             response = None
             last_error = None
             for attempt in range(3):
                 try:
                     response = requests.post(self.base_url, json=payload, headers=self.headers, timeout=30)
                     if response.status_code < 500:
-                        break  # Success or client error — don't retry
+                        break
                     logger.warning(f"Perplexity {response.status_code} on attempt {attempt+1}/3")
                 except (requests.ConnectionError, requests.Timeout) as e:
                     last_error = e
                     logger.warning(f"Perplexity network error attempt {attempt+1}/3: {e}")
                 if attempt < 2:
-                    time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s
+                    time.sleep(2 ** attempt)
             
             if response is None:
                 return {"error": f"Perplexity unreachable after 3 attempts: {last_error}"}
-            
             if response.status_code != 200:
-                logger.error(f"Perplexity API Error: {response.text}")
                 return {"error": f"API Error: {response.status_code}"}
                 
             data = response.json()
             content = data['choices'][0]['message']['content']
-            
-            # Try to extract structured JSON from the response
             parsed = self._extract_json_block(content)
             
             if parsed:
-                # S3: Pydantic validation on extracted JSON
                 try:
                     validated = AIAnalysisResult.model_validate(parsed)
                     validated_data = validated.model_dump()
                     score = validated_data['score']
-                    logger.debug(f"  ✓ Pydantic validation passed for {ticker}: score={score}, verdict={validated_data['verdict']}")
                 except ValidationError as ve:
-                    logger.warning(f"  ⚠️ Pydantic validation failed for {ticker}: {ve} — using raw parsed data")
+                    logger.warning(f"Pydantic validation failed for {ticker}: {ve}")
                     validated_data = parsed
                     score = min(100, max(0, int(parsed.get('score', 0))))
 
-                # OVERRIDE: Enforce verdict based on score thresholds
-                # AI model sometimes returns wrong verdict for the score.
-                # Our rules: 66+ = FAVORABLE, 41-65 = RISKY, 0-40 = AVOID
-                if score >= 66:
-                    verdict = 'FAVORABLE'
-                elif score >= 41:
-                    verdict = 'RISKY'
-                else:
-                    verdict = 'AVOID'
-                return {
-                    "ticker": ticker,
-                    "strategy": strategy,
-                    "analysis": content,
-                    "score": score,
-                    "verdict": verdict,
-                    "summary": validated_data.get('summary', ''),
-                    "risks": validated_data.get('risks', []),
-                    "thesis": validated_data.get('thesis', '')
-                }
+                if score >= 66: verdict = 'FAVORABLE'
+                elif score >= 41: verdict = 'RISKY'
+                else: verdict = 'AVOID'
+                return {"ticker": ticker, "strategy": strategy, "analysis": content, "score": score, "verdict": verdict, "summary": validated_data.get('summary', ''), "risks": validated_data.get('risks', []), "thesis": validated_data.get('thesis', '')}
             else:
-                # Fallback: regex extraction (legacy)
-                logger.warning(f"  ⚠️ JSON extraction failed for {ticker}, falling back to regex")
                 score = self._extract_score(content)
-                # S3: Attempt Pydantic validation on regex-extracted score
                 try:
-                    validated = AIAnalysisResult.model_validate({
-                        'score': score,
-                        'verdict': 'RISKY',  # Placeholder; override below
-                        'summary': content[:300] if content else '',
-                        'risks': [],
-                        'thesis': ''
-                    })
+                    validated = AIAnalysisResult.model_validate({'score': score, 'verdict': 'RISKY', 'summary': content[:300] if content else '', 'risks': [], 'thesis': ''})
                     score = validated.score
-                    logger.debug(f"  ✓ Pydantic validation passed (regex fallback) for {ticker}: score={score}")
                 except ValidationError as ve:
-                    logger.warning(f"  ⚠️ Pydantic validation failed (regex fallback) for {ticker}: {ve}")
-
-                # OVERRIDE: Enforce verdict based on score thresholds
-                if score >= 66:
-                    verdict = 'FAVORABLE'
-                elif score >= 41:
-                    verdict = 'RISKY'
-                else:
-                    verdict = 'AVOID'
-                return {
-                    "ticker": ticker,
-                    "strategy": strategy,
-                    "analysis": content,
-                    "score": score,
-                    "verdict": verdict,
-                    "summary": content[:300] if content else '',
-                    "risks": [],
-                    "thesis": ''
-                }
+                    logger.warning(f"Pydantic validation failed (regex fallback) for {ticker}: {ve}")
+                if score >= 66: verdict = 'FAVORABLE'
+                elif score >= 41: verdict = 'RISKY'
+                else: verdict = 'AVOID'
+                return {"ticker": ticker, "strategy": strategy, "analysis": content, "score": score, "verdict": verdict, "summary": content[:300] if content else '', "risks": [], "thesis": ''}
             
         except Exception as e:
             logger.error(f"Reasoning Engine Failed: {e}")
             return {"error": str(e)}
 
     def calculate_base_score(self, technicals, sentiment):
-        """
-        Calculate objective base score from hard data.
-        Range: 10-90 (clamped)
-        """
-        score = 50.0  # Start neutral
-        
-        # 1. Technical Score (worth ±30 points)
-        # technicals['score'] is 0-100. Neutral is 50.
+        score = 50.0
         tech_score = float(technicals.get('score', 50))
         score += (tech_score - 50) * 0.6
-        
-        # 2. Sentiment (worth ±20 points)
-        # sentiment['score'] should be 0-100.
         sent_val = sentiment.get('score', 50)
-        # Handle if it's a dict or extraction error
         if isinstance(sent_val, dict): sent_val = sent_val.get('score', 50)
         sent_score = float(sent_val)
         score += (sent_score - 50) * 0.4
-        
-        # 3. Volume Confirmation (worth ±15 points)
         try:
             vol_z = float(technicals.get('volume_zscore', 0))
         except (ValueError, TypeError):
             vol_z = 0
-            
-        if vol_z > 2.0:      score += 15   # Super surging
-        elif vol_z > 1.0:    score += 10   # Surging
-        elif vol_z > 0.5:    score += 5    # Strong
-        elif vol_z < -0.5:   score -= 5    # Weak
-        elif vol_z < -1.5:   score -= 10   # Very weak
-
-        # 4. Trend Alignment (worth ±15 points)
+        if vol_z > 2.0: score += 15
+        elif vol_z > 1.0: score += 10
+        elif vol_z > 0.5: score += 5
+        elif vol_z < -0.5: score -= 5
+        elif vol_z < -1.5: score -= 10
         ma_signal = technicals.get('ma_signal', 'neutral')
-        if ma_signal == 'bullish':             score += 10
-        elif ma_signal == 'pullback bullish':  score += 5  # QW-9: was 'pullback_bullish' (underscore mismatch)
-        elif ma_signal == 'bearish':           score -= 10
-        elif ma_signal == 'breakdown':         score -= 15
-        
-        # Clamp to 10-90
+        if ma_signal == 'bullish': score += 10
+        elif ma_signal == 'pullback bullish': score += 5
+        elif ma_signal == 'bearish': score -= 10
+        elif ma_signal == 'breakdown': score -= 15
         return max(10, min(90, int(score)))
 
     def _extract_json_block(self, text):
-        """Extract structured JSON from ```json ... ``` block in the AI response."""
         try:
-            # Try fenced code block first: ```json { ... } ```
             json_match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
             if json_match:
                 parsed = json.loads(json_match.group(1))
                 if 'score' in parsed and 'verdict' in parsed:
-                    logger.info(f"  ✓ Extracted JSON block: score={parsed['score']}, verdict={parsed['verdict']}")
                     return parsed
-            
-            # Fallback: find last JSON object in text (no fencing)
             json_objects = re.findall(r'\{[^{}]*"score"\s*:\s*\d+[^{}]*"verdict"\s*:[^{}]*\}', text)
             if json_objects:
-                parsed = json.loads(json_objects[-1])
-                logger.info(f"  ✓ Extracted inline JSON: score={parsed['score']}, verdict={parsed['verdict']}")
-                return parsed
-                
+                return json.loads(json_objects[-1])
             return None
         except (json.JSONDecodeError, KeyError, IndexError) as e:
-            logger.warning(f"  ⚠️ JSON parse error: {e}")
+            logger.warning(f"JSON parse error: {e}")
             return None
 
     def _extract_score(self, text):
-        """Extract 'Conviction Score: 85' from text"""
         try:
-            # Try multiple patterns from most to least specific
             patterns = [
-                r"Conviction Score[:\s]*\*?\*?\s*(\d{1,3})\s*/\s*100",  # "Conviction Score: 85/100" or "## Conviction Score\n\n28/100"
-                r"Conviction Score[:\s]*\*?\*?\s*(\d{1,3})",            # "Conviction Score: 85" or "Conviction Score 85"
-                r"conviction[:\s]+(\d{1,3})\s*/\s*100",                 # Fallback: "conviction: 85/100"
+                r"Conviction Score[:\s]*\*?\*?\s*(\d{1,3})\s*/\s*100",
+                r"Conviction Score[:\s]*\*?\*?\s*(\d{1,3})",
+                r"conviction[:\s]+(\d{1,3})\s*/\s*100",
             ]
             for pattern in patterns:
                 match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
                 if match:
-                    val = int(match.group(1))
-                    return min(100, max(0, val))  # Clamp 0-100
-            return 0  # Default to 0 (Risk!) if not found
+                    return min(100, max(0, int(match.group(1))))
+            return 0
         except (ValueError, TypeError, AttributeError):
             return 0
 
     def _extract_verdict(self, text):
-        """Extract Classification"""
         upper_text = text.upper()
-        if "VERDICT: SAFE" in upper_text or "VERDICT:** SAFE" in upper_text or "VERDICT: FAVORABLE" in upper_text or "VERDICT:** FAVORABLE" in upper_text: return "FAVORABLE"
-        if "VERDICT: AVOID" in upper_text or "VERDICT:** AVOID" in upper_text: return "AVOID"
-        if "VERDICT: RISKY" in upper_text or "VERDICT:** RISKY" in upper_text: return "RISKY"
-        
-        # Fallback keyword search
+        if "VERDICT: SAFE" in upper_text or "VERDICT: FAVORABLE" in upper_text: return "FAVORABLE"
+        if "VERDICT: AVOID" in upper_text: return "AVOID"
+        if "VERDICT: RISKY" in upper_text: return "RISKY"
         if "AVOID" in upper_text: return "AVOID"
         if "RISKY" in upper_text: return "RISKY"
         if "SAFE" in upper_text or "FAVORABLE" in upper_text: return "FAVORABLE"
-        
         return "NEUTRAL"
 
-    # ------------------------------------------------------------------
-    # G16: Macro/Index Sentiment via Perplexity
-    # ------------------------------------------------------------------
     def get_macro_sentiment(self, vix_level=None, vix_regime='NORMAL'):
-        """
-        G16: Use Perplexity to generate a macro market sentiment score (0-100).
-        For index/ETF tickers (SPY, QQQ, etc.) where company-specific sentiment is N/A.
-
-        Returns:
-            dict with 'score' (0-100), 'summary', 'regime'
-        """
         if not self.api_key:
             return {'score': 50, 'summary': 'AI disabled', 'regime': vix_regime}
-
         vix_str = f"VIX is at {vix_level:.1f} ({vix_regime} regime)." if vix_level else "VIX data unavailable."
-
         prompt = (
             f"You are a macro market sentiment engine.\n"
             f"Current data: {vix_str}\n"
@@ -528,22 +416,8 @@ class ReasoningEngine:
             f"Consider: VIX level, recent market breadth, Fed policy stance, and risk appetite.\n"
             f"Respond with ONLY a JSON object: {{\"score\": <int>, \"summary\": \"<1 sentence>\"}}\n"
         )
-
         try:
-            resp = requests.post(
-                self.base_url,
-                json={
-                    "model": self.model,
-                    "messages": [
-                        {"role": "system", "content": "You are a macro market sentiment engine. Return only JSON."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "temperature": 0.0
-                },
-                headers=self.headers,
-                timeout=15
-            )
-
+            resp = requests.post(self.base_url, json={"model": self.model, "messages": [{"role": "system", "content": "You are a macro market sentiment engine. Return only JSON."}, {"role": "user", "content": prompt}], "temperature": 0.0}, headers=self.headers, timeout=15)
             if resp.status_code == 200:
                 content = resp.json()['choices'][0]['message']['content']
                 json_match = re.search(r'\{[^}]*"score"\s*:\s*(\d+)[^}]*\}', content)
@@ -551,9 +425,7 @@ class ReasoningEngine:
                     parsed = json.loads(json_match.group(0))
                     score = max(0, min(100, int(parsed.get('score', 50))))
                     summary = parsed.get('summary', '')
-                    logger.info(f"   G16 Macro Sentiment: {score}/100 — {summary}")
                     return {'score': score, 'summary': summary, 'regime': vix_regime}
         except Exception as e:
-            logger.warning(f"   ⚠️ G16 Macro Sentiment failed: {e}")
-
+            logger.warning(f"G16 Macro Sentiment failed: {e}")
         return {'score': 50, 'summary': 'Analysis unavailable', 'regime': vix_regime}
