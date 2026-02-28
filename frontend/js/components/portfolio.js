@@ -235,6 +235,10 @@ const portfolio = (() => {
             btn.classList.toggle('active', btn.dataset.view === viewName);
         });
 
+        // W3: Sync mobile dropdown
+        const mobileSelect = document.querySelector('.portfolio-mobile-select');
+        if (mobileSelect) mobileSelect.value = viewName;
+
         document.getElementById('portfolio-view-open').classList.add('hidden');
         document.getElementById('portfolio-view-history').classList.add('hidden');
         document.getElementById('portfolio-view-performance').classList.add('hidden');
@@ -517,7 +521,7 @@ const portfolio = (() => {
             const typeColor = pos.type === 'CALL' ? 'var(--secondary)' : 'var(--danger)';
 
             let html = `
-                <tr class="pos-row ${isExpanded ? 'expanded' : ''}" onclick="portfolio.toggleRow(${pos.id})">
+                <tr class="pos-row portfolio-row-expandable ${isExpanded ? 'expanded' : ''}" onclick="portfolio.toggleRow(${pos.id})">
                     <td class="font-bold">${pos.ticker}</td>
                     <td style="color:${typeColor}">${pos.type}</td>
                     <td>$${pos.strike}</td>
@@ -720,7 +724,7 @@ const portfolio = (() => {
             const pnlEmoji = isWin ? '🟢' : isBreakeven ? '⚖️' : '🔴';
 
             let html = `
-                <tr class="pos-row ${isExpanded ? 'expanded' : ''}" onclick="portfolio.toggleHistoryRow(${t.id})">
+                <tr class="pos-row portfolio-row-expandable ${isExpanded ? 'expanded' : ''}" onclick="portfolio.toggleHistoryRow(${t.id})">
                     <td class="font-bold">${t.ticker}</td>
                     <td style="color:${t.type === 'CALL' ? 'var(--secondary)' : 'var(--danger)'}">${t.type}</td>
                     <td>$${t.entryPrice.toFixed(2)} → $${t.exitPrice.toFixed(2)}</td>
@@ -729,6 +733,7 @@ const portfolio = (() => {
                     </td>
                     <td>${t.held}</td>
                     <td>${t.reason}</td>
+                    <td style="font-size:0.8rem; color:${t.efficiency && t.efficiency !== '—' ? 'var(--text-primary)' : 'var(--text-muted)'}; font-weight:${t.efficiency && t.efficiency !== '—' ? '600' : '400'}">${t.efficiency || '—'}</td>
                     <td>${t.date}</td>
                 </tr>
             `;
@@ -737,7 +742,7 @@ const portfolio = (() => {
             if (isExpanded) {
                 html += `
                     <tr class="details-row">
-                        <td colspan="7">
+                        <td colspan="8">
                             <div class="details-panel">
                                 <div class="detail-col">
                                     <label>⚙️ Execution Details</label>
