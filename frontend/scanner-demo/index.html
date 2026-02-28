@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Options Scanner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+  <!-- APP SHELL -->
+  <div id="app-shell">
+
+    <!-- App Header -->
+    <header class="app-header">
+      <div class="app-header-left">📈 Options Scanner</div>
+      <div class="app-header-right">
+        <span class="hdr-stat">Watchlist: <b id="watchlist-count">0</b></span>
+        <span class="hdr-stat">Opportunities: <b id="opportunities-count">0</b></span>
+        <span class="hdr-stat">Open Trades: <b id="open-trades-count">0</b></span>
+        <span class="hdr-stat">Heat: <b id="heat-value">—</b></span>
+        <span class="hdr-stat hdr-logout" id="logout-btn">Logout</span>
+      </div>
+    </header>
+
+    <!-- App Tabs -->
+    <nav class="app-tabs">
+      <span class="app-tab active" data-tab="scanner">Scanner</span>
+      <span class="app-tab" data-tab="portfolio">Portfolio</span>
+      <span class="app-tab" data-tab="risk">Risk</span>
+    </nav>
+
+    <!-- Scanner Tab Content -->
+    <div id="tab-scanner" class="tab-content active">
+      <div class="scanner-body">
+
+        <!-- Left Sidebar / Control Panel -->
+        <aside class="control-panel">
+
+          <!-- Scan Control -->
+          <div class="ctrl-box">
+            <div class="ctrl-box-title">Scan Control</div>
+            <div class="ctrl-btn-row">
+              <button class="ctrl-btn mode-btn" id="mode-0dte" data-mode="0dte">⚡ 0DTE</button>
+              <button class="ctrl-btn mode-btn" id="mode-weekly-0" data-mode="weekly-0">This Week</button>
+              <button class="ctrl-btn mode-btn" id="mode-weekly-1" data-mode="weekly-1">Next Week</button>
+            </div>
+            <div class="ctrl-btn-row">
+              <button class="ctrl-btn mode-btn" id="mode-weekly-2" data-mode="weekly-2">Next 2 Weeks</button>
+              <button class="ctrl-btn mode-btn" id="mode-leaps" data-mode="leaps">Leaps</button>
+            </div>
+          </div>
+
+          <!-- Recent History -->
+          <div class="ctrl-box">
+            <div class="ctrl-box-title">Recent History</div>
+            <div id="recent-history-list">
+              <div class="ctrl-placeholder">No recent scans</div>
+            </div>
+          </div>
+
+          <!-- Smart Search -->
+          <div class="ctrl-box">
+            <div class="ctrl-box-title">Smart Search</div>
+            <div class="ctrl-input-stacked" style="position:relative;">
+              <input type="text" id="quick-scan-input" class="ctrl-input full-width" placeholder="Enter ticker symbol..." autocomplete="off" spellcheck="false">
+              <div id="autocomplete-list" class="autocomplete-dropdown" style="display:none;"></div>
+              <button class="ctrl-btn scan-btn full-width" id="btn-scan-ticker">🔍 Scan Ticker</button>
+            </div>
+          </div>
+
+          <!-- Sector Scan -->
+          <div class="ctrl-box">
+            <div class="ctrl-box-title">Sector Scan</div>
+            <select class="ctrl-select" id="sector-select">
+              <option value="">Select sector...</option>
+              <option value="Technology">Technology</option>
+              <option value="Financial Services">Financial Services</option>
+              <option value="Healthcare">Healthcare</option>
+              <option value="Consumer Cyclical">Consumer Cyclical</option>
+              <option value="Consumer Defensive">Consumer Defensive</option>
+              <option value="Energy">Energy</option>
+              <option value="Industrials">Industrials</option>
+              <option value="Communication Services">Communication Services</option>
+              <option value="Basic Materials">Basic Materials</option>
+              <option value="Real Estate">Real Estate</option>
+              <option value="Utilities">Utilities</option>
+            </select>
+            <!-- Progressive disclosure — shown after sector selection -->
+            <div id="sector-extra-filters" style="display:none; flex-direction:column; gap:6px; margin-top:6px;">
+              <select class="ctrl-select" id="industry-select">
+                <option value="">Any Subsector</option>
+              </select>
+              <select class="ctrl-select" id="vol-select">
+                <option value="">Any Volume</option>
+                <option value="500000">Volume: Medium (&gt;500K)</option>
+                <option value="1000000">Volume: High (&gt;1M)</option>
+                <option value="5000000">Volume: Very High (&gt;5M)</option>
+              </select>
+              <select class="ctrl-select" id="cap-select">
+                <option value="">Any Market Cap</option>
+                <option value="2000000000">Mid Cap (&gt;$2B)</option>
+                <option value="10000000000">Large Cap (&gt;$10B)</option>
+                <option value="100000000000">Mega Cap (&gt;$100B)</option>
+              </select>
+              <button class="ctrl-btn scan-btn full-width" id="btn-sector-scan">🔍 Scan Sector</button>
+            </div>
+          </div>
+
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+
+          <!-- Scan Progress Bar -->
+          <div id="scan-progress" class="scan-progress hidden">
+            <div class="scan-progress-bar"></div>
+            <span class="scan-progress-text">Scanning...</span>
+          </div>
+
+          <!-- Watchlist Row -->
+          <div class="watchlist-row">
+            <div class="watchlist-add" style="position:relative;">
+              <input type="text" id="watchlist-input" class="ctrl-input" placeholder="Add to Watchlist..." autocomplete="off" spellcheck="false">
+              <div id="watchlist-autocomplete" class="autocomplete-dropdown" style="display:none;"></div>
+            </div>
+            <div class="watchlist-label">My Watchlist</div>
+            <div class="watchlist-chips" id="watchlist-chips">
+              <!-- Chips rendered by JS -->
+            </div>
+          </div>
+
+          <!-- Opportunities Header -->
+          <div class="opportunities-header">
+            <div class="opp-title">
+              Opportunities <span class="opp-mode-label" id="opportunities-mode-label">This Week</span>
+            </div>
+            <div class="opp-filters">
+              <span class="filter-pill btn-filter active" data-value="15">&gt;15%</span>
+              <span class="filter-pill btn-filter" data-value="25">&gt;25%</span>
+              <span class="filter-pill btn-filter" data-value="35">&gt;35%</span>
+              <select class="ctrl-select sm" id="ticker-filter">
+                <option value="all">All Tickers</option>
+              </select>
+              <select class="ctrl-select sm" id="sort-select">
+                <option value="score">Sort: Score</option>
+                <option value="profit">Sort: Profit</option>
+                <option value="expiry">Sort: Expiry</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Opportunities Container -->
+          <div id="opportunities-container">
+            <div class="empty-state">
+              <div class="empty-icon">🔍</div>
+              <div class="empty-text">No active scan results. Run a scan to discover opportunities.</div>
+            </div>
+          </div>
+
+        </main>
+      </div>
+    </div>
+
+    <!-- Portfolio Tab (placeholder) -->
+    <div id="tab-portfolio" class="tab-content">
+      <div class="coming-soon-state">
+        <div class="empty-icon">📊</div>
+        <div class="empty-text">Portfolio view — coming soon</div>
+      </div>
+    </div>
+
+    <!-- Risk Tab (placeholder) -->
+    <div id="tab-risk" class="tab-content">
+      <div class="coming-soon-state">
+        <div class="empty-icon">🛡️</div>
+        <div class="empty-text">Risk management — coming soon</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
