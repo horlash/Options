@@ -1,0 +1,22 @@
+v2.1.0-scanner-ui-redesign
+
+Scanner UI Redesign — Wireframe-Matched Light Theme Demo
+Commit: aaf097f40ee564d7fd461a9863069e34f1463b8b
+Date: 2026-02-28
+Branch: feature/ui-improvements
+
+Files:
+- index.html — Clean app shell, semantic HTML
+- style.css — Wireframe-matched CSS (light theme, Inter font, CSS variables)
+- app.js — Full scanner functionality with live API integration
+
+Key features:
+- Light theme (#f5f5f5 background, white cards) matching wireframe spec
+- All scan modes: 0DTE, Weekly (This/Next/2-Week), LEAPs
+- Smart Search with autocomplete
+- Sector Scan with progressive disclosure
+- Watchlist management via API
+- Score circles (38px, color-coded), collapsible Trading Systems
+- Dual-gate trade lock (Gate 1: score < 40)
+- Responsive at 900px and 600px breakpoints
+- Toast notifications, loading states
