@@ -193,8 +193,11 @@ class RegimeDetector:
         if self._orats:
             try:
                 quote = self._orats.get_quote('VIX')
-                if quote and quote.get('price'):
-                    return float(quote['price'])
+                price = quote.get('price') if quote else None
+                if price is not None and float(price) > 0:
+                    return float(price)
+                else:
+                    log.debug("ORATS VIX returned price=%s — skipping (0 or null)", price)
             except Exception as e:
                 log.debug("ORATS VIX fetch failed: %s", e)
 
@@ -202,8 +205,11 @@ class RegimeDetector:
         if self._fmp:
             try:
                 quote = self._fmp.get_quote('^VIX')
-                if quote and quote.get('price'):
-                    return float(quote['price'])
+                price = quote.get('price') if quote else None
+                if price is not None and float(price) > 0:
+                    return float(price)
+                else:
+                    log.debug("FMP VIX returned price=%s — skipping (0 or null)", price)
             except Exception as e:
                 log.debug("FMP VIX fetch failed: %s", e)
 

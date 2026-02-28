@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from backend.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ def scan_sector_top_picks(scanner, sector, min_volume, min_market_cap, limit=15,
     
     # [ORATS COVERAGE PRE-FILTER] Skip tickers not in ORATS universe
     tickers = [c['symbol'] for c in candidates]
-    if scanner._orats_universe:
+    if type(scanner)._orats_universe:
         original_count = len(tickers)
         tickers = [t for t in tickers if scanner._is_orats_covered(t)]
         skipped = original_count - len(tickers)

@@ -532,9 +532,7 @@ def get_detailed_analysis(scanner, ticker, expiry_date=None):
         return sanitize_for_json(result)
 
     except Exception as e:
-        logger.error(f"Error in get_detailed_analysis: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error in get_detailed_analysis: {e}", exc_info=True)
         return None
 
 

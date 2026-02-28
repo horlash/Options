@@ -1,4 +1,5 @@
 import os
+import secrets
 from dotenv import load_dotenv
 
 # Load .env from project root (prioritize .env.feature for testing)
@@ -46,7 +47,10 @@ class Config:
     ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY')
     
     # Security
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-prod')
+    # Generate random key if SECRET_KEY env var not set (sessions won't persist across restarts)
+    _raw_secret = os.getenv('SECRET_KEY')
+    SECRET_KEY = _raw_secret if _raw_secret else secrets.token_hex(32)
+    SECRET_KEY_IS_DEFAULT = not bool(_raw_secret)
     
     # Server
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')

@@ -1,6 +1,8 @@
 import logging
 import math
 from datetime import datetime, timedelta
+from backend.config import Config
+from backend.database.models import Opportunity
 
 logger = logging.getLogger(__name__)
 
@@ -680,9 +682,7 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
         return scanner._sanitize_for_json(result)
 
     except Exception as e:
-        logger.error(f"❌ Error in advanced weekly scan: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error in advanced weekly scan: {e}", exc_info=True)
         return None
 
 

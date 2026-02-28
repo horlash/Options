@@ -1,5 +1,7 @@
 import logging
+import math
 from datetime import datetime
+from backend.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -126,10 +128,10 @@ def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, 
         sma_200 = df['Close'].rolling(window=200).mean().iloc[-1]
 
         # Handle cases with <200 days data (use shorter SMA)
-        if str(sma_200) == 'nan':
+        if math.isnan(sma_200):
             sma_200 = df['Close'].rolling(window=50).mean().iloc[-1]
 
-        if str(sma_200) != 'nan':
+        if not math.isnan(sma_200):
             if direction == 'CALL' and current_price < sma_200:
                 logger.error(f"\u274c Downtrend for CALL LEAPs (Price {current_price:.2f} < SMA {sma_200:.2f})")
                 return None
@@ -585,7 +587,5 @@ def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, 
         return scanner._sanitize_for_json(result)
 
     except Exception as e:
-        logger.error(f"❌ Error scanning {ticker}: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error scanning {ticker}: {str(e)}", exc_info=True)
         return None
