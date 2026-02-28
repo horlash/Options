@@ -25,6 +25,10 @@ class AIAnalysisResult(BaseModel):
 
     @field_validator('score')
     @classmethod
-    def enforce_verdict_consistency(cls, v, info):
-        """Score is validated first, verdict uses it."""
+    def clamp_score(cls, v, info):
+        """Clamp score to [0, 100] to handle AI model output that may exceed bounds.
+        Note: Field(ge=0, le=100) raises ValidationError on out-of-range values;
+        this validator silently clamps instead, which is safer for AI-parsed JSON.
+        Verdict-score consistency is enforced downstream in reasoning_engine.py.
+        """
         return max(0, min(100, v))

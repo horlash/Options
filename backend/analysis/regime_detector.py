@@ -116,8 +116,6 @@ class RegimeDetector:
 
     # 2-day minimum regime duration to prevent whipsaw (per Risk Manager resolution)
     # Note: enforced at scan level — if regime just changed, we use the MORE conservative one
-    _last_regime: Optional[VIXRegime] = None
-    _regime_changed_at: Optional[datetime] = None
 
     def __init__(self, orats_api=None, fmp_api=None):
         """Accept either ORATS or FMP for VIX data (ORATS preferred)."""
@@ -125,6 +123,8 @@ class RegimeDetector:
         self._fmp = fmp_api
         self._cached_context: Optional[RegimeContext] = None
         self._last_fetch: Optional[datetime] = None
+        self._last_regime: Optional[VIXRegime] = None
+        self._regime_changed_at: Optional[datetime] = None
 
     def detect(self, force_refresh: bool = False) -> RegimeContext:
         """Detect current VIX regime. Returns cached result if fresh enough."""
@@ -156,22 +156,22 @@ class RegimeDetector:
         regime = self._classify(vix_level)
 
         # Anti-whipsaw: if regime just changed in last scan, use the more conservative one
-        if (RegimeDetector._last_regime is not None
-                and regime != RegimeDetector._last_regime
-                and RegimeDetector._regime_changed_at is not None):
-            hours_since_change = (now - RegimeDetector._regime_changed_at).total_seconds() / 3600
+        if (self._last_regime is not None
+                and regime != self._last_regime
+                and self._regime_changed_at is not None):
+            hours_since_change = (now - self._regime_changed_at).total_seconds() / 3600
             if hours_since_change < 48:  # 2-day stickiness
-                conservative = max(regime, RegimeDetector._last_regime,
+                conservative = max(regime, self._last_regime,
                                    key=lambda r: list(VIXRegime).index(r))
                 if conservative != regime:
                     log.info("Anti-whipsaw: regime %s -> %s within 48h, using %s",
-                             RegimeDetector._last_regime.value, regime.value, conservative.value)
+                             self._last_regime.value, regime.value, conservative.value)
                     regime = conservative
 
         # Track regime changes
-        if regime != RegimeDetector._last_regime:
-            RegimeDetector._regime_changed_at = now
-            RegimeDetector._last_regime = regime
+        if regime != self._last_regime:
+            self._regime_changed_at = now
+            self._last_regime = regime
 
         ctx = RegimeContext(
             regime=regime,

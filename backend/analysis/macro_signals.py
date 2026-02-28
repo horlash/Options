@@ -209,10 +209,12 @@ class MacroSignals:
         try:
             import requests
             # Fetch SPY options chain from FMP v3
-            url = (f"https://financialmodelingprep.com/api/v3/"
-                   f"stock_option_chain"
-                   f"?symbol=SPY&apikey={self.fmp_api_key}")
-            resp = requests.get(url, timeout=15)
+            url = "https://financialmodelingprep.com/api/v3/stock_option_chain"
+            resp = requests.get(
+                url,
+                params={"symbol": "SPY", "apikey": self.fmp_api_key},
+                timeout=15
+            )
             if resp.status_code != 200:
                 log.debug(f"[MacroSignals] FMP options chain HTTP {resp.status_code}")
                 return None
