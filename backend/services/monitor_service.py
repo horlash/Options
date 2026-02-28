@@ -280,6 +280,8 @@ class MonitorService:
 
             for trade in open_trades:
                 try:
+                    # NEW-BUG-4 FIX: Define direction_mult at loop scope to prevent NameError in any branch
+                    direction_mult = 1 if (trade.direction or 'BUY').upper() == 'BUY' else -1
                     expiry_str = str(trade.expiry) if trade.expiry else None
                     option_quote = None
                     if expiry_str and trade.strike and trade.option_type:
@@ -301,10 +303,9 @@ class MonitorService:
                     db.add(snapshot)
                     if option_quote:
                         trade.current_price = mark
-                        direction_mult = 1 if trade.direction == 'BUY' else -1
                         trade.unrealized_pnl = round((mark - trade.entry_price) * trade.qty * 100 * direction_mult, 2)
                     elif trade.current_price is not None:
-                        direction_mult = 1 if trade.direction == 'BUY' else -1
+                        pass  # direction_mult already defined at loop scope
                     else:
                         logger.info(f"No option quote for {trade.ticker} {trade.strike} {trade.option_type} — skipping price update")
                     trade.updated_at = now
@@ -318,20 +319,38 @@ class MonitorService:
                             close_reason = 'TP_HIT'
 
                     # P1 CRIT-2: Circuit breaker
-                    if close_reason:
+                    # NEW-BUG-3 FIX: Only suppress SL_HIT (loss-extending) closes, not TP_HIT (profit-locking)
+                    if close_reason == 'SL_HIT':
                         _us = _get_user_settings(trade.username)
                         if _is_daily_loss_breached(trade.username, _us):
                             logger.warning(f"[CIRCUIT BREAKER] Daily loss limit breached for {trade.username} — suppressing {close_reason} on trade {trade.id}.")
                             close_reason = None
 
                     if close_reason:
-                        trade.exit_price = mark
-                        trade.realized_pnl = round((mark - trade.entry_price) * trade.qty * 100 * direction_mult, 2)
-                        trade.close_reason = close_reason
-                        trade.closed_at = now
+                        # CRIT-5 FIX: Re-query with FOR UPDATE to guard against concurrent
+                        # manual close. If the trade is no longer OPEN, skip the auto-close.
+                        locked_trade = (
+                            db.query(PaperTrade)
+                            .filter(
+                                PaperTrade.id == trade.id,
+                                PaperTrade.status == TradeStatus.OPEN.value,
+                            )
+                            .with_for_update()
+                            .first()
+                        )
+                        if not locked_trade:
+                            logger.info(
+                                f"[CRIT-5] Trade {trade.id} ({trade.ticker}) is no longer OPEN — "
+                                f"skipping {close_reason} auto-close (likely just manually closed)."
+                            )
+                            continue
+                        locked_trade.exit_price = mark
+                        locked_trade.realized_pnl = round((mark - locked_trade.entry_price) * locked_trade.qty * 100 * direction_mult, 2)
+                        locked_trade.close_reason = close_reason
+                        locked_trade.closed_at = now
                         lifecycle = self._get_lifecycle(db)
-                        lifecycle.transition(trade, TradeStatus.CLOSED, trigger=close_reason, metadata={'exit_price': mark, 'pnl': trade.realized_pnl, 'trigger_price': mark})
-                        self._compute_mfe_mae(db, trade)
+                        lifecycle.transition(locked_trade, TradeStatus.CLOSED, trigger=close_reason, metadata={'exit_price': mark, 'pnl': locked_trade.realized_pnl, 'trigger_price': mark})
+                        self._compute_mfe_mae(db, locked_trade)
 
                 except Exception as e:
                     logger.warning(f"Price snapshot failed for {trade.ticker} trade {trade.id}: {e}")
@@ -386,12 +405,32 @@ class MonitorService:
         finally:
             db.close()
 
-    def manual_close_position(self, trade_id, username):
+    def manual_close_position(self, trade_id, username, db=None):
         from backend.database.paper_session import get_paper_db_with_user
-        db = get_paper_db_with_user(username)
+        # CRIT-5 FIX: Accept an externally-supplied db session (with an existing FOR UPDATE
+        # lock from close_trade in paper_routes.py). If none is provided, open a new session
+        # and acquire the lock here to prevent concurrent auto-close races.
+        _owns_session = db is None
+        if _owns_session:
+            db = get_paper_db_with_user(username)
         try:
-            trade = db.query(PaperTrade).filter(PaperTrade.id == trade_id, PaperTrade.status == TradeStatus.OPEN.value).first()
+            # CRIT-5 FIX: Use with_for_update() to ensure atomic read-then-write.
+            # Re-verify status == OPEN after acquiring the lock so that if the monitoring
+            # loop just closed this trade, we return early instead of double-closing.
+            trade = (
+                db.query(PaperTrade)
+                .filter(
+                    PaperTrade.id == trade_id,
+                    PaperTrade.status == TradeStatus.OPEN.value,
+                )
+                .with_for_update()
+                .first()
+            )
             if not trade:
+                logger.info(
+                    f"[CRIT-5] manual_close_position: trade {trade_id} is no longer OPEN — "
+                    f"skipping close (may have been auto-closed concurrently)."
+                )
                 return None
             user_settings = db.get(UserSettings, username)
             now = datetime.now(timezone.utc)
@@ -438,7 +477,10 @@ class MonitorService:
             logger.exception(f"manual_close_position failed: {e}")
             raise
         finally:
-            db.close()
+            # CRIT-5 FIX: Only close the session if this method opened it.
+            # If a session was passed in (from close_trade), the caller owns the lifecycle.
+            if _owns_session:
+                db.close()
 
     def adjust_bracket(self, trade_id, username, new_sl=None, new_tp=None):
         from backend.database.paper_session import get_paper_db_with_user
