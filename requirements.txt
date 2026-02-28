@@ -34,3 +34,4 @@ holidays>=0.50,<1.0
 
 # Security hardening
 flask-limiter>=3.5,<4.0
+pydantic>=2.0.0
