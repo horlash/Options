@@ -36,7 +36,7 @@ monitor = MonitorService()
 paper_bp = Blueprint('paper', __name__, url_prefix='/api/paper')
 
 
-# ─── Helpers ──────────────────────────────────────────────────
+# ─── Helpers ───────────────────────────────────────────────
 
 def _get_username():
     """Get the current authenticated username.
@@ -412,7 +412,7 @@ def place_trade():
         db.add(trade)
         db.flush()  # Get trade.id for StateTransition FK
 
-        # ── Point 6: Capture backtesting context (non-blocking) ──────
+        # ── Point 6: Capture backtesting context (non-blocking) ────
         try:
             from backend.api.orats import OratsAPI
             ctx_svc = ContextService(orats_api=OratsAPI())
@@ -426,7 +426,7 @@ def place_trade():
         except Exception as e:
             logger.warning(f'[place_trade] Context capture failed (non-fatal): {e}')  # P0-9: was `log.warning` (undefined)
 
-        # ── Lifecycle Transition: PENDING → OPEN (Point 11) ──────────
+        # ── Lifecycle Transition: PENDING → OPEN (Point 11) ────────
         lifecycle = LifecycleManager(db)
         lifecycle.transition(
             trade, TradeStatus.OPEN,
@@ -438,7 +438,7 @@ def place_trade():
             },
         )
 
-        # ── Tradier Order Placement (Step 4.2) ────────────────
+        # ── Tradier Order Placement (Step 4.2) ────────────
         broker_msg = None
         try:
             user_settings = db.query(UserSettings).filter_by(username=username).first()
@@ -679,6 +679,20 @@ def get_stats():
         losses = [t for t in closed_trades if (t.realized_pnl or 0) < 0]
         win_rate = (len(wins) / len(closed_trades) * 100) if closed_trades else 0
 
+        # Compute consecutive loss streak (most-recent closed trades first)
+        # Walk from most-recent backward; first win (or breakeven) ends the streak
+        sorted_closed = sorted(
+            closed_trades,
+            key=lambda t: t.closed_at or datetime.min,
+            reverse=True
+        )
+        consecutive_losses = 0
+        for t in sorted_closed:
+            if (t.realized_pnl or 0) < 0:
+                consecutive_losses += 1
+            else:
+                break  # First win stops the streak count
+
         gross_profit = sum(t.realized_pnl for t in wins) if wins else 0
         gross_loss = abs(sum(t.realized_pnl for t in losses)) if losses else 0
         profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else 0
@@ -702,6 +716,7 @@ def get_stats():
                 'total_trades': len(closed_trades),
                 'wins': len(wins),
                 'losses': len(losses),
+                'consecutive_losses': consecutive_losses,
             },
             'market_status': get_market_status(),
         })
