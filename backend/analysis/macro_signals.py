@@ -192,23 +192,63 @@ class MacroSignals:
         return None
 
     def _fetch_from_fmp(self) -> Optional[float]:
-        """Fetch equity P/C ratio from Financial Modeling Prep API."""
+        """Fetch equity P/C ratio from FMP SPY options chain.
+
+        Computes total put volume / total call volume across SPY's full
+        options chain — this is a genuine equity options P/C ratio.
+
+        NOTE: The previous implementation fetched the COT (Commitment of
+        Traders) report for E-mini S&P 500 futures (symbol 'ES') from
+        FMP's v4 endpoint.  COT data measures futures long/short
+        positioning by trader category (commercial, non-commercial,
+        non-reportable) — conceptually different from equity options
+        put/call volume and not an appropriate proxy for CBOE P/C.
+        Replaced with FMP's v3 stock_option_chain endpoint for SPY so
+        we measure actual equity options activity.
+        """
         try:
             import requests
-            url = (f"https://financialmodelingprep.com/api/v4/"
-                   f"commitment_of_traders_report/ES"
-                   f"?apikey={self.fmp_api_key}")
-            resp = requests.get(url, timeout=10)
-            if resp.status_code == 200:
-                data = resp.json()
-                if data and isinstance(data, list) and len(data) > 0:
-                    latest = data[0]
-                    long_pos = latest.get('long_all', 0) or 0
-                    short_pos = latest.get('short_all', 0) or 0
-                    if long_pos > 0:
-                        ratio = short_pos / long_pos
-                        log.info(f"[MacroSignals] FMP P/C proxy: {ratio:.3f}")
-                        return ratio
+            # Fetch SPY options chain from FMP v3
+            url = (f"https://financialmodelingprep.com/api/v3/"
+                   f"stock_option_chain"
+                   f"?symbol=SPY&apikey={self.fmp_api_key}")
+            resp = requests.get(url, timeout=15)
+            if resp.status_code != 200:
+                log.debug(f"[MacroSignals] FMP options chain HTTP {resp.status_code}")
+                return None
+
+            data = resp.json()
+            # FMP returns a dict with 'optionChain' list, each element has
+            # 'putCall' ('Put'/'Call'), 'volume', etc.
+            chain = []
+            if isinstance(data, dict):
+                chain = data.get('optionChain', [])
+            elif isinstance(data, list):
+                chain = data
+
+            if not chain:
+                log.debug("[MacroSignals] FMP options chain empty for SPY")
+                return None
+
+            total_put_vol = 0
+            total_call_vol = 0
+            for contract in chain:
+                vol = contract.get('volume') or 0
+                side = (contract.get('putCall') or '').upper()
+                if side == 'PUT':
+                    total_put_vol += vol
+                elif side == 'CALL':
+                    total_call_vol += vol
+
+            if total_call_vol > 0:
+                ratio = total_put_vol / total_call_vol
+                log.info(
+                    f"[MacroSignals] FMP SPY options P/C: {ratio:.3f} "
+                    f"(puts={total_put_vol:,}, calls={total_call_vol:,})"
+                )
+                return ratio
+
+            log.debug("[MacroSignals] FMP SPY chain had zero call volume")
         except Exception as e:
             log.debug(f"[MacroSignals] FMP P/C fetch failed: {e}")
         return None
