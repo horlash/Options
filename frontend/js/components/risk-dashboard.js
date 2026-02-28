@@ -57,8 +57,8 @@ const riskDashboard = (() => {
         const totalTrades = stats.total_trades || 0;
         const winPct = stats.win_rate || 0;
 
-        // Tilt: approximate from consecutive losses (use losses vs total as proxy)
-        const consecutiveLosses = losses > 0 && totalTrades > 0 ? Math.min(losses, 5) : 0;
+        // Tilt: use consecutive loss streak from backend (not lifetime totals)
+        const consecutiveLosses = stats.consecutive_losses || 0;
         const maxBeforeWarning = 3;
         const maxBeforeDanger = 5;
         const tiltStatus = consecutiveLosses >= maxBeforeDanger ? 'danger' :
