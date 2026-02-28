@@ -524,7 +524,7 @@ const portfolio = (() => {
                     <td>$${pos.entry.toFixed(2)}</td>
                     <td class="font-bold">$${pos.current.toFixed(2)}</td>
                     <td class="${isProfit ? 'pnl-positive' : 'pnl-negative'}">
-                        ${isProfit ? '+' : ''}$${pnl.toFixed(0)} (${isProfit ? '+' : ''}${pnlPct.toFixed(0)}%)
+                        ${isProfit ? '+' : ''}$${pnl.toFixed(2)} (${isProfit ? '+' : ''}${pnlPct.toFixed(1)}%)
                         ${isProfit ? '🟢' : '🔴'}
                     </td>
                     <td>${pos.sl != null ? `$${pos.sl.toFixed(2)}` : '—'} / ${pos.tp != null ? `$${pos.tp.toFixed(2)}` : '—'}</td>
@@ -725,7 +725,7 @@ const portfolio = (() => {
                     <td style="color:${t.type === 'CALL' ? 'var(--secondary)' : 'var(--danger)'}">${t.type}</td>
                     <td>$${t.entryPrice.toFixed(2)} → $${t.exitPrice.toFixed(2)}</td>
                     <td class="${pnlClass}">
-                        ${isWin ? '+' : ''}$${t.pnl} ${pnlEmoji}
+                        ${isWin ? '+' : ''}$${typeof t.pnl === 'number' ? t.pnl.toFixed(2) : t.pnl} ${pnlEmoji}
                     </td>
                     <td>${t.held}</td>
                     <td>${t.reason}</td>
@@ -1403,7 +1403,7 @@ const portfolio = (() => {
                 { label: 'Badge', value: badge },
                 { label: 'Entry', value: `$${pos.entry.toFixed(2)}` },
                 { label: 'Current', value: `$${pos.current.toFixed(2)}` },
-                { label: 'P&L', value: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(0)} (${pnlPct}%)`, color: pnl >= 0 ? 'var(--secondary)' : 'var(--danger)' },
+                { label: 'P&L', value: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPct}%)`, color: pnl >= 0 ? 'var(--secondary)' : 'var(--danger)' },
                 { label: 'Current SL', value: `$${pos.sl.toFixed(2)}` }
             ],
             inputLabel: 'New Stop Loss Price',
@@ -1444,7 +1444,7 @@ const portfolio = (() => {
                 { label: 'Type', value: `${pos.type} $${pos.strike}` },
                 { label: 'Entry', value: `$${pos.entry.toFixed(2)}` },
                 { label: 'Current', value: `$${pos.current.toFixed(2)}` },
-                { label: 'P&L', value: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(0)} (${pnlPct}%)`, color: pnl >= 0 ? 'var(--secondary)' : 'var(--danger)' },
+                { label: 'P&L', value: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPct}%)`, color: pnl >= 0 ? 'var(--secondary)' : 'var(--danger)' },
                 { label: 'Current TP', value: `$${pos.tp.toFixed(2)}` }
             ],
             inputLabel: 'New Take Profit Price',
@@ -1485,7 +1485,7 @@ const portfolio = (() => {
                 { label: 'Type', value: `${pos.type} $${pos.strike}` },
                 { label: 'Entry', value: `$${pos.entry.toFixed(2)}` },
                 { label: 'Market Price', value: `$${pos.current.toFixed(2)}` },
-                { label: 'Realized P&L', value: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(0)} (${pnlPct}%)`, color: pnl >= 0 ? 'var(--secondary)' : 'var(--danger)' }
+                { label: 'Realized P&L', value: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPct}%)`, color: pnl >= 0 ? 'var(--secondary)' : 'var(--danger)' }
             ],
             warning: `This will send a <strong>market sell order</strong> for your ${pos.ticker} ${pos.type} $${pos.strike} position. This action cannot be undone.`,
             confirmLabel: 'Close Position',
@@ -1502,7 +1502,7 @@ const portfolio = (() => {
                         openPositions = openPositions.filter(p => p.id !== id);
                         render();
                         if (typeof showToast === 'function') {
-                            showToast(`Closed ${ticker} — P&L: $${(res.trade.realized_pnl || 0).toFixed(0)}`, 'success');
+                            showToast(`Closed ${ticker} — P&L: $${(res.trade.realized_pnl || 0).toFixed(2)}`, 'success');
                         }
                     }
                 }).catch(err => {
@@ -1647,14 +1647,6 @@ const portfolio = (() => {
         const newVal = Math.max(0, current + delta);
         input.value = newVal.toFixed(2);
         input.focus();
-    }
-
-    function applyCustomRange() {
-        const fromEl = document.getElementById('perf-date-from');
-        const toEl = document.getElementById('perf-date-to');
-        if (fromEl) state.customFrom = fromEl.value;
-        if (toEl) state.customTo = toEl.value;
-        renderPerformanceView();
     }
 
     // ═══ EXPORT SYSTEM ═══

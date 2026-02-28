@@ -179,6 +179,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
+
+    // Analysis modal close on backdrop click
+    const modal = document.getElementById('analysis-modal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                analysisDetail.hide();
+            }
+        });
+    }
 });
 
 async function renderHistory() {
@@ -317,12 +327,4 @@ function setupEventListeners() {
             analysisDetail.hide();
         });
     }
-
-    // Close modal on overlay click (click on backdrop area outside modal-content)
-    const modal = document.getElementById('analysis-modal');
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            analysisDetail.hide();
-        }
-    });
 }
