@@ -428,11 +428,10 @@ def get_detailed_analysis(scanner, ticker, expiry_date=None):
 
         if not history:
             logger.error("Strict Mode: No History Data")
-            # return None or empty structure?
-            # This function returns a dict usually? No, it returns ...?
-            # Wait, let's check return type.
-            # It returns `detailed_analysis` variable?
-            pass
+            # BUG-A2 FIX: Return None explicitly so callers (e.g. get_analysis_detail route)
+            # can detect the failure via `if analysis:` check. Previously this block used
+            # `pass`, which let execution continue and returned a partial/misleading dict.
+            return None
 
         # (Yahoo Fallback Removed)
 

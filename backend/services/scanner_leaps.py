@@ -408,6 +408,11 @@ def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, 
 
         # --- G9: IV Percentile Rank from ORATS ---
         iv_percentile = 50  # default neutral
+        # BUG-A1 FIX: Initialize cores=None BEFORE the try block.
+        # If the ORATS call inside the try raises an exception (caught by except),
+        # 'cores' would be referenced in the G14/G15 blocks below but never assigned,
+        # causing a NameError. Initializing here prevents that crash.
+        cores = None
         try:
             if scanner.use_orats:
                 cores = scanner.batch_manager.orats_api.get_hist_cores(clean_ticker)

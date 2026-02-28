@@ -189,12 +189,13 @@ def add_to_watchlist():
                 'error': 'Ticker is required'
             }), 400
         
-        # BUG-2 FIX: Validate ticker format (1-5 uppercase letters only)
+        # ISSUE-E2 FIX: Updated regex to accept extended ticker formats:
+        # $SPX (dollar-prefixed indices), BRK.B (dot separator), BRK/A (slash class)
         ticker = ticker.strip().upper()
-        if not re.match(r'^[A-Z]{1,5}$', ticker):
+        if not re.match(r'^[A-Z.$\/]{1,10}$', ticker):
             return jsonify({
                 'success': False,
-                'error': f'Invalid ticker format: {ticker}. Use 1-5 letters (e.g. AAPL, MSFT).'
+                'error': f'Invalid ticker format: {ticker}. Use up to 10 chars (e.g. AAPL, $SPX, BRK.B).'
             }), 400
         
         watchlist_service = WatchlistService()
@@ -308,8 +309,11 @@ def scan_ticker(ticker):
         else:
             result = scanner_service.scan_ticker(ticker, strict_mode=False, direction=direction)
 
-        scanner_service.close()
-        
+        # BUG-A4/E1 FIX: DO NOT close the singleton scanner_service here.
+        # scanner_service is a global singleton. Calling close() would destroy it
+        # for all subsequent requests. Return success without closing.
+        # (removed: scanner_service.close())
+
         if result:
             # Safety net: ensure LEAP opportunities have DTE >= 150
             # (prevents near-term options leaking through stale cache data)
@@ -385,6 +389,11 @@ def run_daily_scan():
 def scan_ticker_daily(ticker):
     """Run Daily scan on a specific ticker. Already returns both CALL and PUT."""
     try:
+        # ISSUE-E3 FIX: Require authenticated session (matches pattern of all other scan routes)
+        current_user = session.get('user')
+        if not current_user:
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
         data = request.get_json() or {}
         weeks_out = int(data.get('weeks_out', 0))
         
@@ -432,6 +441,11 @@ def get_tickers():
 def run_sector_scan():
     """Run Smart Sector Scan"""
     try:
+        # ISSUE-E4 FIX: Require authenticated session (matches pattern of all other scan routes)
+        current_user = session.get('user')
+        if not current_user:
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
         data = request.get_json() or {}
         sector = data.get('sector')
         
@@ -509,9 +523,10 @@ def add_history():
         if not ticker:
             return jsonify({'success': False, 'error': 'Ticker required'}), 400
         
-        # Backend safety net: reject invalid ticker formats
+        # ISSUE-E2 FIX: Updated regex to accept extended ticker formats:
+        # $SPX (dollar-prefixed indices), BRK.B (dot separator), BRK/A (slash class)
         ticker = ticker.strip().upper()
-        if not re.match(r'^[A-Z]{1,5}$', ticker):
+        if not re.match(r'^[A-Z.$\/]{1,10}$', ticker):
             return jsonify({'success': False, 'error': f'Invalid ticker format: {ticker}'}), 400
             
         db = get_db()
@@ -557,10 +572,12 @@ def get_analysis_detail(ticker):
                 'analysis': analysis
             })
         else:
+             # ISSUE-E5 FIX: 503 Service Unavailable is more accurate than 404
+             # when analysis fails due to upstream data fetch failure, not a missing resource
              return jsonify({
                 'success': False,
                 'error': 'Analysis failed or no data found'
-            }), 404
+            }), 503
     except Exception as e:
         logger.error(f"Error getting analysis: {e}")
         return jsonify({
@@ -572,6 +589,11 @@ def get_analysis_detail(ticker):
 def scan_0dte(ticker):
     """Run 0DTE scan on a ticker"""
     try:
+        # ISSUE-E3 FIX: Require authenticated session (matches pattern of all other scan routes)
+        current_user = session.get('user')
+        if not current_user:
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
         service = get_scanner()
         result = service.scan_0dte_options(ticker)
         
@@ -597,7 +619,15 @@ def get_ai_analysis_route(ticker):
         service = get_scanner()
         # Ensure we block if no API key? Service handles it returning error dict.
         analysis = service.get_ai_analysis(ticker, strategy=strategy, expiry_date=expiry, strike=strike, type=opt_type)
-        
+
+        # ISSUE-E6 FIX: If AI returns an error dict, return 503 instead of wrapping
+        # a failed payload in a success:True response
+        if isinstance(analysis, dict) and analysis.get('error'):
+            return jsonify({
+                'success': False,
+                'error': analysis.get('error', 'AI analysis failed')
+            }), 503
+
         return jsonify({
             'success': True,
             'ai_analysis': analysis

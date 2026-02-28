@@ -16,13 +16,9 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
     ticker = scanner._normalize_ticker(ticker)
     logger.info(f"\n{'='*50}")
     logger.info(f"Scanning {ticker} (WEEKLY + {weeks_out}) [Advanced Mode]...")
-    # 0. Date Setup
-    today = datetime.now().date()
-    target_friday = today + timedelta((4-today.weekday()) % 7) # P0-12: Friday=4 (was 3=Thursday)
-    target_friday += timedelta(weeks=weeks_out)
-    target_friday_str = target_friday.strftime('%Y-%m-%d')
-    logger.info(f"📅 Target Expiry: {target_friday_str} (Friday)")
-    logger.info(f"{'='*50}")
+    # 0. Date Setup — target_friday_str is fully computed in the try block below
+    # ISSUE-D1 FIX: Removed redundant Block 1 date calculation here.
+    # The correct calculation (with 0DTE/WEEKLY differentiation) happens later in the try block.
 
     try:
         # 1. Fetch Price & Technical History (1 Year)
@@ -286,6 +282,12 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                                 if key.startswith(nearest):
                                     fallback_opts[map_name][key] = val
                     opts = fallback_opts
+                    # BUG-A3 FIX: Update target_friday_str to match the nearest expiry.
+                    # collect_typed() filters by target_friday_str. Without this update,
+                    # the fallback opts (keyed by 'nearest') would never match the original
+                    # target_friday_str, resulting in zero opportunities every fallback.
+                    target_friday_str = nearest
+                    logger.info(f"   ℹ️  collect_typed target updated to fallback expiry: {target_friday_str}")
                 else:
                     logger.warning(f"   ⚠️ Target expiry {target_friday_str} not found in ORATS chain (no expiries available)")
                     opts = None
@@ -549,10 +551,11 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
         iv_percentile_weekly = 50
         days_to_earnings_weekly = None
         implied_earnings_move_weekly = None
+        regime_context_weekly = None  # BUG-B1: capture full regime context for score_penalty
         try:
             if scanner.regime_detector and Config.ENABLE_VIX_REGIME:
-                weekly_regime = scanner.regime_detector.detect()
-                vix_regime_weekly = weekly_regime.regime_str
+                regime_context_weekly = scanner.regime_detector.detect()
+                vix_regime_weekly = regime_context_weekly.regime_str
             elif scanner.use_orats:
                 vix_q_w = scanner.batch_manager.orats_api.get_quote('VIX')
                 if vix_q_w and vix_q_w.get('price'):
@@ -569,12 +572,95 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
         except Exception as e:
             logger.warning(f"   ⚠️ Weekly enrichment fetch failed: {e}")
 
+        # --- BUG-B2 FIX: Compute skew_score from ORATS live summary instead of hardcoded 50 ---
+        # Pattern mirrors scanner_leaps.py Option A/B skew logic.
+        skew_score_weekly = 50  # Default neutral
+        try:
+            if scanner.use_orats:
+                summary_w = scanner.batch_manager.orats_api.get_live_summary(ticker)
+                if summary_w:
+                    r_slp30 = summary_w.get('rSlp30', 0) or 0
+                    skew_score_weekly = max(0, min(100, 50 + (r_slp30 * 500)))
+                    logger.info(f"   S0 ORATS Weekly Skew: rSlp30={r_slp30:.4f} → score={skew_score_weekly:.0f}")
+        except Exception as e:
+            logger.warning(f"   ⚠️ Weekly skew fetch failed (using default 50): {e}")
+
+        # --- BUG-B1 FIX: Apply S1-S7A trading system score adjustments before ranking ---
+        # The LEAPS path applies these adjustments. The weekly path was passing raw scores,
+        # causing misranked opportunities. Replicating the exact adjustment logic from
+        # scanner_leaps.py lines 451-505.
+        adjusted_technical_w = technical_score
+        adjusted_sentiment_w = sentiment_score
+
+        # S1: VIX regime score penalty
+        if regime_context_weekly and regime_context_weekly.score_penalty != 0:
+            adjusted_technical_w = max(0, min(100, adjusted_technical_w + regime_context_weekly.score_penalty))
+            logger.info(f"   S1 VIX Penalty (Weekly): tech {regime_context_weekly.score_penalty:+d} → {adjusted_technical_w:.1f} (regime: {regime_context_weekly.regime.value})")
+
+        # S2: P/C ratio contrarian sentiment modifier
+        pc_signal_w = None
+        pc_score_mod_w = 0
+        try:
+            if scanner.macro_signals and Config.ENABLE_PUT_CALL_RATIO:
+                pc_signal_w = scanner.macro_signals.get_put_call_signal()
+                pc_score_mod_w = pc_signal_w.score_modifier
+                if pc_signal_w.ratio is not None:
+                    adjusted_sentiment_w = max(0, min(100, adjusted_sentiment_w + pc_score_mod_w))
+                    logger.info(f"   S2 P/C Ratio (Weekly): {pc_signal_w.ratio:.3f} → sentiment {pc_score_mod_w:+d} → {adjusted_sentiment_w:.1f}")
+        except Exception as e:
+            logger.warning(f"   ⚠️ P/C ratio (weekly) failed: {e}")
+
+        # S4: Sector momentum modifier
+        try:
+            if scanner.sector_analysis and Config.ENABLE_SECTOR_MOMENTUM:
+                clean_ticker_w = ticker.replace('$', '')
+                sector_info_w = scanner.sector_analysis.get_ticker_sector_modifier(clean_ticker_w)
+                sector_mod_w = sector_info_w.get('score_modifier', 0)
+                if sector_mod_w != 0:
+                    adjusted_technical_w = max(0, min(100, adjusted_technical_w + sector_mod_w))
+                    logger.info(f"   S4 Sector (Weekly): {sector_info_w.get('sector', 'N/A')} → tech {sector_mod_w:+d} → {adjusted_technical_w:.1f}")
+        except Exception as e:
+            logger.warning(f"   ⚠️ Sector momentum (weekly) failed: {e}")
+
+        # S3: RSI-2 extreme signal boost
+        if Config.ENABLE_RSI2 and indicators.get('rsi2'):
+            rsi2_w = indicators['rsi2']
+            rsi2_mod_w = 0
+            # For weekly scans (direction-neutral): apply oversold boost to calls bias,
+            # overbought boost to puts bias. Use symmetric modifiers.
+            if rsi2_w.get('signal') in ('extreme_oversold', 'oversold'):
+                rsi2_mod_w = 10 if rsi2_w.get('signal') == 'extreme_oversold' else 5
+            elif rsi2_w.get('signal') in ('extreme_overbought', 'overbought'):
+                rsi2_mod_w = -(10 if rsi2_w.get('signal') == 'extreme_overbought' else 5)
+            if rsi2_mod_w != 0:
+                adjusted_technical_w = max(0, min(100, adjusted_technical_w + rsi2_mod_w))
+                logger.info(f"   S3 RSI-2 (Weekly)={rsi2_w.get('value')} ({rsi2_w.get('signal')}): tech {rsi2_mod_w:+d} → {adjusted_technical_w:.1f}")
+
+        # S7A: VWAP institutional level boost
+        if Config.ENABLE_VWAP_LEVELS and indicators.get('vwap'):
+            vwap_mod_w = indicators['vwap'].get('score_boost', 0)
+            if vwap_mod_w != 0:
+                adjusted_technical_w = max(0, min(100, adjusted_technical_w + vwap_mod_w))
+                logger.info(f"   S7A VWAP (Weekly) {indicators['vwap'].get('signal')}: tech {vwap_mod_w:+d} → {adjusted_technical_w:.1f}")
+
+        # S5: Minervini stage check
+        if Config.ENABLE_MINERVINI_FILTER and indicators.get('minervini'):
+            mstage_w = indicators['minervini']
+            non_corp_w = ticker.replace('$', '').upper() in ['VIX', 'SPX', 'NDX', 'RUT', 'DJI', 'SPY', 'QQQ', 'IWM', 'DIA', 'TLT', 'GLD', 'SLV']
+            if mstage_w.get('stage') in ('STAGE_3_OR_4',) and not non_corp_w:
+                adjusted_technical_w = max(0, adjusted_technical_w - 10)
+                logger.info(f"   S5 Minervini (Weekly): {mstage_w.get('stage')} → tech -10 → {adjusted_technical_w:.1f}")
+            elif mstage_w.get('is_stage2'):
+                adjusted_technical_w = min(100, adjusted_technical_w + 8)
+                logger.info(f"   S5 Minervini (Weekly): {mstage_w.get('stage')} → tech +8 → {adjusted_technical_w:.1f}")
+
         # Use Centralized Ranker with Strategy Logic (WEEKLY/0DTE)
+        # BUG-B1 FIX: Pass adjusted scores instead of raw technical_score/sentiment_score
         ranked_opps_dicts = scanner.options_analyzer.rank_opportunities(
             opportunities,
-            technical_score,
-            sentiment_score,
-            skew_score=50,
+            adjusted_technical_w,
+            adjusted_sentiment_w,
+            skew_score=skew_score_weekly,  # BUG-B2 FIX: use computed skew, not hardcoded 50
             strategy=strategy_tag,
             current_price=current_price,
             vix_regime=vix_regime_weekly,
@@ -631,8 +717,10 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
         result = {
             'ticker': ticker,
             'current_price': current_price,
-            'technical_score': technical_score,
-            'sentiment_score': sentiment_score,
+            'technical_score': adjusted_technical_w,   # BUG-B1: expose adjusted score
+            'sentiment_score': adjusted_sentiment_w,   # BUG-B1: expose adjusted score
+            'raw_technical_score': technical_score,
+            'raw_sentiment_score': sentiment_score,
             'opportunity_score': top_score,
             'indicators': {
                 'rsi': rsi_val,
