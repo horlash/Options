@@ -16,7 +16,7 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
     ticker = scanner._normalize_ticker(ticker)
     logger.info(f"\n{'='*50}")
     logger.info(f"Scanning {ticker} (WEEKLY + {weeks_out}) [Advanced Mode]...")
-    # 0. Date Setup — target_friday_str is fully computed in the try block below
+    # 0. Date Setup - target_friday_str is fully computed in the try block below
     # ISSUE-D1 FIX: Removed redundant Block 1 date calculation here.
     # The correct calculation (with 0DTE/WEEKLY differentiation) happens later in the try block.
 
@@ -31,16 +31,16 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
             try:
                 price_history = scanner.batch_manager.orats_api.get_history(ticker)
                 if price_history:
-                    logger.info(f"   ℹ️  History fetched from ORATS ({len(price_history.get('candles', []))} candles)")
+                    logger.info(f"   History fetched from ORATS ({len(price_history.get('candles', []))} candles)")
             except Exception as e:
-                logger.warning(f"   ⚠️ ORATS History Error: {e}")
+                logger.warning(f"   ORATS History Error: {e}")
 
         # (Yahoo History Fallback Removed - Strict Mode)
 
 
 
         if not price_history:
-            logger.error("❌ Failed to get price history")
+            logger.error("Failed to get price history")
             return None
 
         # Calculate Indicators
@@ -60,10 +60,10 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
             # (Yahoo Quote Fallback Removed - Strict Mode)
 
             if real_time_price:
-                logger.info(f"⚡ Live Price Fetched: ${real_time_price:.2f} (Updating History)")
+                logger.info(f"Live Price Fetched: ${real_time_price:.2f} (Updating History)")
                 df.iloc[-1, df.columns.get_loc('Close')] = real_time_price
         except Exception as e:
-            logger.warning(f"⚠️ Live Quote Error: {e}, using history close.")
+            logger.warning(f"Live Quote Error: {e}, using history close.")
 
         current_price = df['Close'].iloc[-1]
         current_date = df.index[-1].date()
@@ -82,13 +82,13 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                 try:
                     type(scanner)._spy_history = scanner.batch_manager.orats_api.get_history('SPY')
                 except Exception as e:
-                    logger.warning(f"⚠️ SPY History Failed: {e}")
+                    logger.warning(f"SPY History Failed: {e}")
                     type(scanner)._spy_history = None
 
         if type(scanner)._spy_history:
             df_spy = scanner.technical_analyzer.prepare_dataframe(type(scanner)._spy_history)
             rs_score = scanner.technical_analyzer.calculate_relative_strength(df, df_spy)
-            logger.info(f"✓ Relative Strength vs SPY: {rs_score:.2f}%")
+            logger.info(f"Relative Strength vs SPY: {rs_score:.2f}%")
 
         # Inject RS score into Minervini criterion 8 if available
         if indicators.get('minervini') and rs_score is not None:
@@ -98,13 +98,14 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
             criteria = indicators['minervini']['criteria']
             new_score = sum(1 for k, v in criteria.items() if v is True)
             indicators['minervini']['score'] = new_score
+            indicators['minervini']['max_score'] = 8  # BUG-NEW-1 FIX: Update max_score after RS injection
             indicators['minervini']['is_stage2'] = new_score >= 7
             if new_score >= 7:
                 indicators['minervini']['stage'] = 'STAGE_2'
-            logger.info(f"   S5 Minervini Criterion 8 (RS): {rs_score:.2f}% → {'PASS' if rs_score > 0 else 'FAIL'} (score now {new_score}/8)")
+            logger.info(f"   S5 Minervini Criterion 8 (RS): {rs_score:.2f}% -> {'PASS' if rs_score > 0 else 'FAIL'} (score now {new_score}/8)")
 
         technical_score = scanner.technical_analyzer.calculate_technical_score(indicators)
-        logger.info(f"✓ Technical Score: {technical_score:.1f} | ATR: {atr:.2f} | HV Rank: {hv_rank:.1f}")
+        logger.info(f"Technical Score: {technical_score:.1f} | ATR: {atr:.2f} | HV Rank: {hv_rank:.1f}")
 
         # 2. Sentiment Check (FINNHUB)
         logger.info(f"[2/6] Analyzing Sentiment (Finnhub)...")
@@ -124,12 +125,12 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                     s_score = premium_sentiment['companyNewsScore'] * 100
 
                 sentiment_score = s_score
-                logger.info(f"✓ Finnhub Premium Score: {sentiment_score:.1f}")
+                logger.info(f"Finnhub Premium Score: {sentiment_score:.1f}")
                 sentiment_analysis['summary'] = "Finnhub Institutional Sentiment Score"
 
             else:
                 # 2. Fallback to Free "Company News" + Local Analysis
-                logger.info("ℹ️ Using Free Tier: Analyzing Headlines...")
+                logger.info("Using Free Tier: Analyzing Headlines...")
                 news = scanner.finnhub_api.get_company_news(ticker.replace('$',''))
                 if news:
                     news_articles = []
@@ -144,12 +145,12 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
 
                     sentiment_analysis = scanner.sentiment_analyzer.analyze_articles(news_articles)
                     sentiment_score = scanner.sentiment_analyzer.calculate_sentiment_score(sentiment_analysis)
-                    logger.info(f"✓ Finnhub Headline Analysis Score: {sentiment_score:.1f}")
+                    logger.info(f"Finnhub Headline Analysis Score: {sentiment_score:.1f}")
                 else:
-                    logger.warning("⚠️ No Finnhub news found.")
+                    logger.warning("No Finnhub news found.")
 
         except Exception as e:
-            logger.warning(f"⚠️ Sentiment Error: {e}")
+            logger.warning(f"Sentiment Error: {e}")
             # Keep default 50
 
 
@@ -164,12 +165,12 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
         if weeks_out == 0 and strategy_tag == "0DTE":
             # TRUE 0DTE: Same-day expiry for indices (Mon-Fri only)
             if today.weekday() in [5, 6]:  # Saturday=5, Sunday=6
-                raise ValueError("⛔ 0DTE scans only available Monday-Friday during market hours")
+                raise ValueError("0DTE scans only available Monday-Friday during market hours")
 
             # Same-day expiry for true 0DTE
             target_friday = today
             target_friday_str = target_friday.strftime('%Y-%m-%d')
-            logger.info(f"🎯 Target Expiry (0DTE - Same Day): {target_friday_str}")
+            logger.info(f"Target Expiry (0DTE - Same Day): {target_friday_str}")
 
         elif weeks_out == 0:
             # WEEKLY "This Week": Next Friday (or Friday+7 if today IS Friday)
@@ -190,14 +191,14 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                 target_friday = today + timedelta(days=days_ahead)
 
             target_friday_str = target_friday.strftime('%Y-%m-%d')
-            logger.info(f"🎯 Target Expiry (This Week): {target_friday_str}")
+            logger.info(f"Target Expiry (This Week): {target_friday_str}")
 
         else:
             # WEEKLY "Next Week" / "2 Weeks Out": Calculate future Fridays
             days_ahead = (4 - today.weekday() + 7) % 7
             target_friday = today + timedelta(days=days_ahead + (weeks_out * 7))
             target_friday_str = target_friday.strftime('%Y-%m-%d')
-            logger.info(f"🎯 Target Expiry (+{weeks_out} week(s)): {target_friday_str}")
+            logger.info(f"Target Expiry (+{weeks_out} week(s)): {target_friday_str}")
 
         earnings_date = None
         has_earnings_risk = False
@@ -226,10 +227,10 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                             earnings_move = cores.get('impliedEarningsMove')
                     except Exception:
                         pass
-                logger.warning(f"   ⚠️ EARNINGS in {earnings_date} (EPS est: {nearest.get('epsEstimate', 'N/A')}, "
+                logger.warning(f"   EARNINGS in {earnings_date} (EPS est: {nearest.get('epsEstimate', 'N/A')}, "
                       f"implied move: {earnings_move or 'N/A'})")
         except Exception as e:
-            logger.warning(f"   ⚠️ Earnings check failed (non-fatal): {e}")
+            logger.warning(f"   Earnings check failed (non-fatal): {e}")
 
         # 4. Fetch Options & GEX
         logger.info(f"[3/6] Fetching Options Chain...")
@@ -247,7 +248,7 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
         # ORATS returns full chain. Schwab returns filtered chain.
         # We must filter opts to ONLY contain target_friday keys to mimic Schwab behavior for GEX/Analysis.
         if opts and (scanner.use_orats or pre_fetched_data):
-            # print(f"   ℹ️  Filtering ORATS chain to target: {target_friday_str}")
+            # print(f"   Filtering ORATS chain to target: {target_friday_str}")
             filtered_opts = {'symbol': ticker, 'callExpDateMap': {}, 'putExpDateMap': {}}
             found_expiry = False
 
@@ -273,7 +274,7 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                     from datetime import datetime as dt_parse
                     target_dt = dt_parse.strptime(target_friday_str, "%Y-%m-%d")
                     nearest = min(all_expiries, key=lambda e: abs((dt_parse.strptime(e, "%Y-%m-%d") - target_dt).days))
-                    logger.warning(f"   ⚠️ Target expiry {target_friday_str} not found. Falling back to nearest: {nearest}")
+                    logger.warning(f"   Target expiry {target_friday_str} not found. Falling back to nearest: {nearest}")
 
                     fallback_opts = {'symbol': ticker, 'callExpDateMap': {}, 'putExpDateMap': {}}
                     for map_name in ['callExpDateMap', 'putExpDateMap']:
@@ -287,21 +288,23 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                     # the fallback opts (keyed by 'nearest') would never match the original
                     # target_friday_str, resulting in zero opportunities every fallback.
                     target_friday_str = nearest
-                    logger.info(f"   ℹ️  collect_typed target updated to fallback expiry: {target_friday_str}")
+                    # NB-2 FIX: Update the date object to match the fallback expiry string
+                    target_friday = datetime.strptime(target_friday_str, "%Y-%m-%d").date()
+                    logger.info(f"   collect_typed target updated to fallback expiry: {target_friday_str}")
                 else:
-                    logger.warning(f"   ⚠️ Target expiry {target_friday_str} not found in ORATS chain (no expiries available)")
+                    logger.warning(f"   Target expiry {target_friday_str} not found in ORATS chain (no expiries available)")
                     opts = None
 
         # (Schwab Fallback Removed - Strict Mode)
 
         if not opts:
-            logger.error("❌ No options found")
+            logger.error("No options found")
             return None
 
         # Calculate GEX Walls
         gex_data = scanner.options_analyzer.calculate_gex_walls(opts)
         if gex_data:
-            logger.info(f"✓ Gamma Walls: Call ${gex_data['call_wall']} | Put ${gex_data['put_wall']}")
+            logger.info(f"Gamma Walls: Call ${gex_data['call_wall']} | Put ${gex_data['put_wall']}")
 
         # 5. Filter & Analyze Opportunities
         logger.info(f"[4/6] Filtering Opportunities...")
@@ -347,7 +350,7 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
 
             start_price = (bid + ask) / 2 if (bid > 0 and ask > 0) else last
             if start_price == 0:
-                # Only log skips for near-the-money options (±30%) — deep OTM bid=0 is expected
+                # Only log skips for near-the-money options (+-30%) - deep OTM bid=0 is expected
                 if current_price and current_price > 0:
                     proximity = abs(strike - current_price) / current_price
                     if proximity < 0.30:
@@ -570,7 +573,7 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                     days_to_earnings_weekly = cores_w.get('daysToNextErn')
                     implied_earnings_move_weekly = cores_w.get('impliedEarningsMove')
         except Exception as e:
-            logger.warning(f"   ⚠️ Weekly enrichment fetch failed: {e}")
+            logger.warning(f"   Weekly enrichment fetch failed: {e}")
 
         # --- BUG-B2 FIX: Compute skew_score from ORATS live summary instead of hardcoded 50 ---
         # Pattern mirrors scanner_leaps.py Option A/B skew logic.
@@ -581,9 +584,9 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                 if summary_w:
                     r_slp30 = summary_w.get('rSlp30', 0) or 0
                     skew_score_weekly = max(0, min(100, 50 + (r_slp30 * 500)))
-                    logger.info(f"   S0 ORATS Weekly Skew: rSlp30={r_slp30:.4f} → score={skew_score_weekly:.0f}")
+                    logger.info(f"   S0 ORATS Weekly Skew: rSlp30={r_slp30:.4f} -> score={skew_score_weekly:.0f}")
         except Exception as e:
-            logger.warning(f"   ⚠️ Weekly skew fetch failed (using default 50): {e}")
+            logger.warning(f"   Weekly skew fetch failed (using default 50): {e}")
 
         # --- BUG-B1 FIX: Apply S1-S7A trading system score adjustments before ranking ---
         # The LEAPS path applies these adjustments. The weekly path was passing raw scores,
@@ -595,7 +598,7 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
         # S1: VIX regime score penalty
         if regime_context_weekly and regime_context_weekly.score_penalty != 0:
             adjusted_technical_w = max(0, min(100, adjusted_technical_w + regime_context_weekly.score_penalty))
-            logger.info(f"   S1 VIX Penalty (Weekly): tech {regime_context_weekly.score_penalty:+d} → {adjusted_technical_w:.1f} (regime: {regime_context_weekly.regime.value})")
+            logger.info(f"   S1 VIX Penalty (Weekly): tech {regime_context_weekly.score_penalty:+d} -> {adjusted_technical_w:.1f} (regime: {regime_context_weekly.regime.value})")
 
         # S2: P/C ratio contrarian sentiment modifier
         pc_signal_w = None
@@ -606,9 +609,9 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                 pc_score_mod_w = pc_signal_w.score_modifier
                 if pc_signal_w.ratio is not None:
                     adjusted_sentiment_w = max(0, min(100, adjusted_sentiment_w + pc_score_mod_w))
-                    logger.info(f"   S2 P/C Ratio (Weekly): {pc_signal_w.ratio:.3f} → sentiment {pc_score_mod_w:+d} → {adjusted_sentiment_w:.1f}")
+                    logger.info(f"   S2 P/C Ratio (Weekly): {pc_signal_w.ratio:.3f} -> sentiment {pc_score_mod_w:+d} -> {adjusted_sentiment_w:.1f}")
         except Exception as e:
-            logger.warning(f"   ⚠️ P/C ratio (weekly) failed: {e}")
+            logger.warning(f"   P/C ratio (weekly) failed: {e}")
 
         # S4: Sector momentum modifier
         try:
@@ -618,9 +621,9 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                 sector_mod_w = sector_info_w.get('score_modifier', 0)
                 if sector_mod_w != 0:
                     adjusted_technical_w = max(0, min(100, adjusted_technical_w + sector_mod_w))
-                    logger.info(f"   S4 Sector (Weekly): {sector_info_w.get('sector', 'N/A')} → tech {sector_mod_w:+d} → {adjusted_technical_w:.1f}")
+                    logger.info(f"   S4 Sector (Weekly): {sector_info_w.get('sector', 'N/A')} -> tech {sector_mod_w:+d} -> {adjusted_technical_w:.1f}")
         except Exception as e:
-            logger.warning(f"   ⚠️ Sector momentum (weekly) failed: {e}")
+            logger.warning(f"   Sector momentum (weekly) failed: {e}")
 
         # S3: RSI-2 extreme signal boost
         if Config.ENABLE_RSI2 and indicators.get('rsi2'):
@@ -634,14 +637,14 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                 rsi2_mod_w = -(10 if rsi2_w.get('signal') == 'extreme_overbought' else 5)
             if rsi2_mod_w != 0:
                 adjusted_technical_w = max(0, min(100, adjusted_technical_w + rsi2_mod_w))
-                logger.info(f"   S3 RSI-2 (Weekly)={rsi2_w.get('value')} ({rsi2_w.get('signal')}): tech {rsi2_mod_w:+d} → {adjusted_technical_w:.1f}")
+                logger.info(f"   S3 RSI-2 (Weekly)={rsi2_w.get('value')} ({rsi2_w.get('signal')}): tech {rsi2_mod_w:+d} -> {adjusted_technical_w:.1f}")
 
         # S7A: VWAP institutional level boost
         if Config.ENABLE_VWAP_LEVELS and indicators.get('vwap'):
             vwap_mod_w = indicators['vwap'].get('score_boost', 0)
             if vwap_mod_w != 0:
                 adjusted_technical_w = max(0, min(100, adjusted_technical_w + vwap_mod_w))
-                logger.info(f"   S7A VWAP (Weekly) {indicators['vwap'].get('signal')}: tech {vwap_mod_w:+d} → {adjusted_technical_w:.1f}")
+                logger.info(f"   S7A VWAP (Weekly) {indicators['vwap'].get('signal')}: tech {vwap_mod_w:+d} -> {adjusted_technical_w:.1f}")
 
         # S5: Minervini stage check
         if Config.ENABLE_MINERVINI_FILTER and indicators.get('minervini'):
@@ -649,10 +652,10 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
             non_corp_w = ticker.replace('$', '').upper() in ['VIX', 'SPX', 'NDX', 'RUT', 'DJI', 'SPY', 'QQQ', 'IWM', 'DIA', 'TLT', 'GLD', 'SLV']
             if mstage_w.get('stage') in ('STAGE_3_OR_4',) and not non_corp_w:
                 adjusted_technical_w = max(0, adjusted_technical_w - 10)
-                logger.info(f"   S5 Minervini (Weekly): {mstage_w.get('stage')} → tech -10 → {adjusted_technical_w:.1f}")
+                logger.info(f"   S5 Minervini (Weekly): {mstage_w.get('stage')} -> tech -10 -> {adjusted_technical_w:.1f}")
             elif mstage_w.get('is_stage2'):
                 adjusted_technical_w = min(100, adjusted_technical_w + 8)
-                logger.info(f"   S5 Minervini (Weekly): {mstage_w.get('stage')} → tech +8 → {adjusted_technical_w:.1f}")
+                logger.info(f"   S5 Minervini (Weekly): {mstage_w.get('stage')} -> tech +8 -> {adjusted_technical_w:.1f}")
 
         # Use Centralized Ranker with Strategy Logic (WEEKLY/0DTE)
         # BUG-B1 FIX: Pass adjusted scores instead of raw technical_score/sentiment_score
@@ -709,7 +712,7 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
 
         opportunities = final_opp_objects[:100]
 
-        logger.info(f"✓ Found {len(opportunities)} Valid Opportunities")
+        logger.info(f"Found {len(opportunities)} Valid Opportunities")
 
         # Calculate Scanner Score (Top Opp Score)
         top_score = opportunities[0].opportunity_score if opportunities else 0
@@ -765,7 +768,8 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                 for o in opportunities
             ],
             'timestamp': datetime.now().isoformat(),
-            'data_source': 'ORATS+Finnhub' if scanner.use_orats else 'Schwab+Finnhub'
+            'data_source': 'ORATS+Finnhub' if scanner.use_orats else 'Schwab+Finnhub',
+            'sentiment_analysis': sentiment_analysis,  # NB-1 FIX: Include sentiment_analysis for AI context
         }
         return scanner._sanitize_for_json(result)
 
@@ -784,7 +788,7 @@ def scan_0dte(scanner, ticker):
     normalized = ticker.upper().strip()  # Simple normalization
 
     if normalized not in allowed_indices:
-        logger.error(f"⛔ 0DTE Scan BLOCKED for {normalized} (Indices Only)")
+        logger.error(f"0DTE Scan BLOCKED for {normalized} (Indices Only)")
         raise ValueError(f"0DTE for Ticker {normalized} Not Supported")
 
     return scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="0DTE")
