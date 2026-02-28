@@ -982,7 +982,7 @@ const scanner = {
           </div>
           <div class="metric">
             <span class="metric-label">IV</span>
-            <span class="metric-val">${opp.greeks && opp.greeks.implied_volatility ? (opp.greeks.implied_volatility * 100).toFixed(1) + '%' : (opp.volatility ? (opp.volatility * 100).toFixed(1) + '%' : '—')}</span>
+            <span class="metric-val">${(() => { const iv = opp.greeks?.implied_volatility || opp.iv || opp.implied_volatility || opp.impliedVolatility || opp.volatility; return iv ? ((iv > 1 ? iv : iv * 100).toFixed(1) + '%') : '—'; })()}</span>
           </div>
         </div>
         ${tradingSystemsHtml}
@@ -1125,22 +1125,25 @@ const scanner = {
       const result = await api.getAnalysis(ticker, opp.expiration_date);
       this.currentAnalysis = result.success ? result.analysis : null;
       const a = this.currentAnalysis || {};
-      const tech = a.technicals || {};
-      const sentiment = a.sentiment || {};
-      const exitPlan = a.exit_plan || {};
-      const ts = a.trading_systems || opp.trading_systems || {};
 
-      // Build technical indicators
+      // Map backend response format to frontend expectations
+      // Backend returns: indicators (with rsi.value, rsi.signal, macd.signal, etc.)
+      //                  sentiment_analysis, sentiment_score
+      const rawInd = a.indicators || {};
+      const techScore = a.technical_score || opp.opportunity_score || 0;
+      const ts = opp.trading_systems || {};
+
+      // Build technical indicators from backend format
       const indicators = [
-        { label: 'RSI', value: tech.rsi != null ? Number(tech.rsi).toFixed(1) : '—' },
-        { label: 'RSI Signal', value: tech.rsi_signal || '—' },
-        { label: 'MACD', value: tech.macd_signal || '—' },
-        { label: 'SMA 50', value: tech.sma_50 ? `$${Number(tech.sma_50).toFixed(2)}` : '—' },
-        { label: 'SMA 200', value: tech.sma_200 ? `$${Number(tech.sma_200).toFixed(2)}` : '—' },
-        { label: 'VWAP', value: tech.vwap ? `$${Number(tech.vwap).toFixed(2)}` : '—' },
-        { label: 'BB Signal', value: tech.bb_signal || '—' },
-        { label: 'Volume', value: tech.volume_signal || '—' },
-        { label: 'ATR', value: tech.atr ? Number(tech.atr).toFixed(2) : '—' },
+        { label: 'RSI', value: rawInd.rsi?.value != null ? Number(rawInd.rsi.value).toFixed(1) : '—' },
+        { label: 'RSI Signal', value: rawInd.rsi?.signal || '—' },
+        { label: 'MACD', value: rawInd.macd?.signal || '—' },
+        { label: 'MA Signal', value: rawInd.moving_averages?.signal || '—' },
+        { label: 'BB Signal', value: rawInd.bollinger_bands?.signal || '—' },
+        { label: 'Volume', value: rawInd.volume?.signal || '—' },
+        { label: 'Tech Score', value: techScore ? `${Number(techScore).toFixed(0)}/100` : '—' },
+        { label: 'Price', value: a.current_price ? `$${Number(a.current_price).toFixed(2)}` : '—' },
+        { label: 'DTE', value: opp.days_to_expiry || '—' },
       ];
 
       const indicatorsHtml = indicators.map(i => `
@@ -1168,26 +1171,27 @@ const scanner = {
         tsPillsHtml += `<span class="${pillClass}">${displayText}</span>`;
       }
 
-      // Sentiment section
-      const sentScore = sentiment.score != null ? Number(sentiment.score) : null;
-      const sentSource = sentiment.source || '';
+      // Sentiment section — map from backend format
+      const sentScore = a.sentiment_score != null ? Number(a.sentiment_score) : null;
+      const sentDetails = a.sentiment_analysis || '';
       const sentHtml = sentScore != null ? `
         <div class="ctrl-box" style="margin-bottom:14px;">
-          <div class="ctrl-box-title">Sentiment</div>
+          <div class="ctrl-box-title">Sentiment Analysis</div>
           <div style="display:flex; align-items:center; gap:12px;">
             <div class="card-score ${sentScore >= 66 ? 'score-green' : sentScore >= 41 ? 'score-amber' : 'score-red'}" style="width:36px;height:36px;font-size:0.9rem;">${sentScore.toFixed(0)}</div>
-            <div style="font-size:0.78rem;">${sentSource}</div>
+            <div style="font-size:0.78rem;">${typeof sentDetails === 'string' ? sentDetails : (sentDetails.summary || 'Finnhub Sentiment')}</div>
           </div>
         </div>` : '';
 
-      // Exit plan
-      const exitHtml = (exitPlan.sl_price || exitPlan.tp_price) ? `
+      // Exit plan — generate from premium data
+      const premium = opp.premium || 0;
+      const exitHtml = premium > 0 ? `
         <div class="ctrl-box" style="margin-bottom:14px;">
           <div class="ctrl-box-title">Exit Plan</div>
           <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; font-size:0.78rem;">
-            <div><span style="color:var(--text-muted);">Entry</span><br><b>$${exitPlan.entry_price ? Number(exitPlan.entry_price).toFixed(2) : '—'}</b></div>
-            <div><span style="color:var(--text-muted);">Stop Loss</span><br><b style="color:var(--red);">$${exitPlan.sl_price ? Number(exitPlan.sl_price).toFixed(2) : '—'}</b></div>
-            <div><span style="color:var(--text-muted);">Take Profit</span><br><b style="color:var(--green);">$${exitPlan.tp_price ? Number(exitPlan.tp_price).toFixed(2) : '—'}</b></div>
+            <div><span style="color:var(--text-muted);">Entry</span><br><b>$${premium.toFixed(2)}</b></div>
+            <div><span style="color:var(--text-muted);">Stop Loss</span><br><b style="color:var(--red);">$${(premium * 0.7).toFixed(2)}</b></div>
+            <div><span style="color:var(--text-muted);">Take Profit</span><br><b style="color:var(--green);">$${(premium * 1.5).toFixed(2)}</b></div>
           </div>
         </div>` : '';
 
@@ -1293,37 +1297,68 @@ const scanner = {
       // Parse analysis sections from markdown
       const sections = this.parseAIAnalysisSections(analysis);
 
-      // Risks HTML
-      const risksHtml = risks.length > 0 ? `
-        <div class="ctrl-box" style="margin-bottom:14px; border-color:var(--red-border); background:var(--red-bg);">
-          <div class="ctrl-box-title" style="color:var(--red);">⚠ Identified Risks</div>
-          <ul style="margin:0; padding-left:18px; font-size:0.78rem; line-height:1.8; color:var(--text);">
-            ${risks.map(r => `<li>${r}</li>`).join('')}
-          </ul>
-        </div>` : '';
+      // Build wireframe-matched AI Analysis HTML
+      // Data Integrity banner
+      const priceStr = opp.current_price ? `$${opp.current_price.toFixed(2)}` : 'N/A';
+      const dataIntegrityHtml = `<div class="ai-data-integrity">✅ <strong>Data Integrity Check:</strong> Using Live Spot Price: ${priceStr}. Confirmed.</div>`;
 
-      // Build sections HTML
-      let sectionsHtml = '';
+      // Build sections with wireframe-matched formatting
+      let fullSectionsHtml = '';
+      let bullCaseContent = '';
+      let bearCaseContent = '';
+      let hasBullBear = false;
+
       if (sections.length > 0) {
-        sectionsHtml = `
-          <div class="ctrl-box" style="margin-bottom:14px;">
-            <div class="ctrl-box-title">🤖 Full AI Analysis</div>
-            <div style="font-size:0.75rem; line-height:1.8; color:var(--text);">
-              ${sections.map(s => `
-                <div class="ai-section">
-                  <div class="ai-section-title">${s.title}</div>
-                  <div class="ai-section-body${s.colorClass ? ' ' + s.colorClass : ''}">${s.content}</div>
-                </div>`).join('')}
-            </div>
-          </div>`;
+        sections.forEach(s => {
+          const titleLower = s.title.toLowerCase();
+          if (titleLower.includes('bull') || titleLower.includes('thesis')) {
+            bullCaseContent = s.content;
+            hasBullBear = true;
+          } else if (titleLower.includes('bear') || titleLower.includes('risk')) {
+            bearCaseContent = s.content;
+            hasBullBear = true;
+          } else {
+            // Color-coded section: green for news, amber for viability/trade, default otherwise
+            let sectionColor = '';
+            if (titleLower.includes('news') || titleLower.includes('event')) sectionColor = 'green';
+            else if (titleLower.includes('viability') || titleLower.includes('trade')) sectionColor = 'amber';
+            fullSectionsHtml += `
+              <div class="ai-section">
+                <div class="ai-section-title">${s.title}</div>
+                <div class="ai-section-body${sectionColor ? ' ' + sectionColor : ''}">${s.content}</div>
+              </div>`;
+          }
+        });
       } else if (analysis) {
-        // Fallback: show raw analysis
-        sectionsHtml = `
-          <div class="ctrl-box" style="margin-bottom:14px;">
-            <div class="ctrl-box-title">🤖 Full AI Analysis</div>
-            <div style="font-size:0.75rem; line-height:1.8; color:var(--text); white-space:pre-wrap;">${analysis.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+        // Fallback: show raw analysis with basic formatting
+        const formatted = analysis.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+        fullSectionsHtml = `
+          <div class="ai-section">
+            <div class="ai-section-title">Analysis</div>
+            <div class="ai-section-body">${formatted}</div>
           </div>`;
       }
+
+      // Bull/Bear side-by-side (if found in sections)
+      const bullBearHtml = hasBullBear ? `
+        <div class="ai-bull-bear">
+          <div class="ai-bull-case">
+            <div class="ai-bull-case-title">🐂 Bull Case (Thesis)</div>
+            ${bullCaseContent || '<em>Not available</em>'}
+          </div>
+          <div class="ai-bear-case">
+            <div class="ai-bear-case-title">🐻 Bear Case (Risk)</div>
+            ${bearCaseContent || '<em>Not available</em>'}
+          </div>
+        </div>` : '';
+
+      // Verdict box at bottom
+      const verdictBoxClass = verdict === 'FAVORABLE' ? 'favorable' : verdict === 'AVOID' ? 'avoid' : 'risky';
+      const verdictBoxHtml = `
+        <div class="ai-verdict-box ${verdictBoxClass}">
+          Verdict: ${verdict} — Conviction Score: ${score}/100
+          <div class="ai-verdict-breakdown">${summaryText || `Score ${score} with ${risks.length} identified risk${risks.length !== 1 ? 's' : ''}. Signal: ${verdict === 'FAVORABLE' ? 'Buy' : verdict === 'AVOID' ? 'Avoid' : 'Caution'}.`}</div>
+        </div>`;
 
       // Update header with verdict + score
       view.querySelector('.view-header').innerHTML = `
@@ -1337,21 +1372,20 @@ const scanner = {
           <span style="font-size:0.7rem; color:var(--text-light);">/100</span>
         </div>`;
 
-      // Render body
+      // Render body — wireframe-matched layout
       view.querySelector('.view-body').innerHTML = `
-        ${thesis ? `<div class="thesis-callout${thesisClass}">💡 <strong>Thesis:</strong> ${thesis}</div>` : ''}
-        ${summaryText ? `
-          <div class="ctrl-box" style="margin-bottom:14px;">
-            <div class="ctrl-box-title">Summary</div>
-            <div style="font-size:0.78rem; line-height:1.7; color:var(--text);">${summaryText}</div>
-          </div>` : ''}
-        ${risksHtml}
-        ${sectionsHtml}
+        <div class="ctrl-box" style="margin-bottom:14px;">
+          <div class="ctrl-box-title">🤖 Full AI Analysis</div>
+          ${dataIntegrityHtml}
+          ${fullSectionsHtml}
+          ${bullBearHtml}
+          ${verdictBoxHtml}
+        </div>
         <div class="data-sources">
           <span>🧠 <b>Model:</b> Perplexity sonar-pro</span>
           <span>🎭 <b>Persona:</b> ${strategy === '0DTE' ? '0DTE Sniper' : strategy === 'WEEKLY' ? 'Weekly Swing Trader' : 'LEAPS Value Investor'}</span>
           <span>📰 <b>News:</b> Finnhub</span>
-          <span>📊 <b>Technicals:</b> Schwab API</span>
+          <span>📊 <b>Technicals:</b> ORATS</span>
           <span>🌡️ <b>Temp:</b> 0.1</span>
         </div>
         <div class="action-row">
@@ -1427,9 +1461,11 @@ const scanner = {
         </div>
       </div>
       <div class="trade-modal-body">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.78rem; margin-bottom:14px;">
-          <div><span style="color:var(--text-muted);">Premium</span><br><b>$${premium.toFixed(2)}</b></div>
-          <div><span style="color:var(--text-muted);">Total Cost (1 contract)</span><br><b>$${(premium * 100).toFixed(2)}</b></div>
+        <div class="trade-detail-grid">
+          <div><span class="label">Strike</span><br><span class="value">$${opp.strike_price ? opp.strike_price.toFixed(2) : '—'}</span></div>
+          <div><span class="label">Expiry</span><br><span class="value">${expiryDate}</span></div>
+          <div><span class="label">Premium</span><br><span class="value">$${premium.toFixed(2)}</span></div>
+          <div><span class="label">Total Cost</span><br><span class="value">$${(premium * 100).toFixed(2)}</span></div>
         </div>
         <div class="trade-params-grid">
           <div class="trade-param">

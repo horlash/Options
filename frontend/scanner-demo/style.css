@@ -1799,3 +1799,516 @@ body.dark .modal-content {
     transform: rotate(360deg);
   }
 }
+
+/* ============================================================
+   TRADING SYSTEMS (Collapsible on Result Cards)
+   ============================================================ */
+.trading-systems {
+  margin: 0 14px 8px;
+  border: 1px solid var(--indigo-border, #c7d2fe);
+  border-radius: var(--radius, 8px);
+  overflow: hidden;
+  background: var(--card-bg, #f8faff);
+}
+
+body.dark .trading-systems {
+  border-color: rgba(99, 102, 241, 0.25);
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.ts-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--indigo, #6366f1);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.ts-header:hover {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.ts-chevron {
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+}
+
+.ts-label {
+  flex: 1;
+}
+
+.ts-summary-inline {
+  font-size: 0.68rem;
+  color: var(--text-muted, #94a3b8);
+  font-weight: 400;
+}
+
+.ts-body {
+  padding: 6px 10px 10px;
+  border-top: 1px solid var(--border, #e2e8f0);
+}
+
+.trading-systems.collapsed .ts-body {
+  display: none;
+}
+
+.ts-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ts-pill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+
+.ts-pill-green {
+  background: var(--green-bg, #f0fdf4);
+  color: var(--green, #22c55e);
+  border-color: var(--green-border, #bbf7d0);
+}
+
+.ts-pill-red {
+  background: var(--red-bg, #fef2f2);
+  color: var(--red, #ef4444);
+  border-color: var(--red-border, #fecaca);
+}
+
+.ts-pill-amber {
+  background: var(--amber-bg, #fffbeb);
+  color: var(--amber, #f59e0b);
+  border-color: var(--amber-border, #fde68a);
+}
+
+.ts-pill-neutral {
+  background: var(--surface, #f1f5f9);
+  color: var(--text-muted, #94a3b8);
+  border-color: var(--border, #e2e8f0);
+}
+
+body.dark .ts-pill-green {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+body.dark .ts-pill-red {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+body.dark .ts-pill-amber {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+body.dark .ts-pill-neutral {
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.ts-score-line {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.ts-score-line.green {
+  color: var(--green);
+}
+
+.ts-score-line.amber {
+  color: var(--amber);
+}
+
+.ts-score-line.red {
+  color: var(--red);
+}
+
+/* ============================================================
+   INDICATOR GRID (Analyze View)
+   ============================================================ */
+.indicator-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+}
+
+.indicator-item {
+  background: var(--bg);
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.indicator-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-light);
+  margin-bottom: 2px;
+}
+
+.indicator-value {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* ============================================================
+   AI ANALYSIS SECTIONS (Wireframe-matched)
+   ============================================================ */
+.ai-section {
+  margin-bottom: 14px;
+}
+
+.ai-section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.ai-section-body {
+  font-size: 0.78rem;
+  line-height: 1.7;
+  padding: 10px 14px;
+  border-left: 3px solid var(--border);
+  border-radius: 0 var(--radius-sm, 6px) var(--radius-sm, 6px) 0;
+  background: var(--surface, #f8fafc);
+}
+
+body.dark .ai-section-body {
+  background: rgba(30, 41, 59, 0.5);
+}
+
+.ai-section-body.green {
+  border-left-color: var(--green);
+  background: var(--green-bg, #f0fdf4);
+}
+
+body.dark .ai-section-body.green {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.ai-section-body.red {
+  border-left-color: var(--red);
+  background: var(--red-bg, #fef2f2);
+}
+
+body.dark .ai-section-body.red {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.ai-section-body.amber {
+  border-left-color: var(--amber);
+  background: var(--amber-bg, #fffbeb);
+}
+
+body.dark .ai-section-body.amber {
+  background: rgba(245, 158, 11, 0.08);
+}
+
+/* Bull/Bear Side-by-Side */
+.ai-bull-bear {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.ai-bull-case,
+.ai-bear-case {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+.ai-bull-case {
+  border-left: 3px solid var(--green);
+  background: var(--green-bg, #f0fdf4);
+}
+
+body.dark .ai-bull-case {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.ai-bull-case-title {
+  font-weight: 700;
+  color: var(--green);
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+}
+
+.ai-bear-case {
+  border-left: 3px solid var(--red);
+  background: var(--red-bg, #fef2f2);
+}
+
+body.dark .ai-bear-case {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.ai-bear-case-title {
+  font-weight: 700;
+  color: var(--red);
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+}
+
+/* Data Integrity Banner */
+.ai-data-integrity {
+  padding: 8px 12px;
+  border-left: 3px solid var(--green);
+  background: var(--green-bg, #f0fdf4);
+  border-radius: 0 var(--radius-sm, 6px) var(--radius-sm, 6px) 0;
+  font-size: 0.75rem;
+  margin-bottom: 14px;
+  color: var(--text);
+}
+
+body.dark .ai-data-integrity {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+/* Verdict Box */
+.ai-verdict-box {
+  padding: 12px 16px;
+  border-radius: var(--radius, 8px);
+  margin: 14px 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.ai-verdict-box.favorable {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid var(--green-border, #bbf7d0);
+  color: var(--green);
+}
+
+.ai-verdict-box.risky {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid var(--amber-border, #fde68a);
+  color: var(--amber);
+}
+
+.ai-verdict-box.avoid {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid var(--red-border, #fecaca);
+  color: var(--red);
+}
+
+.ai-verdict-breakdown {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Data Sources */
+.data-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 0;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+}
+
+/* ============================================================
+   TRADE MODAL
+   ============================================================ */
+.trade-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.trade-modal-body {
+  padding: 16px 20px;
+}
+
+.trade-params-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.trade-param label {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.trade-param input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.trade-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 8px;
+  font-size: 0.78rem;
+  margin-bottom: 14px;
+  padding: 10px;
+  background: var(--surface, #f8fafc);
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border);
+}
+
+body.dark .trade-detail-grid {
+  background: rgba(30, 41, 59, 0.5);
+}
+
+.trade-detail-grid .label {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.trade-detail-grid .value {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+/* Thesis callout */
+.thesis-callout {
+  padding: 10px 14px;
+  border-left: 3px solid var(--green);
+  background: var(--green-bg, #f0fdf4);
+  border-radius: 0 var(--radius-sm, 6px) var(--radius-sm, 6px) 0;
+  font-size: 0.78rem;
+  line-height: 1.7;
+  margin-bottom: 14px;
+}
+
+body.dark .thesis-callout {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.thesis-callout.avoid {
+  border-left-color: var(--red);
+  background: var(--red-bg, #fef2f2);
+}
+
+body.dark .thesis-callout.avoid {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.thesis-callout.risky {
+  border-left-color: var(--amber);
+  background: var(--amber-bg, #fffbeb);
+}
+
+body.dark .thesis-callout.risky {
+  background: rgba(245, 158, 11, 0.08);
+}
+
+/* Verdict badge */
+.verdict-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.verdict-favorable {
+  background: var(--green-bg);
+  color: var(--green);
+  border: 1px solid var(--green-border);
+}
+
+.verdict-risky {
+  background: var(--amber-bg);
+  color: var(--amber);
+  border: 1px solid var(--amber-border);
+}
+
+.verdict-avoid {
+  background: var(--red-bg);
+  color: var(--red);
+  border: 1px solid var(--red-border);
+}
+
+/* Action row */
+.action-row {
+  display: flex;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+}
+
+.btn-secondary {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary {
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--green);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary.put {
+  background: var(--red);
+}
+
+.btn-confirm-call {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--green);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-confirm-put {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--red);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}

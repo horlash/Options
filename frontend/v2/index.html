@@ -1,15 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Options Scanner</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/v2/style.css">
+  <link rel="stylesheet" href="./style.css">
 </head>
-
 <body>
 
   <!-- APP SHELL -->
@@ -23,8 +21,6 @@
         <span class="hdr-stat">Opportunities: <b id="opportunities-count">0</b></span>
         <span class="hdr-stat">Open Trades: <b id="open-trades-count">0</b></span>
         <span class="hdr-stat">Heat: <b id="heat-value">—</b></span>
-        <span class="hdr-stat" id="username-display" style="font-weight:600; display:none;">👤</span>
-        <button class="hdr-theme-toggle" id="theme-toggle" title="Toggle dark/light mode">☀️</button>
         <span class="hdr-stat hdr-logout" id="logout-btn">Logout</span>
       </div>
     </header>
@@ -43,7 +39,7 @@
         <!-- Left Sidebar / Control Panel -->
         <aside class="control-panel">
 
-          <!-- 1. Scan Control -->
+          <!-- Scan Control -->
           <div class="ctrl-box">
             <div class="ctrl-box-title">Scan Control</div>
             <div class="ctrl-btn-row">
@@ -57,18 +53,25 @@
             </div>
           </div>
 
-          <!-- 2. Smart Search -->
+          <!-- Recent History -->
+          <div class="ctrl-box">
+            <div class="ctrl-box-title">Recent History</div>
+            <div id="recent-history-list">
+              <div class="ctrl-placeholder">No recent scans</div>
+            </div>
+          </div>
+
+          <!-- Smart Search -->
           <div class="ctrl-box">
             <div class="ctrl-box-title">Smart Search</div>
             <div class="ctrl-input-stacked" style="position:relative;">
-              <input type="text" id="quick-scan-input" class="ctrl-input full-width"
-                placeholder="Enter ticker symbol..." autocomplete="off" spellcheck="false">
+              <input type="text" id="quick-scan-input" class="ctrl-input full-width" placeholder="Enter ticker symbol..." autocomplete="off" spellcheck="false">
               <div id="autocomplete-list" class="autocomplete-dropdown" style="display:none;"></div>
               <button class="ctrl-btn scan-btn full-width" id="btn-scan-ticker">🔍 Scan Ticker</button>
             </div>
           </div>
 
-          <!-- 3. Sector Scan -->
+          <!-- Sector Scan -->
           <div class="ctrl-box">
             <div class="ctrl-box-title">Sector Scan</div>
             <select class="ctrl-select" id="sector-select">
@@ -106,14 +109,6 @@
             </div>
           </div>
 
-          <!-- 4. Recent History -->
-          <div class="ctrl-box">
-            <div class="ctrl-box-title">Recent History</div>
-            <div id="recent-history-list">
-              <div class="ctrl-placeholder">No recent scans</div>
-            </div>
-          </div>
-
         </aside>
 
         <!-- Main Area -->
@@ -128,8 +123,7 @@
           <!-- Watchlist Row -->
           <div class="watchlist-row">
             <div class="watchlist-add" style="position:relative;">
-              <input type="text" id="watchlist-input" class="ctrl-input" placeholder="Add to Watchlist..."
-                autocomplete="off" spellcheck="false">
+              <input type="text" id="watchlist-input" class="ctrl-input" placeholder="Add to Watchlist..." autocomplete="off" spellcheck="false">
               <div id="watchlist-autocomplete" class="autocomplete-dropdown" style="display:none;"></div>
             </div>
             <div class="watchlist-label">My Watchlist</div>
@@ -188,26 +182,9 @@
 
   </div>
 
-  <!-- Analyze Detail View (hidden, populated by JS) -->
-  <div id="analyze-view" class="overlay-view" style="display:none;"></div>
-
-  <!-- AI Analysis Result View (hidden, populated by JS) -->
-  <div id="ai-result-view" class="overlay-view" style="display:none;"></div>
-
-  <!-- Trade Modal Overlay -->
-  <div id="trade-modal-overlay" class="modal-overlay" style="display:none;">
-    <div id="trade-modal" class="modal-content"></div>
-  </div>
-
-  <!-- Trade Result Overlay (success/failure) -->
-  <div id="trade-result-overlay" class="modal-overlay" style="display:none;">
-    <div id="trade-result-modal" class="modal-content"></div>
-  </div>
-
   <!-- Toast Container -->
   <div id="toast-container" class="toast-container"></div>
 
-  <script src="/v2/app.js"></script>
+  <script src="./app.js"></script>
 </body>
-
 </html>

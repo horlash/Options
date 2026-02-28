@@ -1,0 +1,2102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scanner Page Wireframe — Options Scanner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       WIREFRAME TOKENS & RESET
+       ============================================================ */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #f5f5f5;
+      --surface: #ffffff;
+      --border: #d1d5db;
+      --border-dark: #9ca3af;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+      --green: #22c55e;
+      --green-bg: #f0fdf4;
+      --green-border: #86efac;
+      --bright-green: #16a34a;
+      --red: #ef4444;
+      --red-bg: #fef2f2;
+      --red-border: #fca5a5;
+      --amber: #f59e0b;
+      --amber-bg: #fffbeb;
+      --amber-border: #fcd34d;
+      --blue: #3b82f6;
+      --blue-bg: #eff6ff;
+      --indigo: #6366f1;
+      --indigo-bg: #eef2ff;
+      --gray-pill: #9ca3af;
+      --gray-pill-bg: #f3f4f6;
+      --dark: #1e293b;
+      --dark-surface: #334155;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
+      --radius: 6px;
+      --radius-sm: 4px;
+      --radius-lg: 8px;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    html {
+      font-size: 14px;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font);
+      background: #e2e8f0;
+      color: var(--text);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    /* ============================================================
+       DARK MODE OVERRIDES
+       ============================================================ */
+    body.dark {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --border: #334155;
+      --border-dark: #475569;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --text-light: #64748b;
+      --green-bg: rgba(34, 197, 94, 0.1);
+      --green-border: rgba(34, 197, 94, 0.3);
+      --red-bg: rgba(239, 68, 68, 0.1);
+      --red-border: rgba(239, 68, 68, 0.3);
+      --amber-bg: rgba(245, 158, 11, 0.1);
+      --amber-border: rgba(245, 158, 11, 0.3);
+      --blue-bg: rgba(59, 130, 246, 0.1);
+      --indigo-bg: rgba(99, 102, 241, 0.1);
+      --gray-pill-bg: #334155;
+      --gray-pill: #94a3b8;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+      background: #0b1120;
+    }
+
+    body.dark .app-header {
+      background: #0f0e2a;
+    }
+
+    body.dark .app-tab {
+      color: var(--text-muted);
+    }
+
+    body.dark .app-tab.active {
+      color: var(--text);
+      border-bottom-color: var(--indigo);
+    }
+
+    body.dark .wf-container {
+      box-shadow: 0 0 24px rgba(0, 0, 0, 0.5);
+    }
+
+    body.dark .ctrl-box {
+      background: var(--surface);
+      border-color: var(--border);
+    }
+
+    body.dark .metric {
+      background: #1a2332;
+    }
+
+    body.dark .card {
+      background: var(--surface);
+      border-color: var(--border);
+    }
+
+    body.dark .card:hover {
+      border-color: var(--indigo);
+    }
+
+    body.dark input[type="text"],
+    body.dark select {
+      background: #0f172a;
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    body.dark .app-tabs {
+      background: var(--surface);
+      border-bottom-color: var(--border);
+    }
+
+    /* ============================================================
+       WIREFRAME TOGGLER
+       ============================================================ */
+    .wf-toggle-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 0.3px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 2px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .wf-toggle-bar span {
+      opacity: 0.8;
+      font-weight: 400;
+      font-size: 0.82rem;
+    }
+
+    .wf-toggle-btn {
+      padding: 6px 18px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      border-radius: 20px;
+      background: transparent;
+      color: #fff;
+      cursor: pointer;
+      font-family: var(--font);
+      transition: all 0.2s;
+    }
+
+    .wf-toggle-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .wf-toggle-btn.active {
+      background: #fff;
+      color: #6366f1;
+      border-color: #fff;
+    }
+
+    .wf-label {
+      font-size: 0.78rem;
+      opacity: 0.7;
+      font-weight: 400;
+    }
+
+    /* Wireframe container */
+    .wf-container {
+      max-width: 1280px;
+      margin: 20px auto;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+      background: var(--bg);
+    }
+
+    /* ============================================================
+       APP SHELL (replicating scanner-demo design exactly)
+       ============================================================ */
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      background: var(--dark);
+      color: #e2e8f0;
+      font-size: 0.8rem;
+    }
+
+    .app-header-left {
+      font-weight: 700;
+      font-size: 1rem;
+      color: #f1f5f9;
+      letter-spacing: 0.2px;
+    }
+
+    .app-header-right {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .hdr-stat {
+      color: #94a3b8;
+      font-size: 0.8rem;
+    }
+
+    .hdr-stat b {
+      color: #e2e8f0;
+    }
+
+    .hdr-logout {
+      color: #ef4444;
+      cursor: pointer;
+    }
+
+    /* Tabs */
+    .app-tabs {
+      display: flex;
+      background: var(--dark-surface);
+      border-bottom: 1px solid #475569;
+    }
+
+    .app-tab {
+      padding: 8px 20px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #94a3b8;
+      cursor: default;
+      border-bottom: 2px solid transparent;
+      user-select: none;
+    }
+
+    .app-tab.active {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
+      border-bottom: 2px solid var(--blue);
+    }
+
+    /* Scanner body */
+    .scanner-body {
+      display: flex;
+      min-height: calc(100vh - 180px);
+    }
+
+    /* ============================================================
+       SIDEBAR
+       ============================================================ */
+    .control-panel {
+      width: 230px;
+      min-width: 230px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .ctrl-box {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px;
+    }
+
+    .ctrl-box-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .ctrl-btn-row {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .ctrl-btn {
+      padding: 5px 8px;
+      font-size: 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-family: var(--font);
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: default;
+    }
+
+    .ctrl-btn.active {
+      background: var(--dark);
+      color: #fff;
+      border-color: var(--dark);
+    }
+
+    .ctrl-btn.mode-0dte-active {
+      background: var(--red);
+      border-color: var(--red);
+      color: #fff;
+    }
+
+    .ctrl-btn.scan-btn {
+      background: var(--blue);
+      color: #fff;
+      border-color: var(--blue);
+      font-weight: 600;
+      width: 100%;
+      text-align: center;
+      padding: 7px 8px;
+    }
+
+    .ctrl-placeholder {
+      font-size: 0.72rem;
+      color: var(--text-light);
+      font-style: italic;
+    }
+
+    .ctrl-input {
+      width: 100%;
+      padding: 6px 10px;
+      font-size: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      font-family: var(--font);
+      color: var(--text);
+      outline: none;
+    }
+
+    .ctrl-input-stacked {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .ctrl-select {
+      width: 100%;
+      padding: 6px 10px;
+      font-size: 0.72rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      font-family: var(--font);
+      color: var(--text-muted);
+      outline: none;
+    }
+
+    .ctrl-select.sm {
+      width: auto;
+      font-size: 0.72rem;
+    }
+
+    /* Autocomplete dropdown — overlays content below */
+    .autocomplete-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-md);
+      z-index: 200;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    .autocomplete-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      cursor: pointer;
+      transition: background 0.1s;
+      font-size: 0.72rem;
+    }
+
+    .autocomplete-item:hover {
+      background: var(--bg);
+    }
+
+    .item-symbol {
+      font-weight: 700;
+      color: var(--text);
+      min-width: 50px;
+    }
+
+    .item-name {
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Sidebar watchlist section */
+    .sidebar-watchlist-chips {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    /* History items */
+    .history-item {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      padding: 3px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .history-item:last-child {
+      border-bottom: none;
+    }
+
+    /* ============================================================
+       MAIN AREA
+       ============================================================ */
+    .main-area {
+      flex: 1;
+      padding: 14px;
+      min-width: 0;
+    }
+
+    /* Watchlist */
+    .watchlist-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .watchlist-add {
+      width: 160px;
+    }
+
+    .watchlist-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+
+    .watchlist-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: var(--dark);
+      color: #fff;
+      border-radius: 20px;
+      letter-spacing: 0.3px;
+    }
+
+    .chip-remove {
+      opacity: 0.6;
+      font-size: 0.65rem;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    /* Opportunities header */
+    .opportunities-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .opp-title {
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .opp-mode-label {
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-left: 6px;
+    }
+
+    .opp-mode-label.urgent {
+      color: #ef4444;
+      font-weight: 600;
+    }
+
+    .opp-filters {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .filter-pill {
+      padding: 3px 10px;
+      font-size: 0.7rem;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text-muted);
+      cursor: default;
+    }
+
+    .filter-pill.active {
+      background: var(--dark);
+      color: #fff;
+      border-color: var(--dark);
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-lg);
+      text-align: center;
+    }
+
+    .empty-icon {
+      font-size: 2.5rem;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+
+    .empty-text {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      max-width: 340px;
+    }
+
+    /* ============================================================
+       OPPORTUNITY CARDS
+       ============================================================ */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+      gap: 14px;
+    }
+
+    .opp-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      transition: box-shadow 0.15s;
+    }
+
+    .opp-card:hover {
+      box-shadow: var(--shadow-md);
+    }
+
+    .opp-card.card-call {
+      border-left: 3px solid var(--green);
+    }
+
+    .opp-card.card-put {
+      border-left: 3px solid var(--red);
+    }
+
+    .opp-card.card-weekly {
+      border-top: 2px solid var(--amber);
+    }
+
+    .opp-card.card-0dte {
+      border-top: 2px solid var(--red);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 12px 14px 0;
+    }
+
+    .card-ticker-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .card-ticker {
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+
+    .card-price {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .scan-type-badge {
+      display: inline-block;
+      padding: 1px 7px;
+      font-size: 0.6rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+
+    .badge-weekly {
+      background: var(--amber);
+      color: #fff;
+    }
+
+    .badge-leap {
+      background: var(--indigo);
+      color: #fff;
+    }
+
+    .badge-0dte {
+      background: var(--red);
+      color: #fff;
+    }
+
+    .card-score-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 2px;
+    }
+
+    .card-score {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .card-score-label {
+      font-size: 0.6rem;
+      color: var(--text-light);
+      font-weight: 600;
+    }
+
+    .score-green {
+      background: var(--green);
+    }
+
+    .score-amber {
+      background: var(--amber);
+    }
+
+    .score-red {
+      background: var(--red);
+    }
+
+    .card-hero {
+      padding: 10px 14px;
+    }
+
+    .card-action {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .card-potential {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .card-potential.green {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid var(--green-border);
+    }
+
+    .card-potential.amber {
+      background: var(--amber-bg);
+      color: var(--amber);
+      border: 1px solid var(--amber-border);
+    }
+
+    .card-potential.red {
+      background: var(--red-bg);
+      color: var(--red);
+      border: 1px solid var(--red-border);
+    }
+
+    .card-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      margin: 0 14px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+
+    .metric {
+      background: var(--bg);
+      padding: 6px 8px;
+      text-align: center;
+    }
+
+    .metric-label {
+      display: block;
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--text-light);
+      margin-bottom: 1px;
+    }
+
+    .metric-val {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    /* Trading Systems */
+    .trading-systems {
+      margin: 10px 14px;
+      border: 1px solid #c7d2fe;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #f8faff;
+    }
+
+    .ts-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--indigo);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.1s;
+    }
+
+    .ts-header:hover {
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    .trading-systems.collapsed .ts-body {
+      display: none;
+    }
+
+    .ts-chevron {
+      font-size: 0.6rem;
+      width: 14px;
+      text-align: center;
+    }
+
+    .ts-label {
+      font-weight: 700;
+    }
+
+    .ts-summary-inline {
+      margin-left: auto;
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .ts-body {
+      padding: 0 10px 10px;
+    }
+
+    .ts-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    .ts-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      border-radius: 4px;
+      border-left: 3px solid;
+    }
+
+    .ts-pill.green {
+      border-left-color: var(--green);
+      color: #166534;
+      background: var(--green-bg);
+    }
+
+    .ts-pill.amber {
+      border-left-color: var(--amber);
+      color: #92400e;
+      background: var(--amber-bg);
+    }
+
+    .ts-pill.red {
+      border-left-color: var(--red);
+      color: #991b1b;
+      background: var(--red-bg);
+    }
+
+    .ts-pill.gray {
+      border-left-color: var(--gray-pill);
+      color: var(--text-muted);
+      background: var(--gray-pill-bg);
+    }
+
+    /* Card footer */
+    .card-footer {
+      padding: 10px 14px 12px;
+    }
+
+    .card-badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+
+    .badge {
+      padding: 2px 8px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--gray-pill-bg);
+      color: var(--text-muted);
+    }
+
+    .badge-warn {
+      border-color: var(--amber-border);
+      background: var(--amber-bg);
+      color: #b45309;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-analyze,
+    .btn-trade {
+      flex: 1;
+      padding: 7px 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-family: var(--font);
+      text-align: center;
+      cursor: default;
+    }
+
+    .btn-analyze {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .btn-trade {
+      background: var(--blue);
+      color: #fff;
+      border-color: var(--blue);
+    }
+
+    .btn-trade.trade-btn-call {
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .btn-trade.trade-btn-put {
+      background: var(--red);
+      border-color: var(--red);
+    }
+
+    .btn-trade.locked {
+      background: var(--gray-pill-bg);
+      color: var(--text-light);
+      border-color: var(--border);
+    }
+
+    .gate-label {
+      font-size: 0.65rem;
+      color: var(--red);
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    /* Hidden */
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ============================================================
+       WIREFRAME TOGGLE BAR
+       ============================================================ -->
+  <div class="wf-toggle-bar">
+    📐 Scanner Page Wireframe
+    <button class="wf-toggle-btn active" id="btn-empty" onclick="showState('empty')">Empty State</button>
+    <button class="wf-toggle-btn" id="btn-results" onclick="showState('results')">Results</button>
+    <button class="wf-toggle-btn" id="btn-analyze" onclick="showState('analyze')">Analyze</button>
+    <button class="wf-toggle-btn" id="btn-airesult" onclick="showState('airesult')"
+      style="border-color:rgba(168,85,247,0.6);">🤖 AI Result</button>
+    <button class="wf-toggle-btn" id="btn-trade" onclick="showState('trade')">Trade</button>
+    <button class="wf-toggle-btn" id="btn-success" onclick="showState('success')"
+      style="border-color:rgba(34,197,94,0.6);">✓ Success</button>
+    <button class="wf-toggle-btn" id="btn-failure" onclick="showState('failure')"
+      style="border-color:rgba(239,68,68,0.6);">✗ Failure</button>
+    <button class="wf-toggle-btn" id="btn-sector" onclick="showState('sector')">Sector Scan</button>
+    <span class="wf-label">Toggle to compare states</span>
+    <button class="wf-toggle-btn" id="btn-theme" onclick="toggleTheme()"
+      style="margin-left:8px; border-color:rgba(250,204,21,0.6);">☀ Light</button>
+  </div>
+
+  <!-- ============================================================
+       STATE 1: EMPTY STATE
+       ============================================================ -->
+  <div class="wf-container" id="state-empty">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="app-header-left">📈 Options Scanner</div>
+      <div class="app-header-right">
+        <span class="hdr-stat">Watchlist: <b>0</b></span>
+        <span class="hdr-stat">Opportunities: <b>0</b></span>
+        <span class="hdr-stat">Open Trades: <b>0</b></span>
+        <span class="hdr-stat">Heat: <b>—</b></span>
+        <span class="hdr-stat" style="font-weight:600;">👤 olasu</span>
+        <span class="hdr-stat hdr-logout">Logout</span>
+      </div>
+    </header>
+
+    <!-- Tabs -->
+    <nav class="app-tabs">
+      <span class="app-tab active">Scanner</span>
+      <span class="app-tab">Portfolio</span>
+      <span class="app-tab">Risk</span>
+    </nav>
+
+    <!-- Scanner Body -->
+    <div class="scanner-body">
+      <!-- Sidebar -->
+      <aside class="control-panel">
+        <!-- Scan Control -->
+        <div class="ctrl-box">
+          <div class="ctrl-box-title">Scan Control</div>
+          <div class="ctrl-btn-row">
+            <button class="ctrl-btn">⚡ 0DTE</button>
+            <button class="ctrl-btn active">This Week (Mar 6)</button>
+            <button class="ctrl-btn">Next Week (Mar 13)</button>
+          </div>
+          <div class="ctrl-btn-row">
+            <button class="ctrl-btn">Next 2 Weeks (Mar 20)</button>
+            <button class="ctrl-btn">Leaps</button>
+          </div>
+        </div>
+
+        <!-- Sector Scan -->
+        <div class="ctrl-box">
+          <div class="ctrl-box-title">Sector Scan</div>
+          <select class="ctrl-select" disabled>
+            <option>Select sector...</option>
+          </select>
+        </div>
+
+        <!-- Recent History -->
+        <div class="ctrl-box">
+          <div class="ctrl-box-title">Recent History</div>
+          <div class="ctrl-placeholder">No recent scans</div>
+        </div>
+
+        <!-- Smart Search -->
+        <div class="ctrl-box" style="position:relative;">
+          <div class="ctrl-box-title">Smart Search</div>
+          <div class="ctrl-input-stacked" style="position:relative;">
+            <input type="text" class="ctrl-input" placeholder="Enter ticker symbol..." disabled>
+            <button class="ctrl-btn scan-btn">🔍 Scan Ticker</button>
+          </div>
+        </div>
+
+        <!-- Watchlist (moved to sidebar) -->
+        <div class="ctrl-box">
+          <div class="ctrl-box-title">My Watchlist</div>
+          <div class="ctrl-input-stacked">
+            <input type="text" class="ctrl-input" placeholder="Add ticker..." disabled>
+          </div>
+          <div class="sidebar-watchlist-chips">
+            <span style="font-size:0.72rem;color:var(--text-light);font-style:italic;">No tickers yet</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Area -->
+      <main class="main-area">
+
+        <!-- Opportunities Header -->
+        <div class="opportunities-header">
+          <div class="opp-title">
+            Opportunities <span class="opp-mode-label">This Week (Mar 6)</span>
+          </div>
+          <div class="opp-filters">
+            <span class="filter-pill active">&gt;15%</span>
+            <span class="filter-pill">&gt;25%</span>
+            <span class="filter-pill">&gt;35%</span>
+            <select class="ctrl-select sm" disabled>
+              <option>All Tickers</option>
+            </select>
+            <select class="ctrl-select sm" disabled>
+              <option>Sort: Score</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <div class="empty-text">No active scan results. Run a scan to discover opportunities.</div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       STATE 2: WITH RESULTS
+       ============================================================ -->
+  <div class="wf-container hidden" id="state-results">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="app-header-left">📈 Options Scanner</div>
+      <div class="app-header-right">
+        <span class="hdr-stat">Watchlist: <b>3</b></span>
+        <span class="hdr-stat">Opportunities: <b>6</b></span>
+        <span class="hdr-stat">Open Trades: <b>1</b></span>
+        <span class="hdr-stat">Heat: <b>72</b></span>
+        <span class="hdr-stat" style="font-weight:600;">👤 olasu</span>
+        <span class="hdr-stat hdr-logout">Logout</span>
+      </div>
+    </header>
+
+    <!-- Tabs -->
+    <nav class="app-tabs">
+      <span class="app-tab active">Scanner</span>
+      <span class="app-tab">Portfolio</span>
+      <span class="app-tab">Risk</span>
+    </nav>
+
+    <!-- Scanner Body -->
+    <div class="scanner-body">
+      <!-- Sidebar -->
+      <aside class="control-panel">
+        <!-- Scan Control -->
+        <div class="ctrl-box">
+          <div class="ctrl-box-title">Scan Control</div>
+          <div class="ctrl-btn-row">
+            <button class="ctrl-btn">⚡ 0DTE</button>
+            <button class="ctrl-btn active">This Week (Mar 6)</button>
+            <button class="ctrl-btn">Next Week (Mar 13)</button>
+          </div>
+          <div class="ctrl-btn-row">
+            <button class="ctrl-btn">Next 2 Weeks (Mar 20)</button>
+            <button class="ctrl-btn">Leaps</button>
+          </div>
+        </div>
+
+        <!-- Sector Scan -->
+        <div class="ctrl-box">
+          <div class="ctrl-box-title">Sector Scan</div>
+          <select class="ctrl-select" disabled>
+            <option>Select sector...</option>
+          </select>
+        </div>
+
+        <!-- Recent History (populated) -->
+        <div class="ctrl-box">
+          <div class="ctrl-box-title">Recent History</div>
+          <div class="history-item">AAPL · This Week <span style="color:var(--text-light);">· 10:32 AM</span></div>
+          <div class="history-item">Technology · LEAPS <span style="color:var(--text-light);">· 10:15 AM</span></div>
+          <div class="history-item">NVDA · This Week <span style="color:var(--text-light);">· 9:48 AM</span></div>
+        </div>
+
+        <!-- Smart Search (with autocomplete demo overlay) -->
+        <div class="ctrl-box" style="position:relative;">
+          <div class="ctrl-box-title">Smart Search</div>
+          <div class="ctrl-input-stacked" style="position:relative;">
+            <input type="text" class="ctrl-input" value="AA" style="color:var(--text);" disabled>
+            <!-- Autocomplete dropdown — overlays on top of content below -->
+            <div class="autocomplete-dropdown" style="display:block;">
+              <div class="autocomplete-item"><span class="item-symbol">AAPL</span><span class="item-name">Apple
+                  Inc.</span></div>
+              <div class="autocomplete-item"><span class="item-symbol">AAL</span><span class="item-name">American
+                  Airlines Group</span></div>
+              <div class="autocomplete-item"><span class="item-symbol">AMAT</span><span class="item-name">Applied
+                  Materials Inc.</span></div>
+              <div class="autocomplete-item"><span class="item-symbol">AAP</span><span class="item-name">Advance Auto
+                  Parts</span></div>
+            </div>
+            <button class="ctrl-btn scan-btn">🔍 Scan Ticker</button>
+          </div>
+        </div>
+
+        <!-- Watchlist (moved to sidebar) -->
+        <div class="ctrl-box">
+          <div class="ctrl-box-title">My Watchlist</div>
+          <div class="ctrl-input-stacked">
+            <input type="text" class="ctrl-input" placeholder="Add ticker..." disabled>
+          </div>
+          <div class="sidebar-watchlist-chips">
+            <span class="chip" style="font-size:0.65rem;padding:2px 8px;">AAPL <span class="chip-remove">×</span></span>
+            <span class="chip" style="font-size:0.65rem;padding:2px 8px;">NVDA <span class="chip-remove">×</span></span>
+            <span class="chip" style="font-size:0.65rem;padding:2px 8px;">MSFT <span class="chip-remove">×</span></span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Area -->
+      <main class="main-area">
+
+        <!-- Opportunities Header -->
+        <div class="opportunities-header">
+          <div class="opp-title">
+            Opportunities <span class="opp-mode-label">This Week (Mar 6)</span>
+          </div>
+          <div class="opp-filters">
+            <span class="filter-pill active">&gt;15%</span>
+            <span class="filter-pill">&gt;25%</span>
+            <span class="filter-pill">&gt;35%</span>
+            <select class="ctrl-select sm" disabled>
+              <option>All Tickers</option>
+              <option>AAPL</option>
+              <option>NVDA</option>
+              <option>TSLA</option>
+              <option>MSFT</option>
+            </select>
+            <select class="ctrl-select sm" disabled>
+              <option>Sort: Score</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Cards Grid -->
+        <div class="cards-grid">
+
+          <!-- CARD 1: AAPL CALL — High Score Weekly -->
+          <div class="opp-card card-call card-weekly">
+            <div class="card-header">
+              <div class="card-ticker-row">
+                <span class="card-ticker">AAPL</span>
+                <span class="card-price">$182.45</span>
+                <span class="scan-type-badge badge-weekly">WEEKLY</span>
+              </div>
+              <div class="card-score-wrap">
+                <div class="card-score score-green">78</div>
+                <span class="card-score-label">/100</span>
+              </div>
+            </div>
+            <div class="card-hero">
+              <div class="card-action">BUY CALL</div>
+              <span class="card-potential green">⬆ +32% potential</span>
+            </div>
+            <div class="card-metrics">
+              <div class="metric"><span class="metric-label">Strike</span><span class="metric-val">$185.00</span></div>
+              <div class="metric"><span class="metric-label">Expiry</span><span class="metric-val">Mar 7, 2026</span>
+              </div>
+              <div class="metric"><span class="metric-label">Premium</span><span class="metric-val">$3.20</span></div>
+              <div class="metric"><span class="metric-label">Volume</span><span class="metric-val">12.4K</span></div>
+              <div class="metric"><span class="metric-label">Open Int</span><span class="metric-val">8.2K</span></div>
+              <div class="metric"><span class="metric-label">IV</span><span class="metric-val">28.4%</span></div>
+            </div>
+            <!-- Trading Systems -->
+            <div class="trading-systems">
+              <div class="ts-header">
+                <span class="ts-chevron">▼</span>
+                <span class="ts-label">Trading Systems</span>
+                <span class="ts-summary-inline">4/5 bullish</span>
+              </div>
+              <div class="ts-body">
+                <div class="ts-pills">
+                  <span class="ts-pill green">🌊 VIX Low</span>
+                  <span class="ts-pill green">📊 P/C Ratio Bullish</span>
+                  <span class="ts-pill green">⚡ RSI-2 Oversold</span>
+                  <span class="ts-pill green">📈 Sector #2</span>
+                  <span class="ts-pill amber">🎯 Stage 2A</span>
+                </div>
+              </div>
+            </div>
+            <div class="card-footer">
+              <div class="card-badges">
+                <span class="badge">🚀 Momentum</span>
+                <span class="badge badge-warn">⚠️ Earnings</span>
+              </div>
+              <div class="card-actions">
+                <button class="btn-analyze">Analyze</button>
+                <button class="btn-trade trade-btn-call">Trade</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 2: NVDA CALL — LEAP High Score -->
+          <div class="opp-card card-call">
+            <div class="card-header">
+              <div class="card-ticker-row">
+                <span class="card-ticker">NVDA</span>
+                <span class="card-price">$845.30</span>
+                <span class="scan-type-badge badge-leap">LEAP</span>
+              </div>
+              <div class="card-score-wrap">
+                <div class="card-score score-green">85</div>
+                <span class="card-score-label">/100</span>
+              </div>
+            </div>
+            <div class="card-hero">
+              <div class="card-action">BUY CALL</div>
+              <span class="card-potential green">⬆ +48% potential</span>
+            </div>
+            <div class="card-metrics">
+              <div class="metric"><span class="metric-label">Strike</span><span class="metric-val">$900.00</span></div>
+              <div class="metric"><span class="metric-label">Expiry</span><span class="metric-val">Jan 16, 2027</span>
+              </div>
+              <div class="metric"><span class="metric-label">Premium</span><span class="metric-val">$78.50</span></div>
+              <div class="metric"><span class="metric-label">Volume</span><span class="metric-val">4.8K</span></div>
+              <div class="metric"><span class="metric-label">Open Int</span><span class="metric-val">22.1K</span></div>
+              <div class="metric"><span class="metric-label">IV</span><span class="metric-val">35.2%</span></div>
+            </div>
+            <div class="trading-systems">
+              <div class="ts-header">
+                <span class="ts-chevron">▼</span>
+                <span class="ts-label">Trading Systems</span>
+                <span class="ts-summary-inline">5/5 bullish</span>
+              </div>
+              <div class="ts-body">
+                <div class="ts-pills">
+                  <span class="ts-pill green">🌊 VIX Low</span>
+                  <span class="ts-pill green">📊 P/C Ratio Bullish</span>
+                  <span class="ts-pill green">⚡ RSI-2 Neutral</span>
+                  <span class="ts-pill green">📈 Sector #1</span>
+                  <span class="ts-pill green">🎯 Stage 2</span>
+                </div>
+              </div>
+            </div>
+            <div class="card-footer">
+              <div class="card-badges">
+                <span class="badge">FMP Rating: A ⭐</span>
+              </div>
+              <div class="card-actions">
+                <button class="btn-analyze">Analyze</button>
+                <button class="btn-trade trade-btn-call">Trade</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 3: TSLA PUT — Mid Score, Weekly -->
+          <div class="opp-card card-put card-weekly">
+            <div class="card-header">
+              <div class="card-ticker-row">
+                <span class="card-ticker">TSLA</span>
+                <span class="card-price">$245.80</span>
+                <span class="scan-type-badge badge-weekly">WEEKLY</span>
+              </div>
+              <div class="card-score-wrap">
+                <div class="card-score score-amber">52</div>
+                <span class="card-score-label">/100</span>
+              </div>
+            </div>
+            <div class="card-hero">
+              <div class="card-action">BUY PUT</div>
+              <span class="card-potential amber">⬇ +18% potential</span>
+            </div>
+            <div class="card-metrics">
+              <div class="metric"><span class="metric-label">Strike</span><span class="metric-val">$240.00</span></div>
+              <div class="metric"><span class="metric-label">Expiry</span><span class="metric-val">Mar 7, 2026</span>
+              </div>
+              <div class="metric"><span class="metric-label">Premium</span><span class="metric-val">$5.60</span></div>
+              <div class="metric"><span class="metric-label">Volume</span><span class="metric-val">18.7K</span></div>
+              <div class="metric"><span class="metric-label">Open Int</span><span class="metric-val">15.3K</span></div>
+              <div class="metric"><span class="metric-label">IV</span><span class="metric-val">42.1%</span></div>
+            </div>
+            <div class="trading-systems">
+              <div class="ts-header">
+                <span class="ts-chevron">▼</span>
+                <span class="ts-label">Trading Systems</span>
+                <span class="ts-summary-inline">2/5 bearish</span>
+              </div>
+              <div class="ts-body">
+                <div class="ts-pills">
+                  <span class="ts-pill amber">🌊 VIX Moderate</span>
+                  <span class="ts-pill red">📊 P/C Ratio Bearish</span>
+                  <span class="ts-pill red">⚡ RSI-2 Overbought</span>
+                  <span class="ts-pill gray">📈 Sector #6</span>
+                  <span class="ts-pill amber">🎯 Stage 3</span>
+                </div>
+              </div>
+            </div>
+            <div class="card-footer">
+              <div class="card-badges">
+                <span class="badge">⚡ Tactical</span>
+              </div>
+              <div class="card-actions">
+                <button class="btn-analyze">Analyze</button>
+                <button class="btn-trade trade-btn-put">Trade</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 4: MSFT CALL — Low Score, LOCKED -->
+          <div class="opp-card card-call card-weekly">
+            <div class="card-header">
+              <div class="card-ticker-row">
+                <span class="card-ticker">MSFT</span>
+                <span class="card-price">$415.20</span>
+                <span class="scan-type-badge badge-weekly">WEEKLY</span>
+              </div>
+              <div class="card-score-wrap">
+                <div class="card-score score-red">34</div>
+                <span class="card-score-label">/100</span>
+              </div>
+            </div>
+            <div class="card-hero">
+              <div class="card-action">BUY CALL</div>
+              <span class="card-potential red">⬆ +16% potential</span>
+            </div>
+            <div class="card-metrics">
+              <div class="metric"><span class="metric-label">Strike</span><span class="metric-val">$420.00</span></div>
+              <div class="metric"><span class="metric-label">Expiry</span><span class="metric-val">Mar 7, 2026</span>
+              </div>
+              <div class="metric"><span class="metric-label">Premium</span><span class="metric-val">$4.80</span></div>
+              <div class="metric"><span class="metric-label">Volume</span><span class="metric-val">6.2K</span></div>
+              <div class="metric"><span class="metric-label">Open Int</span><span class="metric-val">11.0K</span></div>
+              <div class="metric"><span class="metric-label">IV</span><span class="metric-val">22.8%</span></div>
+            </div>
+            <div class="trading-systems">
+              <div class="ts-header">
+                <span class="ts-chevron">▼</span>
+                <span class="ts-label">Trading Systems</span>
+                <span class="ts-summary-inline">1/5 bullish</span>
+              </div>
+              <div class="ts-body">
+                <div class="ts-pills">
+                  <span class="ts-pill gray">🌊 VIX Neutral</span>
+                  <span class="ts-pill red">📊 P/C Ratio Bearish</span>
+                  <span class="ts-pill red">⚡ RSI-2 Overbought</span>
+                  <span class="ts-pill gray">📈 Sector #8</span>
+                  <span class="ts-pill red">🎯 Stage 4</span>
+                </div>
+              </div>
+            </div>
+            <div class="card-footer">
+              <div class="card-badges">
+                <span class="badge">💎 Value</span>
+                <span class="badge">Speculative ⚠️</span>
+              </div>
+              <div class="card-actions">
+                <button class="btn-analyze">Analyze</button>
+                <button class="btn-trade locked">🔒 Trade</button>
+              </div>
+              <div class="gate-label">Score below 40 — trade locked</div>
+            </div>
+          </div>
+
+        </div><!-- /cards-grid -->
+      </main>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       STATE 3: ANALYZE DETAIL PANEL
+       ============================================================ -->
+  <div class="wf-container hidden" id="state-analyze">
+    <header class="app-header">
+      <div class="app-header-left">📈 Options Scanner</div>
+      <div class="app-header-right">
+        <span class="hdr-stat">Watchlist: <b>3</b></span>
+        <span class="hdr-stat">Opportunities: <b>6</b></span>
+        <span class="hdr-stat">Open Trades: <b>1</b></span>
+        <span class="hdr-stat">Heat: <b>72</b></span>
+        <span class="hdr-stat" style="font-weight:600;">👤 olasu</span>
+        <span class="hdr-stat hdr-logout">Logout</span>
+      </div>
+    </header>
+    <nav class="app-tabs">
+      <span class="app-tab active">Scanner</span>
+      <span class="app-tab">Portfolio</span>
+      <span class="app-tab">Risk</span>
+    </nav>
+    <!-- Full-width Analyze Panel -->
+    <div style="padding:20px; max-width:900px; margin:0 auto;">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+        <button
+          style="padding:6px 14px; font-size:0.75rem; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); cursor:pointer; font-family:var(--font);">←
+          Back to Results</button>
+        <span style="font-size:1.2rem; font-weight:800;">AAPL</span>
+        <span style="font-size:0.85rem; color:var(--text-muted);">$182.45</span>
+        <span class="scan-type-badge badge-weekly">WEEKLY</span>
+        <div style="margin-left:auto; display:flex; align-items:baseline; gap:4px;">
+          <div class="card-score score-green" style="width:44px;height:44px;font-size:1rem;">78</div>
+          <span style="font-size:0.7rem; color:var(--text-light);">/100</span>
+        </div>
+      </div>
+
+
+      <!-- Technical Indicators -->
+      <div class="ctrl-box" style="margin-bottom:14px;">
+        <div class="ctrl-box-title">Technical Indicators</div>
+        <div
+          style="display:grid; grid-template-columns:repeat(3, 1fr); gap:1px; background:var(--border); border-radius:var(--radius-sm); overflow:hidden;">
+          <div class="metric"><span class="metric-label">RSI (14)</span><span class="metric-val">42.3</span></div>
+          <div class="metric"><span class="metric-label">RSI-2</span><span class="metric-val"
+              style="color:var(--green);">8.2 (Oversold)</span></div>
+          <div class="metric"><span class="metric-label">MACD</span><span class="metric-val"
+              style="color:var(--green);">Bullish Cross</span></div>
+          <div class="metric"><span class="metric-label">SMA 50</span><span class="metric-val">$178.30</span></div>
+          <div class="metric"><span class="metric-label">SMA 200</span><span class="metric-val">$172.15</span></div>
+          <div class="metric"><span class="metric-label">VWAP</span><span class="metric-val"
+              style="color:var(--green);">Above (+1.2%)</span></div>
+        </div>
+      </div>
+
+      <!-- Trading Systems -->
+      <div class="ctrl-box" style="margin-bottom:14px;">
+        <div class="ctrl-box-title">Trading Systems</div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          <span class="ts-pill green">🌊 VIX: 14.2 (CALM)</span>
+          <span class="ts-pill green">📊 P/C Ratio: 0.72 (Bullish)</span>
+          <span class="ts-pill green">⚡ RSI-2: 8.2 (Oversold → BUY)</span>
+          <span class="ts-pill green">📈 Sector: Technology #2 (Top Tier)</span>
+          <span class="ts-pill amber">🎯 Minervini: Stage 2A (6/8)</span>
+          <span class="ts-pill green">📍 VWAP: Above (Institutional Support)</span>
+        </div>
+      </div>
+
+      <!-- Sentiment Summary -->
+      <div class="ctrl-box" style="margin-bottom:14px;">
+        <div class="ctrl-box-title">Sentiment Analysis</div>
+        <div style="font-size:0.78rem; color:var(--text-muted); line-height:1.6;">
+          <p><strong>Score:</strong> 68/100 (Moderately Bullish)</p>
+          <p><strong>Source:</strong> Finnhub Institutional Sentiment + 12 news articles analyzed</p>
+          <p style="margin-top:6px;">Recent coverage focused on strong Q1 earnings beat, iPhone 16 demand, and AI
+            integration in services. Analyst upgrades from Morgan Stanley and Goldman Sachs. Minor concern around China
+            regulatory environment.</p>
+        </div>
+      </div>
+
+      <!-- Exit Plan -->
+      <div class="ctrl-box" style="margin-bottom:14px; border-color:var(--green-border); background:var(--green-bg);">
+        <div class="ctrl-box-title" style="color:var(--bright-green);">Exit Plan</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.78rem;">
+          <div>
+            <div style="color:var(--text-muted); font-size:0.68rem; text-transform:uppercase;">Take Profit Target</div>
+            <div style="font-weight:700; color:var(--green);">+32% ($4.22)</div>
+          </div>
+          <div>
+            <div style="color:var(--text-muted); font-size:0.68rem; text-transform:uppercase;">Stop Loss</div>
+            <div style="font-weight:700; color:var(--red);">-40% ($1.92)</div>
+          </div>
+          <div>
+            <div style="color:var(--text-muted); font-size:0.68rem; text-transform:uppercase;">Time Stop</div>
+            <div style="font-weight:700;">Exit if \< 2 DTE</div>
+            </div>
+            <div>
+              <div style="color:var(--text-muted); font-size:0.68rem; text-transform:uppercase;">Risk/Reward</div>
+              <div style="font-weight:700; color:var(--green);">1:0.8</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display:flex; gap:10px;">
+          <button class="btn-analyze" style="flex:1; padding:10px;">🔍 Get AI Analysis</button>
+          <button class="btn-trade trade-btn-call" style="flex:1; padding:10px;">⚡ Trade AAPL Call</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+       STATE 4: TRADE CONFIRMATION MODAL
+       ============================================================ -->
+    <div class="wf-container hidden" id="state-trade">
+      <header class="app-header">
+        <div class="app-header-left">📈 Options Scanner</div>
+        <div class="app-header-right">
+          <span class="hdr-stat">Watchlist: <b>3</b></span>
+          <span class="hdr-stat">Opportunities: <b>6</b></span>
+          <span class="hdr-stat">Open Trades: <b>1</b></span>
+          <span class="hdr-stat">Heat: <b>72</b></span>
+          <span class="hdr-stat" style="font-weight:600;">👤 olasu</span>
+          <span class="hdr-stat hdr-logout">Logout</span>
+        </div>
+      </header>
+      <nav class="app-tabs">
+        <span class="app-tab active">Scanner</span>
+        <span class="app-tab">Portfolio</span>
+        <span class="app-tab">Risk</span>
+      </nav>
+      <!-- Dimmed background + Modal -->
+      <div style="position:relative; min-height:500px; background:rgba(0,0,0,0.04);">
+        <!-- Modal -->
+        <div
+          style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:420px; background:var(--surface); border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.18); overflow:hidden; z-index:100;">
+          <!-- Modal Header -->
+          <div
+            style="padding:16px 20px; background:var(--green); color:#fff; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-weight:700; font-size:1rem;">📝 Paper Trade — BUY CALL</div>
+            <span style="cursor:pointer; font-size:1.2rem; opacity:0.8;">×</span>
+          </div>
+          <!-- Modal Body -->
+          <div style="padding:20px;">
+            <!-- Ticker + Score -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+              <div>
+                <span style="font-size:1.3rem; font-weight:800;">AAPL</span>
+                <span style="font-size:0.85rem; color:var(--text-muted); margin-left:8px;">$182.45</span>
+              </div>
+              <div class="card-score score-green" style="width:36px;height:36px;font-size:0.8rem;">78</div>
+            </div>
+            <!-- Order Details -->
+            <div
+              style="display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--border); border-radius:var(--radius-sm); overflow:hidden; margin-bottom:16px;">
+              <div class="metric"><span class="metric-label">Strike</span><span class="metric-val">$185.00</span></div>
+              <div class="metric"><span class="metric-label">Expiry</span><span class="metric-val">Mar 7, 2026</span>
+              </div>
+              <div class="metric"><span class="metric-label">Premium</span><span class="metric-val">$3.20</span></div>
+              <div class="metric"><span class="metric-label">Total Cost</span><span class="metric-val"
+                  style="font-weight:800;">$320.00</span></div>
+            </div>
+            <!-- Editable Entry / SL / TP -->
+            <div style="margin-bottom:16px;">
+              <label
+                style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:6px;">Trade
+                Parameters</label>
+              <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+                <div>
+                  <label style="font-size:0.62rem; color:var(--text-muted); display:block; margin-bottom:2px;">ENTRY
+                    PRICE</label>
+                  <input type="text" value="$3.20"
+                    style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:var(--radius-sm); font-family:var(--font); font-weight:700; font-size:0.8rem; text-align:center;"
+                    disabled>
+                </div>
+                <div>
+                  <label style="font-size:0.62rem; color:var(--red); display:block; margin-bottom:2px;">STOP
+                    LOSS</label>
+                  <input type="text" value="$1.92"
+                    style="width:100%; padding:6px 8px; border:1px solid var(--red-border); border-radius:var(--radius-sm); font-family:var(--font); font-weight:700; font-size:0.8rem; text-align:center; color:var(--red); background:var(--red-bg);"
+                    disabled>
+                  <span
+                    style="font-size:0.58rem; color:var(--text-light); display:block; text-align:center; margin-top:2px;">-40%</span>
+                </div>
+                <div>
+                  <label style="font-size:0.62rem; color:var(--bright-green); display:block; margin-bottom:2px;">TAKE
+                    PROFIT</label>
+                  <input type="text" value="$4.22"
+                    style="width:100%; padding:6px 8px; border:1px solid var(--green-border); border-radius:var(--radius-sm); font-family:var(--font); font-weight:700; font-size:0.8rem; text-align:center; color:var(--bright-green); background:var(--green-bg);"
+                    disabled>
+                  <span
+                    style="font-size:0.58rem; color:var(--text-light); display:block; text-align:center; margin-top:2px;">+32%</span>
+                </div>
+              </div>
+              <div style="font-size:0.62rem; color:var(--text-light); margin-top:4px; text-align:center;">✎ Edit any
+                field above before confirming</div>
+            </div>
+            <!-- Buttons -->
+            <div style="display:flex; gap:10px;">
+              <button
+                style="flex:1; padding:10px; font-family:var(--font); font-weight:600; font-size:0.85rem; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); cursor:pointer;">Cancel</button>
+              <button
+                style="flex:1; padding:10px; font-family:var(--font); font-weight:600; font-size:0.85rem; border:none; border-radius:var(--radius-sm); background:var(--green); color:#fff; cursor:pointer;">✓
+                Confirm Paper Trade</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+       STATE 5: SECTOR SCAN EXPANDED
+       ============================================================ -->
+    <div class="wf-container hidden" id="state-sector">
+      <header class="app-header">
+        <div class="app-header-left">📈 Options Scanner</div>
+        <div class="app-header-right">
+          <span class="hdr-stat">Watchlist: <b>0</b></span>
+          <span class="hdr-stat">Opportunities: <b>0</b></span>
+          <span class="hdr-stat">Open Trades: <b>0</b></span>
+          <span class="hdr-stat">Heat: <b>—</b></span>
+          <span class="hdr-stat" style="font-weight:600;">👤 olasu</span>
+          <span class="hdr-stat hdr-logout">Logout</span>
+        </div>
+      </header>
+      <nav class="app-tabs">
+        <span class="app-tab active">Scanner</span>
+        <span class="app-tab">Portfolio</span>
+        <span class="app-tab">Risk</span>
+      </nav>
+      <div class="scanner-body">
+        <aside class="control-panel">
+          <!-- Scan Control -->
+          <div class="ctrl-box">
+            <div class="ctrl-box-title">Scan Control</div>
+            <div class="ctrl-btn-row">
+              <button class="ctrl-btn">⚡ 0DTE</button>
+              <button class="ctrl-btn active">This Week (Mar 6)</button>
+              <button class="ctrl-btn">Next Week (Mar 13)</button>
+            </div>
+            <div class="ctrl-btn-row">
+              <button class="ctrl-btn">Next 2 Weeks (Mar 20)</button>
+              <button class="ctrl-btn">Leaps</button>
+            </div>
+          </div>
+
+          <!-- Sector Scan — EXPANDED STATE -->
+          <div class="ctrl-box" style="border-color:var(--blue); border-width:2px;">
+            <div class="ctrl-box-title" style="color:var(--blue);">Sector Scan</div>
+            <!-- Sector selected -->
+            <select class="ctrl-select" style="margin-bottom:8px; border-color:var(--blue); color:var(--text);"
+              disabled>
+              <option>Technology</option>
+            </select>
+            <!-- Subsector / Industry -->
+            <label
+              style="font-size:0.65rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:2px; display:block;">Subsector
+              (optional)</label>
+            <select class="ctrl-select" style="margin-bottom:8px;" disabled>
+              <option>All Industries</option>
+              <option>Semiconductors</option>
+              <option>Software</option>
+              <option>Hardware</option>
+              <option>Cloud/SaaS</option>
+            </select>
+            <!-- Min Volume -->
+            <label
+              style="font-size:0.65rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:2px; display:block;">Min
+              Avg Volume</label>
+            <select class="ctrl-select" style="margin-bottom:8px;" disabled>
+              <option>500K+</option>
+              <option>1M+</option>
+              <option>5M+</option>
+            </select>
+            <!-- Min Market Cap -->
+            <label
+              style="font-size:0.65rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:2px; display:block;">Min
+              Market Cap</label>
+            <select class="ctrl-select" style="margin-bottom:8px;" disabled>
+              <option>$10B+ (Large Cap)</option>
+              <option>$2B+ (Mid Cap)</option>
+              <option>$300M+ (Small Cap)</option>
+            </select>
+            <!-- Scan Button -->
+            <button class="ctrl-btn scan-btn">🔍 Scan Sector</button>
+          </div>
+
+          <!-- Recent History — PUSHED DOWN by expanded Sector Scan -->
+          <div class="ctrl-box">
+            <div class="ctrl-box-title">Recent History</div>
+            <div class="ctrl-placeholder">No recent scans</div>
+          </div>
+
+          <!-- Smart Search -->
+          <div class="ctrl-box" style="position:relative;">
+            <div class="ctrl-box-title">Smart Search</div>
+            <div class="ctrl-input-stacked" style="position:relative;">
+              <input type="text" class="ctrl-input" placeholder="Enter ticker symbol..." disabled>
+              <button class="ctrl-btn scan-btn">🔍 Scan Ticker</button>
+            </div>
+          </div>
+
+          <!-- Watchlist -->
+          <div class="ctrl-box">
+            <div class="ctrl-box-title">My Watchlist</div>
+            <div class="ctrl-input-stacked">
+              <input type="text" class="ctrl-input" placeholder="Add ticker..." disabled>
+            </div>
+            <div class="sidebar-watchlist-chips">
+              <span style="font-size:0.72rem;color:var(--text-light);font-style:italic;">No tickers yet</span>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+          <div class="opportunities-header">
+            <div class="opp-title">
+              Opportunities <span class="opp-mode-label">This Week (Mar 6)</span>
+            </div>
+          </div>
+          <div class="empty-state">
+            <div class="empty-icon">🏭</div>
+            <div class="empty-text">Select a sector and configure filters above, then click "Scan Sector" to find
+              opportunities.</div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <!-- ============================================================
+       STATE 6: TRADE SUCCESS POPUP
+       ============================================================ -->
+    <div class="wf-container hidden" id="state-success">
+      <header class="app-header">
+        <div class="app-header-left">📈 Options Scanner</div>
+        <div class="app-header-right">
+          <span class="hdr-stat">Watchlist: <b>3</b></span>
+          <span class="hdr-stat">Opportunities: <b>6</b></span>
+          <span class="hdr-stat">Open Trades: <b>2</b></span>
+          <span class="hdr-stat">Heat: <b>72</b></span>
+          <span class="hdr-stat" style="font-weight:600;">👤 olasu</span>
+          <span class="hdr-stat hdr-logout">Logout</span>
+        </div>
+      </header>
+      <nav class="app-tabs">
+        <span class="app-tab active">Scanner</span>
+        <span class="app-tab">Portfolio</span>
+        <span class="app-tab">Risk</span>
+      </nav>
+      <div style="position:relative; min-height:500px; background:rgba(0,0,0,0.04);">
+        <!-- Success Modal -->
+        <div
+          style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:440px; background:var(--surface); border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.18); overflow:hidden; z-index:100;">
+          <!-- Header -->
+          <div style="padding:20px; background:var(--green); color:#fff; text-align:center;">
+            <div style="font-size:2.5rem; margin-bottom:4px;">✅</div>
+            <div style="font-weight:800; font-size:1.1rem;">Trade Placed Successfully</div>
+          </div>
+          <!-- Body -->
+          <div style="padding:20px;">
+            <!-- Order Summary -->
+            <div
+              style="display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--border); border-radius:var(--radius-sm); overflow:hidden; margin-bottom:14px;">
+              <div class="metric"><span class="metric-label">Trade ID</span><span class="metric-val"
+                  style="font-weight:800;">#1047</span></div>
+              <div class="metric"><span class="metric-label">Status</span><span class="metric-val"
+                  style="color:var(--green); font-weight:700;">OPEN</span></div>
+              <div class="metric"><span class="metric-label">Ticker</span><span class="metric-val">AAPL BUY CALL</span>
+              </div>
+              <div class="metric"><span class="metric-label">Strike / Expiry</span><span class="metric-val">$185.00 ·
+                  Mar 7</span></div>
+              <div class="metric"><span class="metric-label">Entry Price</span><span class="metric-val">$3.20</span>
+              </div>
+              <div class="metric"><span class="metric-label">Qty × Cost</span><span class="metric-val">1 ×
+                  $320.00</span></div>
+              <div class="metric"><span class="metric-label">Stop Loss</span><span class="metric-val"
+                  style="color:var(--red);">$1.92 (-40%)</span></div>
+              <div class="metric"><span class="metric-label">Take Profit</span><span class="metric-val"
+                  style="color:var(--green);">$4.22 (+32%)</span></div>
+            </div>
+            <!-- Broker Details -->
+            <div
+              style="padding:10px; background:var(--green-bg); border:1px solid var(--green-border); border-radius:var(--radius-sm); margin-bottom:14px; font-size:0.75rem;">
+              <div style="font-weight:700; color:var(--bright-green); margin-bottom:4px;">Broker Confirmation</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                <div><span style="color:var(--text-muted);">Mode:</span> <b>Tradier Sandbox</b></div>
+                <div><span style="color:var(--text-muted);">Order ID:</span> <b>TRD-28491</b></div>
+                <div style="grid-column:span 2;"><span style="color:var(--text-muted);">Brackets:</span> <b>OCO SL + TP
+                    attached ✓</b></div>
+              </div>
+            </div>
+            <!-- Actions -->
+            <div style="display:flex; gap:10px;">
+              <button
+                style="flex:1; padding:10px; font-family:var(--font); font-weight:600; font-size:0.82rem; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); cursor:pointer;">←
+                Back to Scanner</button>
+              <button
+                style="flex:1; padding:10px; font-family:var(--font); font-weight:600; font-size:0.82rem; border:none; border-radius:var(--radius-sm); background:var(--blue); color:#fff; cursor:pointer;">📊
+                View in Portfolio</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+       STATE 7: TRADE FAILURE POPUP
+       ============================================================ -->
+    <div class="wf-container hidden" id="state-failure">
+      <header class="app-header">
+        <div class="app-header-left">📈 Options Scanner</div>
+        <div class="app-header-right">
+          <span class="hdr-stat">Watchlist: <b>3</b></span>
+          <span class="hdr-stat">Opportunities: <b>6</b></span>
+          <span class="hdr-stat">Open Trades: <b>1</b></span>
+          <span class="hdr-stat">Heat: <b>72</b></span>
+          <span class="hdr-stat" style="font-weight:600;">👤 olasu</span>
+          <span class="hdr-stat hdr-logout">Logout</span>
+        </div>
+      </header>
+      <nav class="app-tabs">
+        <span class="app-tab active">Scanner</span>
+        <span class="app-tab">Portfolio</span>
+        <span class="app-tab">Risk</span>
+      </nav>
+      <div style="position:relative; min-height:500px; background:rgba(0,0,0,0.04);">
+        <!-- Failure Modal -->
+        <div
+          style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:440px; background:var(--surface); border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.18); overflow:hidden; z-index:100;">
+          <!-- Header -->
+          <div style="padding:20px; background:var(--red); color:#fff; text-align:center;">
+            <div style="font-size:2.5rem; margin-bottom:4px;">❌</div>
+            <div style="font-weight:800; font-size:1.1rem;">Trade Failed</div>
+          </div>
+          <!-- Body -->
+          <div style="padding:20px;">
+            <!-- Error Message -->
+            <div
+              style="padding:12px; background:var(--red-bg); border:1px solid var(--red-border); border-radius:var(--radius-sm); margin-bottom:14px;">
+              <div style="font-weight:700; color:var(--red); font-size:0.82rem; margin-bottom:6px;">⚠ Error Details
+              </div>
+              <div style="font-size:0.78rem; color:var(--text); line-height:1.6;">
+                Daily trade limit reached (3). You have placed the maximum number of trades allowed today.
+              </div>
+            </div>
+            <!-- Other possible errors (shown as examples) -->
+            <div
+              style="padding:10px; background:var(--bg); border-radius:var(--radius-sm); margin-bottom:14px; font-size:0.7rem; color:var(--text-muted);">
+              <div style="font-weight:600; margin-bottom:4px;">Other possible reasons:</div>
+              <ul style="margin:0; padding-left:16px; line-height:1.8;">
+                <li>Max open positions reached (5). Close a position first.</li>
+                <li>Daily loss limit breached ($150.00 lost today, limit: $100.00)</li>
+                <li>Broker rejected order: Insufficient buying power</li>
+                <li>Missing required fields: entry_price</li>
+              </ul>
+            </div>
+            <!-- Order that failed -->
+            <div
+              style="display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--border); border-radius:var(--radius-sm); overflow:hidden; margin-bottom:14px; opacity:0.7;">
+              <div class="metric"><span class="metric-label">Ticker</span><span class="metric-val">AAPL BUY CALL</span>
+              </div>
+              <div class="metric"><span class="metric-label">Strike</span><span class="metric-val">$185.00</span></div>
+              <div class="metric"><span class="metric-label">Entry</span><span class="metric-val">$3.20</span></div>
+              <div class="metric"><span class="metric-label">Cost</span><span class="metric-val">$320.00</span></div>
+            </div>
+            <!-- Actions -->
+            <div style="display:flex; gap:10px;">
+              <button
+                style="flex:1; padding:10px; font-family:var(--font); font-weight:600; font-size:0.82rem; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); cursor:pointer;">←
+                Back to Scanner</button>
+              <button
+                style="flex:1; padding:10px; font-family:var(--font); font-weight:600; font-size:0.82rem; border:none; border-radius:var(--radius-sm); background:var(--amber); color:#fff; cursor:pointer;">🔄
+                Retry Trade</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+       STATE 8: AI ANALYSIS RESULT (Perplexity)
+       ============================================================ -->
+    <div class="wf-container hidden" id="state-airesult">
+      <header class="app-header">
+        <div class="app-header-left">📈 Options Scanner</div>
+        <div class="app-header-right">
+          <span class="hdr-stat">Watchlist: <b>3</b></span>
+          <span class="hdr-stat">Opportunities: <b>6</b></span>
+          <span class="hdr-stat">Open Trades: <b>1</b></span>
+          <span class="hdr-stat">Heat: <b>72</b></span>
+          <span class="hdr-stat" style="font-weight:600;">👤 olasu</span>
+          <span class="hdr-stat hdr-logout">Logout</span>
+        </div>
+      </header>
+      <nav class="app-tabs">
+        <span class="app-tab active">Scanner</span>
+        <span class="app-tab">Portfolio</span>
+        <span class="app-tab">Risk</span>
+      </nav>
+      <div style="padding:20px; max-width:900px; margin:0 auto;">
+        <!-- Back + Header -->
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+          <button
+            style="padding:6px 14px; font-size:0.75rem; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); cursor:pointer; font-family:var(--font);">←
+            Back to Analyze</button>
+          <span style="font-size:1.2rem; font-weight:800;">AAPL</span>
+          <span style="font-size:0.85rem; color:var(--text-muted);">$185.00 Call · Mar 7, 2026</span>
+          <span class="scan-type-badge badge-weekly">WEEKLY</span>
+          <!-- Verdict Badge -->
+          <span
+            style="margin-left:auto; padding:6px 16px; border-radius:20px; font-weight:800; font-size:0.8rem; background:var(--green); color:#fff;">✓
+            FAVORABLE</span>
+          <div style="display:flex; align-items:baseline; gap:4px;">
+            <div class="card-score score-green" style="width:44px;height:44px;font-size:1rem;">78</div>
+            <span style="font-size:0.7rem; color:var(--text-light);">/100</span>
+          </div>
+        </div>
+
+        <!-- Thesis (1 sentence core thesis) -->
+        <div
+          style="padding:12px 16px; background:linear-gradient(135deg, rgba(34,197,94,0.08), rgba(34,197,94,0.02)); border-left:4px solid var(--green); border-radius:var(--radius-sm); margin-bottom:14px; font-size:0.85rem; font-weight:600; color:var(--text);">
+          💡 <strong>Thesis:</strong> AAPL is technically oversold with strong institutional sentiment and upcoming
+          Services revenue catalysts, making this weekly call a high-probability swing play before the March FOMC
+          meeting.
+        </div>
+
+        <!-- Summary (2-3 sentence summary) -->
+        <div class="ctrl-box" style="margin-bottom:14px;">
+          <div class="ctrl-box-title">Summary</div>
+          <div style="font-size:0.78rem; line-height:1.7; color:var(--text);">
+            Apple shows a bullish RSI-2 oversold bounce setup at $182.45 with MACD confirming a bullish crossover.
+            Institutional sentiment is moderately bullish (68/100) following strong Q1 earnings, iPhone 16 demand, and
+            AI integration in Services. The $185 strike is 1.4% OTM with favorable delta (0.48) and reasonable theta
+            decay for a weekly play.
+          </div>
+        </div>
+
+        <!-- Risks (list of identified risks) -->
+        <div class="ctrl-box" style="margin-bottom:14px; border-color:var(--red-border); background:var(--red-bg);">
+          <div class="ctrl-box-title" style="color:var(--red);">⚠ Identified Risks</div>
+          <ul style="margin:0; padding-left:18px; font-size:0.78rem; line-height:1.8; color:var(--text);">
+            <li>FOMC meeting March 12 — hawkish surprise could trigger sell-off</li>
+            <li>China regulatory overhang — EU DMA compliance deadline in Q2</li>
+            <li>Weekly theta decay accelerates after Wednesday — tight exit window</li>
+          </ul>
+        </div>
+
+        <!-- Full AI Analysis (structured markdown from Perplexity) -->
+        <div class="ctrl-box" style="margin-bottom:14px;">
+          <div class="ctrl-box-title">🤖 Full AI Analysis</div>
+          <div style="font-size:0.75rem; line-height:1.8; color:var(--text);">
+            <!-- Section 0: Data Integrity -->
+            <div
+              style="padding:8px 10px; background:var(--green-bg); border-radius:var(--radius-sm); margin-bottom:10px; font-size:0.72rem;">
+              ✅ <strong>Data Integrity Check:</strong> Using Live Spot Price: $182.45. Confirmed.
+            </div>
+
+            <!-- Section 1: News/Event Check -->
+            <div style="margin-bottom:12px;">
+              <div style="font-weight:700; font-size:0.78rem; margin-bottom:4px;">1. News/Event Check</div>
+              <div style="padding-left:10px; border-left:2px solid var(--green);">
+                Recent coverage focused on strong Q1 earnings beat, iPhone 16 demand, and AI integration in Services.
+                Analyst upgrades from Morgan Stanley ($220 PT) and Goldman Sachs ($210 PT). Apple Intelligence rollout
+                expanding to more markets. No negative catalysts within the 7-day window. <strong>News supports this
+                  CALL.</strong>
+              </div>
+            </div>
+
+            <!-- Section 2: Setup Quality -->
+            <div style="margin-bottom:12px;">
+              <div style="font-weight:700; font-size:0.78rem; margin-bottom:4px;">2. Setup Quality</div>
+              <div style="padding-left:10px; border-left:2px solid var(--blue);">
+                RSI-2 at 8.2 (deeply oversold) — textbook bounce signal. MACD bullish cross confirmed. Price above SMA
+                50 ($178.30) and SMA 200 ($172.15). VWAP shows institutional support at +1.2% above. Volume ratio 1.4x
+                confirms participation. <strong>Setup aligns with Weekly Swing Trader rules.</strong>
+              </div>
+            </div>
+
+            <!-- Section 3: Risk/Reward -->
+            <div style="margin-bottom:12px;">
+              <div style="font-weight:700; font-size:0.78rem; margin-bottom:4px;">3. Risk/Reward Analysis</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <div
+                  style="padding:8px; background:var(--green-bg); border-radius:var(--radius-sm); border:1px solid var(--green-border); font-size:0.72rem;">
+                  <div style="font-weight:700; color:var(--green); margin-bottom:4px;">🐂 Bull Case (Thesis)</div>
+                  RSI-2 oversold + MACD cross historically yields 2-4% bounce within 3-5 days. Services revenue
+                  momentum. Analyst price target consensus at $215 (+18% upside). AI narrative as near-term catalyst.
+                </div>
+                <div
+                  style="padding:8px; background:var(--red-bg); border-radius:var(--radius-sm); border:1px solid var(--red-border); font-size:0.72rem;">
+                  <div style="font-weight:700; color:var(--red); margin-bottom:4px;">🐻 Bear Case (Risk)</div>
+                  FOMC March 12 (5 days away) could trigger volatility. China regulatory uncertainty. Short-term
+                  overbought on daily RSI-14 at 42.3 (neutral, not yet bullish confirmation). Max pain at $180 for this
+                  expiry.
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 4: Trade Viability -->
+            <div style="margin-bottom:12px;">
+              <div style="font-weight:700; font-size:0.78rem; margin-bottom:4px;">4. Trade Viability</div>
+              <div style="padding-left:10px; border-left:2px solid var(--amber);">
+                The $185 Call is 1.4% OTM — within the expected 2-4% bounce range. Premium of $3.20 provides a
+                break-even at $188.20 (3.2% above spot). Delta 0.48 offers good leverage. Open interest 8.2K and volume
+                12.4K confirm sufficient liquidity. <strong>Trade is viable with defined risk.</strong>
+              </div>
+            </div>
+
+            <!-- Section 5: Verdict -->
+            <div
+              style="padding:10px; background:var(--green-bg); border:1px solid var(--green-border); border-radius:var(--radius-sm);">
+              <div style="font-weight:700; color:var(--bright-green); font-size:0.82rem;">Verdict: FAVORABLE —
+                Conviction Score: 78/100</div>
+              <div style="font-size:0.72rem; color:var(--text-muted); margin-top:4px;">Base score 65 (from hard data) +
+                13 adjustment (strong technicals, positive news, oversold bounce). Signal: Buy.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Sources -->
+        <div
+          style="padding:8px 12px; background:var(--bg); border-radius:var(--radius-sm); margin-bottom:14px; font-size:0.65rem; color:var(--text-light); display:flex; gap:16px; flex-wrap:wrap;">
+          <span>🧠 <b>Model:</b> Perplexity sonar-pro</span>
+          <span>🎭 <b>Persona:</b> Weekly Swing Trader</span>
+          <span>📰 <b>News:</b> Finnhub (12 articles)</span>
+          <span>📊 <b>Technicals:</b> Schwab API</span>
+          <span>🌡️ <b>Temp:</b> 0.1</span>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display:flex; gap:10px;">
+          <button
+            style="flex:1; padding:12px; font-family:var(--font); font-weight:600; font-size:0.85rem; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); cursor:pointer;">←
+            Back to Analyze</button>
+          <button class="btn-trade trade-btn-call"
+            style="flex:1; padding:12px; font-family:var(--font); font-weight:700; font-size:0.85rem; border:none; border-radius:var(--radius-sm); cursor:pointer;">⚡
+            Trade AAPL Call</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const ALL_STATES = ['empty', 'results', 'analyze', 'airesult', 'trade', 'success', 'failure', 'sector'];
+      function showState(state) {
+        ALL_STATES.forEach(s => {
+          const el = document.getElementById('state-' + s);
+          const btn = document.getElementById('btn-' + s);
+          if (el) el.classList.toggle('hidden', s !== state);
+          if (btn) btn.classList.toggle('active', s === state);
+        });
+      }
+
+      // Trading Systems collapse/expand toggle
+      document.addEventListener('click', function (e) {
+        const header = e.target.closest('.ts-header');
+        if (!header) return;
+        const section = header.closest('.trading-systems');
+        if (!section) return;
+        const isCollapsed = section.classList.toggle('collapsed');
+        const chevron = header.querySelector('.ts-chevron');
+        if (chevron) chevron.textContent = isCollapsed ? '▶' : '▼';
+      });
+
+      // Theme toggle (Light / Dark)
+      function toggleTheme() {
+        const isDark = document.body.classList.toggle('dark');
+        const btn = document.getElementById('btn-theme');
+        btn.textContent = isDark ? '🌙 Dark' : '☀ Light';
+      }
+    </script>
+</body>
+
+</html>
