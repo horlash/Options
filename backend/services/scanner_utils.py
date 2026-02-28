@@ -267,6 +267,9 @@ def get_ai_analysis(scanner, ticker, strategy="LEAP", expiry_date=None, **kwargs
                         vl = vix_q['price']
                         vr = 'CRISIS' if vl > 30 else ('ELEVATED' if vl > 20 else 'NORMAL')
                         context['vix'] = {'level': vl, 'regime': vr}
+                        # ISSUE-C1 FIX: Also set flat keys for reasoning_engine.py compatibility
+                        context['vix_regime'] = vr
+                        context['vix_level'] = vl
             except Exception:
                 pass  # VIX is supplementary, don't block on failure
 
@@ -514,7 +517,7 @@ def get_detailed_analysis(scanner, ticker, expiry_date=None):
             except Exception as e:
                 logger.warning(f"[DETAIL] Could not parse expiry '{expiry_date}': {e}, using weeks_out=0")
 
-        # 4. Opportunities (Quick Scan — using card's expiry week)
+        # 4. Opportunities (Quick Scan - using card's expiry week)
         scan_res = scanner.scan_weekly_options(ticker, weeks_out=weeks_out)
         opportunities = scan_res.get('opportunities', []) if scan_res else []
 
