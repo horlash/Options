@@ -898,26 +898,21 @@ body.has-subtabs .main-content {
     padding: 0.5rem;
 }
 
-/* Card Colors */
+/* Card Colors — left-border accent handled by Rule 1 (lines 266-274) */
+/* Background tints for call/put cards */
 .card-call {
     background-color: rgba(16, 185, 129, 0.15) !important;
-    /* Light Green */
-    border: 1px solid rgba(16, 185, 129, 0.3) !important;
 }
 
 .card-put {
     background-color: rgba(239, 68, 68, 0.15) !important;
-    /* Light Red */
-    border: 1px solid rgba(239, 68, 68, 0.3) !important;
 }
 
 .card-call:hover {
-    border-color: #10b981 !important;
     background-color: rgba(16, 185, 129, 0.25) !important;
 }
 
 .card-put:hover {
-    border-color: #ef4444 !important;
     background-color: rgba(239, 68, 68, 0.25) !important;
 }
 

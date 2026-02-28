@@ -1,5 +1,8 @@
 import sys
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Force UTF-8 output encoding (Windows CMD uses cp1252 by default, crashes on emoji)
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
@@ -72,11 +75,11 @@ def get_scanner():
     global scanner_service
     if scanner_service is None:
         try:
-            print("Initializing global ScannerService...", flush=True)
+            logger.info("Initializing global ScannerService...")
             scanner_service = ScannerService()
-            print("ScannerService initialized.", flush=True)
+            logger.info("ScannerService initialized.")
         except Exception as e:
-            print(f"Error initializing ScannerService: {e}", flush=True)
+            logger.error(f"Error initializing ScannerService: {e}")
             raise e
     return scanner_service
 
@@ -223,28 +226,9 @@ def run_scan():
         watchlist = watchlist_service.get_watchlist(current_user)
         watchlist_service.close()
         
-        # Override scanner logic to use THIS watchlist, not fetch all from DB inside scanner
-        # We need to check if ScannerService.scan_watchlist() supports passing a list.
-        # Reading models suggests it might fetch from DB internaly. 
-        # Let's check HybridScannerService.scan_watchlist later. 
-        # For now, let's assume we might need to update ScannerService OR 
-        # manually loop if the scanner service doesn't support list.
-        # But wait, looking at past `app.py`, `scanner_service.scan_watchlist()` takes no args.
-        # We need to check `HybridScannerService.scan_watchlist` implementation.
-        
-        # ACTUALLY, strict user segregation means the scanner should ONLY scan what the user has.
-        # If `scan_watchlist` pulls ALL tickers from DB, it's wrong.
-        # I'll update this route to fetch tickers first, then ask scanner to scan THEM.
-        
-        # For this step, I will updated run_daily_scan first which explicitly iterates.
-        
-        scanner_service = ScannerService()
-        # Modifying to pass tickers if supported, or we need to update ScannerService
-        # Let's assume we will update ScannerService next if needed.
-        # For now, let's look at `run_daily_scan` below which DOES iterate.
-        
-        results = scanner_service.scan_watchlist(username=current_user) # Proposed change to scanner
-        scanner_service.close()
+        # Use singleton scanner for watchlist scan (user-scoped)
+        service = get_scanner()
+        results = service.scan_watchlist(username=current_user)
         
         return jsonify({
             'success': True,
@@ -260,7 +244,7 @@ def run_scan():
 def scan_ticker(ticker):
     """Run scan on a specific ticker. Supports direction: CALL, PUT, or BOTH (default)."""
     try:
-        scanner_service = ScannerService()
+        scanner_service = get_scanner()
         data = request.get_json(silent=True) or {}
         direction = data.get('direction', 'BOTH').upper()
         if direction not in ('CALL', 'PUT', 'BOTH'):
@@ -305,7 +289,7 @@ def scan_ticker(ticker):
                         if dte < 150:
                             continue  # Drop near-term leakers
                         o['days_to_expiry'] = dte  # Ensure consistency
-                except:
+                except (ValueError, TypeError, KeyError):
                     pass
                 filtered_opps.append(o)
             result['opportunities'] = filtered_opps
@@ -381,7 +365,7 @@ def scan_ticker_daily(ticker):
                 'error': f'No opportunities found for {ticker}'
             }), 200
     except Exception as e:
-        print(f"ERROR in scan_ticker_daily: {e}")
+        logger.error(f"ERROR in scan_ticker_daily: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -401,7 +385,7 @@ def get_tickers():
             'tickers': tickers
         })
     except Exception as e:
-        print(f"Error getting tickers: {e}")
+        logger.error(f"Error getting tickers: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -418,8 +402,9 @@ def run_sector_scan():
         min_market_cap = int(data.get('min_market_cap') or 0)
         min_volume = int(data.get('min_volume') or 0)
         
-        weeks_out = data.get('weeks_out') # None if not provided
+        weeks_out = data.get('weeks_out') # None if not provided (LEAPS mode)
         industry = data.get('industry')
+        is_0dte = data.get('is_0dte', False)  # Explicit 0DTE flag from frontend
         
         if not sector:
              return jsonify({'success': False, 'error': 'Sector is required'}), 400
@@ -427,14 +412,19 @@ def run_sector_scan():
         # F43: Backend validation for 0DTE sector scans (frontend blocks this, but
         # enforce server-side too). 0DTE requires same-day expiry on specific tickers,
         # not broad sector sweeps.
-        if weeks_out == 0 or str(weeks_out) == '0':
+        # Note: weeks_out=0 means "This Week" expiry — NOT 0DTE. Only block explicit 0DTE.
+        if is_0dte:
             return jsonify({
                 'success': False,
                 'error': '0DTE sector scans are not supported. Use single-ticker 0DTE scan instead.'
             }), 400
         
+        # Default weeks_out to 1 if not provided (next week expiry)
+        if weeks_out is None:
+            weeks_out = 1
+        
         service = get_scanner()
-        print(f"Starting Sector Scan: {sector} (weeks_out={weeks_out}, industry={industry})", flush=True)
+        logger.info(f"Starting Sector Scan: {sector} (weeks_out={weeks_out}, industry={industry})")
         
         results = service.scan_sector_top_picks(
             sector=sector,
@@ -449,7 +439,7 @@ def run_sector_scan():
             'results': results
         })
     except Exception as e:
-        print(f"Error in sector scan: {e}")
+        logger.error(f"Error in sector scan: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -514,7 +504,7 @@ def add_history():
             
         return jsonify({'success': True})
     except Exception as e:
-        print(f"Error adding history: {e}")
+        logger.error(f"Error adding history: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/analysis/<ticker>', methods=['GET'])
@@ -536,7 +526,7 @@ def get_analysis_detail(ticker):
                 'error': 'Analysis failed or no data found'
             }), 404
     except Exception as e:
-        print(f"Error getting analysis: {e}")
+        logger.error(f"Error getting analysis: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -554,7 +544,7 @@ def scan_0dte(ticker):
         else:
              return jsonify({'success': False, 'error': f'No 0DTE opportunities found for {ticker}'}), 404
     except Exception as e:
-        print(f"Error 0DTE scan: {e}")
+        logger.error(f"Error 0DTE scan: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/analysis/ai/<ticker>', methods=['POST'])
@@ -577,7 +567,7 @@ def get_ai_analysis_route(ticker):
             'ai_analysis': analysis
         })
     except Exception as e:
-        print(f"Error getting AI analysis: {e}")
+        logger.error(f"Error getting AI analysis: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ═══════════════════════════════════════════════════════════════
@@ -674,8 +664,8 @@ def init_scheduler(app):
             "APScheduler started — 5 jobs registered "
             "(order sync 60s, snapshots 40s, bookends 9:25/16:05 ET, lifecycle 120s)"
         )
-        print(
-            "\n✅ [SCHEDULER] APScheduler started — 5 background jobs registered:\n"
+        logger.info(
+            "APScheduler started - 5 background jobs registered"
             "   • sync_tradier_orders  (every 60s)\n"
             "   • update_price_snapshots (every 40s)\n"
             "   • pre_market_bookend   (9:25 AM ET Mon-Fri)\n"
@@ -685,14 +675,14 @@ def init_scheduler(app):
         )
 
     except ImportError:
-        print(
-            "\n❌ [SCHEDULER] apscheduler not installed! "
+        logger.warning(
+            "apscheduler not installed - "
             "Run: pip install apscheduler pytz\n"
             "   Background monitoring engine will NOT run.\n",
             flush=True,
         )
     except Exception as e:
-        print(f"\n❌ [SCHEDULER] Failed to start: {e}\n", flush=True)
+        logger.error(f"Scheduler failed to start: {e}")
 
 
 # Start scheduler unconditionally. APScheduler's replace_existing=True

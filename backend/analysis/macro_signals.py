@@ -146,27 +146,40 @@ class MacroSignals:
         """
         try:
             # Get SPY options chain for volume data
-            spy_data = self.orats_api.get_options_chain('SPY')
+            spy_data = self.orats_api.get_option_chain('SPY')
             if not spy_data:
                 return None
 
             total_put_vol = 0
             total_call_vol = 0
 
-            # ORATS returns list of option strikes
-            if isinstance(spy_data, list):
+            # get_option_chain returns standardized dict:
+            # {'callExpDateMap': {expiry: {strike: [option, ...]}}, 'putExpDateMap': {...}}
+            if isinstance(spy_data, dict):
+                # Traverse callExpDateMap for call volume
+                call_map = spy_data.get('callExpDateMap', {})
+                for expiry, strikes in call_map.items():
+                    if isinstance(strikes, dict):
+                        for strike_key, options in strikes.items():
+                            if isinstance(options, list):
+                                for opt in options:
+                                    total_call_vol += opt.get('totalVolume', 0) or 0
+                
+                # Traverse putExpDateMap for put volume
+                put_map = spy_data.get('putExpDateMap', {})
+                for expiry, strikes in put_map.items():
+                    if isinstance(strikes, dict):
+                        for strike_key, options in strikes.items():
+                            if isinstance(options, list):
+                                for opt in options:
+                                    total_put_vol += opt.get('totalVolume', 0) or 0
+            elif isinstance(spy_data, list):
+                # Fallback: raw list of strikes
                 for strike in spy_data:
                     call_vol = strike.get('callVolume', 0) or 0
                     put_vol = strike.get('putVolume', 0) or 0
                     total_call_vol += call_vol
                     total_put_vol += put_vol
-            elif isinstance(spy_data, dict):
-                # May be grouped by expiry
-                for expiry, strikes in spy_data.items():
-                    if isinstance(strikes, list):
-                        for s in strikes:
-                            total_call_vol += s.get('callVolume', 0) or 0
-                            total_put_vol += s.get('putVolume', 0) or 0
 
             if total_call_vol > 0:
                 ratio = total_put_vol / total_call_vol

@@ -222,7 +222,13 @@ class SectorAnalysis:
 
         try:
             # Try to get price history from ORATS
-            history = self.orats_api.get_price_history(etf, days=30)
+            raw_history = self.orats_api.get_history(etf, days=30)
+            
+            # get_history() returns {'candles': [...], 'symbol': ticker, 'empty': bool}
+            # Unwrap the candles list from the dict
+            history = raw_history
+            if isinstance(raw_history, dict):
+                history = raw_history.get('candles', [])
             
             if history and isinstance(history, list) and len(history) >= 2:
                 # Calculate % change from 21 days ago (or earliest available)

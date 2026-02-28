@@ -201,7 +201,7 @@ class RegimeDetector:
         # Try FMP fallback
         if self._fmp:
             try:
-                quote = self._fmp.get_stock_quote('^VIX')
+                quote = self._fmp.get_quote('^VIX')
                 if quote and quote.get('price'):
                     return float(quote['price'])
             except Exception as e:

@@ -69,7 +69,7 @@ class OratsAPI:
             response.raise_for_status()
             data = response.json()
             return bool(data.get("data"))
-        except:
+        except Exception:
             return False
 
     @retry_api(max_retries=2, base_delay=1.0)
@@ -136,7 +136,7 @@ class OratsAPI:
                             "close": row.get("clsPx"),
                             "volume": row.get("stockVolume")
                         })
-                    except: continue
+                    except (ValueError, KeyError, TypeError): continue
             
             # Sort by date asc
             candles.sort(key=lambda x: x['datetime'])
@@ -345,7 +345,7 @@ class OratsAPI:
                 exp_date = datetime.strptime(expiry, "%Y-%m-%d")
                 days_to_expiry = (exp_date - datetime.now()).days
                 exp_key = f"{expiry}:{days_to_expiry}"
-            except:
+            except (ValueError, TypeError):
                 exp_key = expiry
                 days_to_expiry = 0
 
@@ -371,12 +371,6 @@ class OratsAPI:
                 "daysToExpiration": days_to_expiry
             }
             
-            # Helper to map standard keys if they differ (e.g. callIv vs callIvInfinity)
-            # ORATS standard keys: callBid, callAsk, callMeanPrice (mark?), callVol?
-            # I will use .get() with defaults.
-            # Update: Orats DataV2 often uses 'callBid', 'callAsk', 'callVolume', 'callOpenInterest', 'smvVol' (IV).
-            # Wait, if IV is shared? No, usually separate.
-            # I will add a fallback for IV.
             if call_obj['volatility'] == 0:
                  call_obj['volatility'] = item.get("smvVol", 0) * 100 # Smoothed Vol?
 
