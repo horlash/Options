@@ -188,8 +188,8 @@ class RegimeDetector:
         return ctx
 
     def _fetch_vix_level(self) -> Optional[float]:
-        """Try ORATS first, then FMP as fallback."""
-        # Try ORATS
+        """Try ORATS → CBOE dedicated endpoint → FMP (3 sources for redundancy)."""
+        # Source 1: ORATS
         if self._orats:
             try:
                 quote = self._orats.get_quote('VIX')
@@ -201,7 +201,12 @@ class RegimeDetector:
             except Exception as e:
                 log.debug("ORATS VIX fetch failed: %s", e)
 
-        # Try FMP fallback
+        # Source 2: CBOE dedicated free endpoint (no API key required)
+        vix_cboe = self._fetch_vix_cboe()
+        if vix_cboe is not None:
+            return vix_cboe
+
+        # Source 3: FMP fallback
         if self._fmp:
             try:
                 quote = self._fmp.get_quote('^VIX')
@@ -212,6 +217,74 @@ class RegimeDetector:
                     log.debug("FMP VIX returned price=%s — skipping (0 or null)", price)
             except Exception as e:
                 log.debug("FMP VIX fetch failed: %s", e)
+
+        return None
+
+    def _fetch_vix_cboe(self) -> Optional[float]:
+        """Fetch the latest VIX close from CBOE's free public CSV feed.
+
+        Endpoint: https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv
+        This is maintained by CBOE, requires no API key, and returns the
+        full VIX daily price history.  We parse only the last row to get
+        the most recent closing value.
+
+        Falls back to Yahoo Finance's free chart endpoint if the CBOE CSV
+        is unavailable, giving two independent free sources before we touch
+        the paid ORATS / FMP APIs.
+        """
+        import requests
+
+        # ── Attempt 1: CBOE VIX History CSV ──────────────────────────────────
+        try:
+            cboe_url = (
+                "https://cdn.cboe.com/api/global/us_indices/"
+                "daily_prices/VIX_History.csv"
+            )
+            resp = requests.get(cboe_url, timeout=10)
+            if resp.status_code == 200:
+                lines = resp.text.strip().splitlines()
+                # Format: DATE,OPEN,HIGH,LOW,CLOSE  (header on first line)
+                # Last line is the most recent trading day.
+                for line in reversed(lines):
+                    parts = line.split(',')
+                    if len(parts) >= 5 and parts[4].replace('.', '', 1).isdigit():
+                        close_val = float(parts[4])
+                        if close_val > 0:
+                            log.info("VIX from CBOE CSV: %.2f (date=%s)",
+                                     close_val, parts[0])
+                            return close_val
+            else:
+                log.debug("CBOE VIX CSV HTTP %s", resp.status_code)
+        except Exception as e:
+            log.debug("CBOE VIX CSV fetch failed: %s", e)
+
+        # ── Attempt 2: Yahoo Finance free chart API ───────────────────────────
+        try:
+            yf_url = (
+                "https://query1.finance.yahoo.com/v8/finance/chart/"
+                "%5EVIX?range=1d&interval=1d"
+            )
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            resp = requests.get(yf_url, timeout=10, headers=headers)
+            if resp.status_code == 200:
+                payload = resp.json()
+                closes = (
+                    payload
+                    .get('chart', {})
+                    .get('result', [{}])[0]
+                    .get('indicators', {})
+                    .get('quote', [{}])[0]
+                    .get('close', [])
+                )
+                # Filter out None values and take the last valid close
+                valid = [c for c in closes if c is not None and c > 0]
+                if valid:
+                    log.info("VIX from Yahoo Finance: %.2f", valid[-1])
+                    return float(valid[-1])
+            else:
+                log.debug("Yahoo Finance VIX HTTP %s", resp.status_code)
+        except Exception as e:
+            log.debug("Yahoo Finance VIX fetch failed: %s", e)
 
         return None
 

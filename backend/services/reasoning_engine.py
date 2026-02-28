@@ -5,6 +5,11 @@ import re
 import time
 import logging
 from backend.config import Config
+from backend.services.ai_schemas import AIAnalysisResult
+try:
+    from pydantic import ValidationError
+except ImportError:
+    ValidationError = Exception
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +337,17 @@ class ReasoningEngine:
             parsed = self._extract_json_block(content)
             
             if parsed:
-                score = min(100, max(0, int(parsed.get('score', 0))))
+                # S3: Pydantic validation on extracted JSON
+                try:
+                    validated = AIAnalysisResult.model_validate(parsed)
+                    validated_data = validated.model_dump()
+                    score = validated_data['score']
+                    logger.debug(f"  ✓ Pydantic validation passed for {ticker}: score={score}, verdict={validated_data['verdict']}")
+                except ValidationError as ve:
+                    logger.warning(f"  ⚠️ Pydantic validation failed for {ticker}: {ve} — using raw parsed data")
+                    validated_data = parsed
+                    score = min(100, max(0, int(parsed.get('score', 0))))
+
                 # OVERRIDE: Enforce verdict based on score thresholds
                 # AI model sometimes returns wrong verdict for the score.
                 # Our rules: 66+ = FAVORABLE, 41-65 = RISKY, 0-40 = AVOID
@@ -348,14 +363,28 @@ class ReasoningEngine:
                     "analysis": content,
                     "score": score,
                     "verdict": verdict,
-                    "summary": parsed.get('summary', ''),
-                    "risks": parsed.get('risks', []),
-                    "thesis": parsed.get('thesis', '')
+                    "summary": validated_data.get('summary', ''),
+                    "risks": validated_data.get('risks', []),
+                    "thesis": validated_data.get('thesis', '')
                 }
             else:
                 # Fallback: regex extraction (legacy)
                 logger.warning(f"  ⚠️ JSON extraction failed for {ticker}, falling back to regex")
                 score = self._extract_score(content)
+                # S3: Attempt Pydantic validation on regex-extracted score
+                try:
+                    validated = AIAnalysisResult.model_validate({
+                        'score': score,
+                        'verdict': 'RISKY',  # Placeholder; override below
+                        'summary': content[:300] if content else '',
+                        'risks': [],
+                        'thesis': ''
+                    })
+                    score = validated.score
+                    logger.debug(f"  ✓ Pydantic validation passed (regex fallback) for {ticker}: score={score}")
+                except ValidationError as ve:
+                    logger.warning(f"  ⚠️ Pydantic validation failed (regex fallback) for {ticker}: {ve}")
+
                 # OVERRIDE: Enforce verdict based on score thresholds
                 if score >= 66:
                     verdict = 'FAVORABLE'
