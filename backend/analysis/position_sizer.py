@@ -20,12 +20,18 @@ class PositionSizer:
     """
     Calculate optimal position size for a single-leg option trade.
 
-    F15 NOTE: Kelly criterion uses static win_rate (default 0.55).
-    Future: adapt win_rate from actual trade history in paper_trades table.
+    F15 NOTE: Kelly criterion now accepts an optional win_rate parameter
+    (P3 ISSUE-C3). When provided, it overrides the static delta-based estimate
+    with empirical win rate from actual trade history. If omitted, defaults to
+    the estimate_win_probability() heuristic (delta + score adjustment).
     F16 NOTE: VIX adjustment is global. Future: per-ticker beta-adjusted sizing.
 
     Usage:
         ps = PositionSizer(account_size=50000)
+        # With empirical win rate from trade history:
+        sizing = ps.calculate(opportunity, strategy='LEAP', vix_regime='NORMAL',
+                              win_rate=0.62)
+        # Without (falls back to static estimate):
         sizing = ps.calculate(opportunity, strategy='LEAP', vix_regime='NORMAL')
         # sizing = {
         #   'contracts': 2,
@@ -117,7 +123,7 @@ class PositionSizer:
         return max(0.05, min(0.95, win_prob))
 
     def calculate(self, opportunity, strategy='LEAP', vix_regime='NORMAL',
-                  current_exposure_pct=0.0):
+                  current_exposure_pct=0.0, win_rate=None):
         """
         Calculate position size for a single-leg option trade.
 
@@ -126,6 +132,10 @@ class PositionSizer:
             strategy: 'LEAP', 'WEEKLY', '0DTE'
             vix_regime: 'NORMAL', 'ELEVATED', 'CRISIS'
             current_exposure_pct: Current total portfolio exposure as % of account
+            win_rate: Optional float (0.0–1.0). When provided, overrides the
+                      static delta-based win probability estimate with an empirical
+                      win rate derived from actual trade history.
+                      If None (default), falls back to estimate_win_probability().
 
         Returns:
             dict with contracts, total_cost, kelly_fraction, method, etc.
@@ -146,7 +156,13 @@ class PositionSizer:
             }
 
         # 1. Calculate Kelly fraction
-        win_prob = self.estimate_win_probability(opportunity, strategy)
+        # P3 ISSUE-C3: Use caller-supplied win_rate if provided (e.g. from trade history),
+        # otherwise fall back to the delta/score-based estimate.
+        if win_rate is not None:
+            win_prob = max(0.05, min(0.95, float(win_rate)))
+            adjustments.append(f"win_rate: empirical {win_prob:.3f} (from trade history)")
+        else:
+            win_prob = self.estimate_win_probability(opportunity, strategy)
         profit_potential = opportunity.get('profit_potential', 30)
         stop_loss = 30 if strategy == 'LEAP' else 40  # From exit_manager defaults
 

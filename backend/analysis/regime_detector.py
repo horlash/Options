@@ -124,7 +124,11 @@ class RegimeDetector:
         self._cached_context: Optional[RegimeContext] = None
         self._last_fetch: Optional[datetime] = None
         self._last_regime: Optional[VIXRegime] = None
-        self._regime_changed_at: Optional[datetime] = None
+        # S1-FIX: Initialize to utcnow() so the first regime change also
+        # respects the 48-hour anti-whipsaw stickiness window.
+        # Previously None caused the `_regime_changed_at is not None` guard
+        # to bypass the stickiness check on the very first detected change.
+        self._regime_changed_at: datetime = datetime.utcnow()
 
     def detect(self, force_refresh: bool = False) -> RegimeContext:
         """Detect current VIX regime. Returns cached result if fresh enough."""
@@ -157,8 +161,7 @@ class RegimeDetector:
 
         # Anti-whipsaw: if regime just changed in last scan, use the more conservative one
         if (self._last_regime is not None
-                and regime != self._last_regime
-                and self._regime_changed_at is not None):
+                and regime != self._last_regime):
             hours_since_change = (now - self._regime_changed_at).total_seconds() / 3600
             if hours_since_change < 48:  # 2-day stickiness
                 conservative = max(regime, self._last_regime,

@@ -295,9 +295,10 @@ class MacroSignals:
         """
         if len(self._pc_history) < 10:
             # Not enough history — use absolute heuristic
-            # Historical CBOE equity P/C: mean ~0.65, std ~0.12
-            mean = 0.65
-            std = 0.12
+            # S2-FIX: SPY single-ticker P/C ratio runs 1.5-3.0x (not equity-market
+            # CBOE P/C which averages ~0.65). Updated priors match observed SPY range.
+            mean = 1.8
+            std = 0.30
         else:
             # Use most recent 21 values (or all if fewer)
             lookback = list(self._pc_history)[-21:]

@@ -529,11 +529,24 @@ class TechnicalIndicators:
         rsi2 = rsi2_indicator.rsi()
         current_rsi2 = rsi2.iloc[-1]
         
+        # S3-FIX: 200-day SMA trend filter — Connors RSI-2 is explicitly designed
+        # to only trigger BUY signals when price is ABOVE the 200-day SMA.
+        # Without this filter, extreme_oversold flags stocks in secular downtrends
+        # (falling knives). Suppressing oversold signals below SMA200 is essential.
+        current_price = df['Close'].iloc[-1]
+        above_sma200 = False
+        if len(df) >= 200:
+            sma200 = df['Close'].rolling(window=200).mean().iloc[-1]
+            above_sma200 = current_price > sma200
+        # If fewer than 200 bars, we cannot confirm the uptrend — suppress buy signals
+        # (conservative default per Risk Manager and Bear Market Survivor personas).
+
         # Connors thresholds: <5 = extreme oversold (buy), >95 = extreme overbought (sell)
         if current_rsi2 < 5:
-            signal = 'extreme_oversold'   # Strong mean reversion BUY signal
+            # Only fire buy signal if price is above the 200-day SMA trend filter
+            signal = 'extreme_oversold' if above_sma200 else 'neutral'
         elif current_rsi2 < 10:
-            signal = 'oversold'           # Moderate buy signal
+            signal = 'oversold' if above_sma200 else 'neutral'
         elif current_rsi2 > 95:
             signal = 'extreme_overbought' # Strong mean reversion SELL signal
         elif current_rsi2 > 90:
@@ -613,6 +626,11 @@ class TechnicalIndicators:
         
         score = sum(1 for k, v in criteria.items() if v is True)
         
+        # S5-FIX: If criterion 8 (RS Rating) is None/deferred, the denominator
+        # should be 7 (not 8) so the percentage calculation is accurate.
+        # e.g. 7/7 = 100% vs 7/8 = 87.5% — prevents false underscoring.
+        max_score = 7 if criteria.get('8_rs_rating') is None else 8
+        
         # Stage classification
         if score >= 7:  # 7/8 or 8/8 (criterion 8 may be None)
             stage = 'STAGE_2'
@@ -625,7 +643,7 @@ class TechnicalIndicators:
         
         return {
             'score': score,
-            'max_score': 8,
+            'max_score': max_score,
             'stage': stage,
             'is_stage2': stage in ('STAGE_2', 'STAGE_2_EARLY'),
             'criteria': criteria,
@@ -681,7 +699,7 @@ class TechnicalIndicators:
             # Price at or near weekly VWAP = strong institutional level
             if abs(weekly_dist) < 0.5:
                 signal = 'at_weekly_vwap'  # Price sitting on institutional level
-                score_boost = 12  # Per 18-persona consensus: +12 for VWAP alignment
+                score_boost = 8   # S7A-FIX: Reduced from +12 to +8; proportionate with other signals
             elif abs(monthly_dist) < 0.5:
                 signal = 'at_monthly_vwap'
                 score_boost = 8   # +8 for monthly VWAP alignment
