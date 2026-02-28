@@ -66,7 +66,7 @@ class MacroSignals:
         self._last_fetch_time: float = 0
         self._cached_signal: Optional[PutCallSignal] = None
 
-    # ─── Public API ──────────────────────────────────────────────────────────
+    # ─── Public API ──────────────────────────────────────────────────────────────────────
 
     def get_put_call_signal(self, force_refresh: bool = False) -> PutCallSignal:
         """Get the current P/C ratio signal with Z-score interpretation.
@@ -85,7 +85,7 @@ class MacroSignals:
         self._last_fetch_time = now
         return signal
 
-    # ─── Data Fetching ───────────────────────────────────────────────────────
+    # ─── Data Fetching ────────────────────────────────────────────────────────────────────
 
     def _fetch_and_compute(self) -> PutCallSignal:
         """Fetch P/C ratio data and compute Z-score signal."""
@@ -275,7 +275,7 @@ class MacroSignals:
                 # Map skew ratio to approximate P/C ratio range
                 # Typical skew: 1.0-1.3; map to P/C range 0.6-1.2
                 pc_approx = 0.6 + (skew_ratio - 1.0) * 2.0
-                pc_approx = max(0.4, min(1.5, pc_approx))  # Clamp
+                pc_approx = max(0.4, min(3.5, pc_approx))  # S2-SKEW FIX: Widen clamp to [0.4, 3.5] to be compatible with SPY-level P/C priors (mean=1.8)
                 log.info(f"[MacroSignals] SPY skew proxy P/C: {pc_approx:.3f} "
                          f"(put_iv={put_iv:.3f}, call_iv={call_iv:.3f})")
                 return pc_approx
@@ -284,7 +284,7 @@ class MacroSignals:
             log.debug(f"[MacroSignals] SPY skew proxy failed: {e}")
         return None
 
-    # ─── Z-Score Computation ─────────────────────────────────────────────────
+    # ─── Z-Score Computation ───────────────────────────────────────────────────────────────────
 
     def _compute_z_score(self, current_ratio: float) -> Optional[float]:
         """Compute Z-score of current P/C ratio against rolling 21-day window.
@@ -342,7 +342,7 @@ class MacroSignals:
         else:
             return 'neutral', 'neutral', 0
 
-    # ─── Seed History (for fresh starts) ─────────────────────────────────────
+    # ─── Seed History (for fresh starts) ──────────────────────────────────────────────────────
 
     def seed_history(self, historical_ratios: List[float]):
         """Pre-seed P/C history for Z-score calculation.
@@ -354,7 +354,7 @@ class MacroSignals:
             self._pc_history.append(r)
         log.info(f"[MacroSignals] Seeded P/C history with {len(self._pc_history)} values")
 
-    # ─── Summary for Logging ─────────────────────────────────────────────────
+    # ─── Summary for Logging ─────────────────────────────────────────────────────────────────
 
     def get_summary(self) -> Dict:
         """Return a summary dict for logging/debugging."""
