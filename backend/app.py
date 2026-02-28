@@ -126,7 +126,7 @@ def logout():
 
 @app.route('/')
 def index():
-    return app.send_static_file('index.html')
+    return send_from_directory(os.path.join(project_root, 'frontend', 'scanner-demo'), 'index.html')
 
 @app.route('/v2')
 def index_v2():
