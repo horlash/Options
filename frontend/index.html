@@ -242,6 +242,13 @@
                         <button class="p-tab" data-view="performance">📈 Performance</button>
                         <button class="p-tab" data-view="settings">⚙️ Settings</button>
                     </div>
+                    <!-- W3: Mobile dropdown (hidden on desktop via CSS, shown ≤600px) -->
+                    <select class="portfolio-mobile-select" style="display:none;" aria-label="Portfolio section" onchange="portfolio.switchView ? portfolio.switchView(this.value) : void 0">
+                        <option value="open">📊 Open Positions</option>
+                        <option value="history">📜 Trade History</option>
+                        <option value="performance">📈 Performance</option>
+                        <option value="settings">⚙️ Settings</option>
+                    </select>
 
                     <div class="portfolio-controls">
                         <div class="auto-refresh-toggle">
@@ -358,6 +365,7 @@
                                     <th class="sortable-th" onclick="portfolio.sortHistory('held')">Held <span
                                             id="sort-arrow-held"></span></th>
                                     <th>Reason</th>
+                                    <th>Exit Eff.</th>
                                     <th class="sortable-th" onclick="portfolio.sortHistory('date')">Date <span
                                             id="sort-arrow-date"></span></th>
                                 </tr>
