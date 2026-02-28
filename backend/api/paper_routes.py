@@ -36,7 +36,7 @@ monitor = MonitorService()
 paper_bp = Blueprint('paper', __name__, url_prefix='/api/paper')
 
 
-# ─── Helpers ───────────────────────────────────────────────
+# ─── Helpers ───────────────────────────────────────────────────────
 
 def _get_username():
     """Get the current authenticated username.
@@ -368,6 +368,13 @@ def place_trade():
         card_score = data.get('card_score')
         ai_verdict = data.get('ai_verdict')
 
+        # NEW-BUG-1 FIX: Require card_score in payload to prevent gate bypass
+        if card_score is None:
+            return jsonify({
+                'success': False,
+                'error': 'Trade rejected: card_score is required for gate validation'
+            }), 400
+
         if card_score is not None and float(card_score) < 40:
             return jsonify({
                 'success': False,
@@ -393,7 +400,8 @@ def place_trade():
             server_gate_verdict = data.get('gate_verdict', 'PASS')
 
         # ── P1 CRIT-3: Portfolio heat limit enforcement ──
-        if user_settings and user_settings.heat_limit_pct and user_settings.account_balance:
+        # NEW-BUG-2 FIX: Use 'is not None' to handle heat_limit_pct=0 correctly (0 is falsy but valid)
+        if user_settings and user_settings.heat_limit_pct is not None and user_settings.account_balance:
             open_positions_for_heat = (
                 db.query(PaperTrade)
                 .filter(
@@ -587,6 +595,9 @@ def close_trade(trade_id):
 
     db = get_paper_db_with_user(username)
     try:
+        # CRIT-5 FIX: Use with_for_update() to acquire a row-level lock atomically.
+        # This prevents the monitoring loop from closing the same trade concurrently.
+        # The lock is held for the entire check-and-close operation within this session.
         trade = (
             db.query(PaperTrade)
             .filter(
@@ -594,6 +605,7 @@ def close_trade(trade_id):
                 PaperTrade.username == username,
                 PaperTrade.status == TradeStatus.OPEN.value,
             )
+            .with_for_update()
             .first()
         )
 
@@ -608,9 +620,9 @@ def close_trade(trade_id):
                 'stale': True,
             }), 409
 
-        db.close()
-
-        result = monitor.manual_close_position(trade_id, username)
+        # CRIT-5 FIX: Do NOT close the db session here. Pass the locked session
+        # directly to manual_close_position so the lock is held until commit.
+        result = monitor.manual_close_position(trade_id, username, db=db)
 
         if result:
             return jsonify({'success': True, 'trade': result})
@@ -618,9 +630,11 @@ def close_trade(trade_id):
             return jsonify({'success': False, 'error': 'Close failed'}), 500
 
     except Exception as e:
-        db.close()
+        db.rollback()
         logger.exception(f"close_trade failed: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        db.close()
 
 
 # ═══════════════════════════════════════════════════════════════
