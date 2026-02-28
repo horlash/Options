@@ -180,15 +180,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Analysis modal close on backdrop click
-    const modal = document.getElementById('analysis-modal');
-    if (modal) {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                analysisDetail.hide();
-            }
+    // ── Mobile: Create tab dropdown for narrow screens (spec: tabs become dropdown) ──
+    (function initMobileTabDropdown() {
+        const navTabs = document.querySelector('.nav-tabs');
+        if (!navTabs) return;
+        const tabs = navTabs.querySelectorAll('.nav-tab');
+        if (tabs.length === 0) return;
+
+        const select = document.createElement('select');
+        select.className = 'mobile-tab-select';
+        select.setAttribute('aria-label', 'Navigation');
+
+        tabs.forEach(tab => {
+            const option = document.createElement('option');
+            option.value = tab.getAttribute('data-tab') || tab.textContent.trim();
+            option.textContent = tab.textContent.trim();
+            if (tab.classList.contains('active')) option.selected = true;
+            select.appendChild(option);
         });
-    }
+
+        select.addEventListener('change', () => {
+            const tabId = select.value;
+            if (typeof switchTab === 'function') {
+                switchTab(tabId);
+            }
+            // Also sync the hidden tab buttons for state consistency
+            tabs.forEach(t => t.classList.toggle('active', (t.getAttribute('data-tab') || t.textContent.trim()) === tabId));
+        });
+
+        navTabs.parentNode.insertBefore(select, navTabs.nextSibling);
+    })();
+
+    // ── Mobile: Inject data-label attributes on table cells for stacked card layout ──
+    (function injectTableDataLabels() {
+        document.querySelectorAll('.data-table').forEach(table => {
+            const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+            if (headers.length === 0) return;
+            table.querySelectorAll('tbody tr').forEach(row => {
+                row.querySelectorAll('td').forEach((td, i) => {
+                    if (headers[i]) td.setAttribute('data-label', headers[i]);
+                });
+            });
+        });
+    })();
 });
 
 async function renderHistory() {
@@ -325,6 +359,16 @@ function setupEventListeners() {
     if (closeModalBtn) {
         closeModalBtn.addEventListener('click', () => {
             analysisDetail.hide();
+        });
+    }
+
+    // Close modal on overlay click (click on backdrop area outside modal-content)
+    const modal = document.getElementById('analysis-modal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                analysisDetail.hide();
+            }
         });
     }
 }

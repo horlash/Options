@@ -98,7 +98,7 @@ window.analysisDetail = {
             
             <h3 style="margin: 2rem 0 1rem; font-size: 1.5rem;">News Sentiment</h3>
             <div style="background: var(--bg-card); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 2rem;">
-                <p><strong>Articles Analyzed:</strong> ${sentiment.article_count}</p>
+                <p><strong>Articles Analyzed:</strong> ${sentiment.article_count ?? 'N/A'}</p>
                 ${sentiment.positive_count !== undefined ?
                 `<p><strong>Positive:</strong> ${sentiment.positive_count} | 
                    <strong>Negative:</strong> ${sentiment.negative_count} | 

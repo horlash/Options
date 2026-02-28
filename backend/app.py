@@ -28,7 +28,6 @@ from backend.services.watchlist_service import WatchlistService
 from backend.security import Security
 from datetime import datetime
 import atexit
-import logging
 import re
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -36,8 +35,21 @@ static_folder = os.path.join(project_root, 'frontend')
 
 app = Flask(__name__, static_folder=static_folder, static_url_path='')
 app.config.from_object(Config)
-CORS(app)
+
+# CORS: Restrict allowed origins (configurable via ALLOWED_ORIGINS env var)
+_allowed_origins = os.getenv('ALLOWED_ORIGINS', '').split(',') if os.getenv('ALLOWED_ORIGINS') else []
+if _allowed_origins:
+    CORS(app, origins=_allowed_origins, supports_credentials=True)
+else:
+    # Development fallback: allow all origins but log warning
+    CORS(app)
+    logger.warning("ALLOWED_ORIGINS not set — CORS allows all origins. Set ALLOWED_ORIGINS for production.")
+
 security_service = Security(app)
+
+# Warn if SECRET_KEY is auto-generated (sessions won't persist)
+if Config.SECRET_KEY_IS_DEFAULT:
+    logger.warning("SECRET_KEY not set — using random key. Sessions will not persist across restarts.")
 
 # XC-7: Rate limiting on login endpoint to prevent brute-force attacks
 if HAS_LIMITER:
@@ -256,9 +268,26 @@ def scan_ticker(ticker):
             result_put = scanner_service.scan_ticker(ticker, strict_mode=False, direction='PUT')
 
             if result_call and result_put:
-                # Merge: use CALL result as base, append PUT opportunities
-                merged = dict(result_call)
-                call_opps = merged.get('opportunities', [])
+                # Merge: preserve both CALL and PUT metadata independently
+                # Each scan produces its own technical_score, analysis_text, etc.
+                merged = {
+                    'ticker': result_call.get('ticker', ticker),
+                    'scan_type': result_call.get('scan_type', 'LEAPS'),
+                    'direction': 'BOTH',
+                    'opportunities': [],
+                    'trading_systems': result_call.get('trading_systems', {}),
+                    'call_summary': {
+                        'technical_score': result_call.get('technical_score'),
+                        'adjusted_technical': result_call.get('adjusted_technical'),
+                        'analysis_text': result_call.get('analysis_text'),
+                    },
+                    'put_summary': {
+                        'technical_score': result_put.get('technical_score'),
+                        'adjusted_technical': result_put.get('adjusted_technical'),
+                        'analysis_text': result_put.get('analysis_text'),
+                    }
+                }
+                call_opps = result_call.get('opportunities', [])
                 put_opps = result_put.get('opportunities', [])
                 merged['opportunities'] = call_opps + put_opps
                 result = merged
@@ -419,9 +448,10 @@ def run_sector_scan():
                 'error': '0DTE sector scans are not supported. Use single-ticker 0DTE scan instead.'
             }), 400
         
-        # Default weeks_out to 1 if not provided (next week expiry)
-        if weeks_out is None:
-            weeks_out = 1
+        # weeks_out: None = LEAPS mode, 0 = This Week, 1+ = weeks ahead
+        # Do NOT default to 1 — let None pass through for LEAPS sector scans
+        if weeks_out is not None:
+            weeks_out = int(weeks_out)
         
         service = get_scanner()
         logger.info(f"Starting Sector Scan: {sector} (weeks_out={weeks_out}, industry={industry})")
@@ -439,9 +469,7 @@ def run_sector_scan():
             'results': results
         })
     except Exception as e:
-        logger.error(f"Error in sector scan: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error in sector scan: {e}", exc_info=True)
         return jsonify({
             'success': False,
             'error': str(e)
@@ -665,19 +693,21 @@ def init_scheduler(app):
             "(order sync 60s, snapshots 40s, bookends 9:25/16:05 ET, lifecycle 120s)"
         )
         logger.info(
-            "APScheduler started - 5 background jobs registered\n"
+            "APScheduler started - 5 background jobs registered"
             "   • sync_tradier_orders  (every 60s)\n"
             "   • update_price_snapshots (every 40s)\n"
             "   • pre_market_bookend   (9:25 AM ET Mon-Fri)\n"
             "   • post_market_bookend  (4:05 PM ET Mon-Fri)\n"
-            "   • lifecycle_sync       (every 120s)\n"
+            "   • lifecycle_sync       (every 120s)\n",
+            flush=True,
         )
 
     except ImportError:
         logger.warning(
             "apscheduler not installed - "
             "Run: pip install apscheduler pytz\n"
-            "   Background monitoring engine will NOT run.\n"
+            "   Background monitoring engine will NOT run.\n",
+            flush=True,
         )
     except Exception as e:
         logger.error(f"Scheduler failed to start: {e}")

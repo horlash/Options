@@ -891,21 +891,52 @@
         margin-top: 100px;
     }
 
-    /* Tables: horizontal scroll */
+    /* Tables: transform to stacked cards on mobile (spec: no horizontal scrolling) */
     .table-container {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+        overflow-x: visible;
     }
 
     .data-table {
-        min-width: 600px;
+        display: block;
+        min-width: unset;
+    }
+
+    .data-table thead {
+        display: none;
+    }
+
+    .data-table tbody {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .data-table tr {
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md, 8px);
+        padding: 0.75rem;
     }
 
     .data-table th,
     .data-table td {
-        padding: 0.5rem 0.6rem;
-        font-size: 0.78rem;
-        white-space: nowrap;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.3rem 0;
+        border: none;
+        font-size: 0.85rem;
+        white-space: normal;
+    }
+
+    .data-table td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-right: 0.75rem;
+        flex-shrink: 0;
     }
 
     /* History filters */

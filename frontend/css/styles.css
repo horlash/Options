@@ -63,6 +63,11 @@ body {
     border-bottom: 1px solid var(--border);
 }
 
+/* Mobile tab dropdown: hidden by default, shown at 480px via media query */
+.mobile-tab-select {
+    display: none;
+}
+
 .header-content {
     display: flex;
     justify-content: space-between;
@@ -2257,20 +2262,23 @@ input[type="number"] {
         display: none;
     }
 
-    /* Nav tabs: equal-width, smaller font */
+    /* Nav tabs: convert to dropdown on narrow mobile (spec: tabs become dropdown) */
     .nav-tabs {
-        overflow-x: hidden;
-    }
-
-    .nav-tab {
-        flex: 1;
-        font-size: 0.8rem;
-        padding: 0.6rem 0.25rem;
-        white-space: nowrap;
-    }
-
-    .tab-icon {
         display: none;
+    }
+
+    .mobile-tab-select {
+        display: block;
+        width: 100%;
+        padding: 0.6rem 0.75rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md, 8px);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        appearance: auto;
+        cursor: pointer;
+        margin-bottom: 0.5rem;
     }
 
     /* Control panel already 1fr at 768px — just tighten padding */
@@ -2305,18 +2313,17 @@ input[type="number"] {
         padding: var(--spacing-sm);
     }
 
-    /* Data table: horizontal scroll within container only */
+    /* Data table: stacked cards on narrow mobile (inherits from 768px rules in trading.css) */
     .data-table {
         display: block;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+        overflow-x: visible;
     }
 
     .data-table th,
     .data-table td {
-        padding: 0.5rem 0.6rem;
+        padding: 0.3rem 0;
         font-size: 0.8rem;
-        white-space: nowrap;
+        white-space: normal;
     }
 
     /* Portfolio header: stack vertically */
