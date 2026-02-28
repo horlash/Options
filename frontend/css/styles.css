@@ -1963,11 +1963,11 @@ input[type="number"] {
 }
 
 
-/* ═════════════════════════════════════════════════════════════
+/* ═════════════════════════════════════════════════════════════════
    PHASE 6: Mode Banner + Settings
-   ═════════════════════════════════════════════════════════════ */
+   ═════════════════════════════════════════════════════════════════ */
 
-/* ─── Mode Banner ──────────────────────────────────────────── */
+/* ─── Mode Banner ───────────────────────────────────────────────────── */
 .mode-banner {
     padding: 8px 16px;
     border-radius: 10px;
@@ -2004,7 +2004,7 @@ input[type="number"] {
     }
 }
 
-/* ─── Settings Sections ────────────────────────────────────── */
+/* ─── Settings Sections ──────────────────────────────────────────────────── */
 .settings-section {
     background: var(--card-bg, #1e1e2e);
     border: 1px solid var(--border, rgba(255, 255, 255, 0.06));
@@ -2022,7 +2022,7 @@ input[type="number"] {
     border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.06));
 }
 
-/* ─── Broker Mode Cards ───────────────────────────────────── */
+/* ─── Broker Mode Cards ────────────────────────────────────────────────────── */
 .broker-mode-cards {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -2082,7 +2082,7 @@ input[type="number"] {
     line-height: 1.4;
 }
 
-/* ─── Settings Grid ────────────────────────────────────────── */
+/* ─── Settings Grid ─────────────────────────────────────────────────────────── */
 .settings-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -2131,7 +2131,7 @@ input[type="number"] {
     color: var(--text-primary, #e0e0e0);
 }
 
-/* ─── Input with status indicator ─────────────────────────── */
+/* ─── Input with status indicator ───────────────────────────────────── */
 .input-with-status {
     display: flex;
     align-items: center;
@@ -2151,7 +2151,7 @@ input[type="number"] {
     color: #34d399;
 }
 
-/* ─── Connection / Save Status ─────────────────────────────── */
+/* ─── Connection / Save Status ─────────────────────────────────────────── */
 .connection-status,
 .save-status {
     font-size: 0.82rem;
@@ -2173,7 +2173,7 @@ input[type="number"] {
     color: #fbbf24;
 }
 
-/* ─── Settings Actions ─────────────────────────────────────── */
+/* ─── Settings Actions ─────────────────────────────────────────────────────── */
 .settings-actions {
     display: flex;
     align-items: center;
@@ -2181,7 +2181,7 @@ input[type="number"] {
     margin-top: 8px;
 }
 
-/* ─── Danger button (for live toggle confirmation) ──────── */
+/* ─── Danger button (for live toggle confirmation) ────────────────────── */
 .btn-danger,
 .modal-btn.btn-danger {
     background: linear-gradient(135deg, #ef4444, #dc2626);
@@ -2206,7 +2206,7 @@ input[type="number"] {
     box-shadow: none;
 }
 
-/* ─── Modal Checkbox (Live confirmation) ───────────────── */
+/* ─── Modal Checkbox (Live confirmation) ───────────────────────────── */
 .modal-checkbox-group {
     margin-top: 12px;
     padding: 10px 14px;
@@ -2231,7 +2231,7 @@ input[type="number"] {
     cursor: pointer;
 }
 
-/* ─── Responsive: stack settings on mobile ─────────────── */
+/* ─── Responsive: stack settings on mobile ────────────────────────────── */
 @media (max-width: 640px) {
     .broker-mode-cards {
         grid-template-columns: 1fr;
@@ -2242,7 +2242,7 @@ input[type="number"] {
     }
 }
 
-/* ─── Mobile: No horizontal scroll (375px) ───────── */
+/* ─── Mobile: No horizontal scroll (375px) ───────────────────── */
 @media (max-width: 480px) {
     /* Global overflow guard */
     html, body {
@@ -2415,7 +2415,7 @@ input[type="number"] {
     }
 }
 
-/* ─── Sortable Table Headers (UI-84) ─────────────── */
+/* ─── Sortable Table Headers (UI-84) ───────────────── */
 .sortable-th {
     cursor: pointer;
     user-select: none;
@@ -2554,4 +2554,306 @@ input[type="number"] {
 
 [data-theme="light"] .settings-toggle:checked {
     background: var(--primary);
+}
+
+/* ════════════════════════════════════════════
+   W2: PORTFOLIO EXPANDABLE ROWS
+   ════════════════════════════════════════════ */
+.portfolio-row-expandable {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.portfolio-row-expandable:hover {
+    background: rgba(255,255,255,0.03);
+}
+.expanded-detail-row td {
+    padding: 0 !important;
+    border: none !important;
+}
+.expanded-detail-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    padding: 0.75rem 1.25rem;
+    background: rgba(15, 23, 42, 0.5);
+    border-bottom: 1px solid var(--border);
+}
+.greeks-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+}
+.greek-detail-item {
+    text-align: center;
+    padding: 0.4rem;
+    background: rgba(255,255,255,0.03);
+    border-radius: var(--radius-sm);
+}
+.greek-detail-item .greek-label {
+    display: block;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+.greek-detail-item .greek-value {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Risk Slider Visualization */
+.risk-slider-viz {
+    position: relative;
+    height: 24px;
+    background: linear-gradient(90deg, rgba(239,68,68,0.2) 0%, rgba(148,163,184,0.1) 50%, rgba(34,197,94,0.2) 100%);
+    border-radius: 4px;
+    margin-top: 0.5rem;
+}
+.risk-slider-viz .marker {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    width: 2px;
+    border-radius: 1px;
+}
+.risk-slider-viz .marker-sl { background: #ef4444; }
+.risk-slider-viz .marker-entry { background: #3b82f6; }
+.risk-slider-viz .marker-tp { background: #22c55e; }
+.risk-slider-viz .marker-label {
+    position: absolute;
+    top: -14px;
+    font-size: 0.6rem;
+    font-weight: 600;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+/* ════════════════════════════════════════════
+   W2: RISK DASHBOARD ENHANCEMENTS
+   ════════════════════════════════════════════ */
+.risk-3col {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+    margin-top: 1rem;
+}
+@media (max-width: 768px) {
+    .risk-3col {
+        grid-template-columns: 1fr;
+    }
+}
+.risk-gauge {
+    width: 120px;
+    height: 60px;
+    margin: 0 auto 0.5rem;
+    position: relative;
+}
+.risk-winrate-bar {
+    height: 10px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+}
+.risk-winrate-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #22c55e, #4ade80);
+    border-radius: 5px;
+    transition: width 0.5s ease;
+}
+.risk-tilt-badge {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 1rem;
+}
+.tilt-balanced { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+.tilt-bullish { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+.tilt-bearish { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+
+/* Enhanced Heat Gauge: semi-circle SVG wrapper */
+.heat-gauge-svg {
+    display: block;
+    margin: 0 auto 0.25rem;
+    overflow: visible;
+}
+.heat-gauge-svg .gauge-track {
+    fill: none;
+    stroke: rgba(255,255,255,0.08);
+    stroke-width: 10;
+    stroke-linecap: round;
+}
+.heat-gauge-svg .gauge-fill {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.5s ease, stroke 0.3s ease;
+}
+.heat-gauge-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    text-anchor: middle;
+    dominant-baseline: auto;
+    fill: currentColor;
+}
+.heat-gauge-label {
+    font-size: 0.65rem;
+    text-anchor: middle;
+    fill: var(--text-muted, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* Win Rate bar enhancement */
+.risk-winrate-container {
+    margin-top: 0.75rem;
+}
+.risk-winrate-container .wr-track {
+    height: 10px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 0.35rem 0;
+}
+.risk-winrate-container .wr-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #22c55e, #4ade80);
+    border-radius: 5px;
+    transition: width 0.5s ease;
+}
+.risk-winrate-container .wr-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+}
+
+/* Tilt counter display */
+.tilt-counter-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+}
+.tilt-counter-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    transition: background 0.2s;
+}
+.tilt-counter-dot.filled-warn { background: var(--accent, #f59e0b); border-color: var(--accent, #f59e0b); }
+.tilt-counter-dot.filled-danger { background: var(--danger, #ef4444); border-color: var(--danger, #ef4444); }
+
+/* ════════════════════════════════════════════
+   W3: MOBILE RESPONSIVE ENHANCEMENTS
+   ════════════════════════════════════════════ */
+
+/* Portfolio sub-tab dropdown for mobile */
+@media (max-width: 600px) {
+    .portfolio-tabs {
+        display: none !important;
+    }
+    .portfolio-mobile-select {
+        display: block !important;
+        width: 100%;
+        padding: 0.6rem 1rem;
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 0.9rem;
+        margin-bottom: 0.75rem;
+    }
+
+    /* Tables → stacked cards */
+    .data-table thead { display: none; }
+    .data-table tbody tr {
+        display: block;
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+    }
+    .data-table td {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.35rem 0;
+        border: none;
+        font-size: 0.85rem;
+    }
+    .data-table td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+    }
+
+    /* No horizontal scroll */
+    body { overflow-x: hidden; }
+
+    /* Filter pills wrap */
+    .history-filters {
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+
+    /* Portfolio header fixed adjustments */
+    .portfolio-header {
+        position: relative !important;
+        top: auto !important;
+    }
+}
+
+/* Scanner sidebar stacking */
+@media (max-width: 768px) {
+    .scanner-body {
+        flex-direction: column !important;
+    }
+    .scanner-sidebar {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        border-right: none !important;
+        border-bottom: 1px solid var(--border);
+    }
+    .scanner-main {
+        width: 100% !important;
+    }
+
+    /* Nav tabs compact */
+    .nav-tabs {
+        gap: 0;
+    }
+    .nav-tab {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.82rem;
+    }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+    .header-content {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .header-stats {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .stat-item {
+        font-size: 0.75rem;
+    }
+    /* Hide less important stats on tiny screens */
+    .stat-item:nth-child(3),
+    .stat-item:nth-child(4) {
+        display: none;
+    }
 }
