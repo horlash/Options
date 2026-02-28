@@ -77,47 +77,98 @@ const riskDashboard = (() => {
         const avgWin = wins > 0 ? (totalRealized > 0 ? totalRealized / wins : 0) : 0;
         const avgLoss = losses > 0 ? (totalRealized < 0 ? totalRealized / losses : 0) : 0;
 
+        // ── Semi-circle gauge math ──
+        // Arc from 180° to 0° (left to right across top half)
+        // circumference of half-circle r=45: π*r = ~141.4
+        const gaugeR = 45;
+        const gaugeCircumference = Math.PI * gaugeR; // ~141.4
+        const gaugeFillPct = Math.min(parseFloat(heatPct), 100) / 100;
+        const gaugeDash = gaugeFillPct * gaugeCircumference;
+        const gaugeGap = gaugeCircumference - gaugeDash;
+
+        // Tilt dots helper
+        const totalDots = maxBeforeDanger;
+        const tiltDots = Array.from({ length: totalDots }, (_, i) => {
+            const filled = i < consecutiveLosses;
+            const cls = filled
+                ? (i >= maxBeforeWarning - 1 ? 'tilt-counter-dot filled-danger' : 'tilt-counter-dot filled-warn')
+                : 'tilt-counter-dot';
+            return `<div class="${cls}"></div>`;
+        }).join('');
+
+        // Win rate bar colors
+        const wrColor = winPct >= 60 ? '#22c55e' : winPct >= 45 ? '#f59e0b' : '#ef4444';
+        const winPctSafe = totalTrades > 0 ? winPct : 0;
+
+        // Tilt badge class
+        const tiltBadgeClass = tiltStatus === 'clear' ? 'tilt-balanced'
+            : tiltStatus === 'warning' ? 'tilt-bullish' : 'tilt-bearish';
+
         const html = `
-            <!-- Risk Metric Cards -->
+            <!-- Risk Metric Cards (W2 Enhanced) -->
             <div class="risk-cards">
-                <!-- Portfolio Heat -->
-                <div class="risk-card">
+                <!-- Portfolio Heat: Semi-circle gauge -->
+                <div class="risk-card" style="text-align:center;">
                     <div class="risk-card-header">
                         <span class="risk-card-title">🔥 Portfolio Heat</span>
                         <span style="font-size: 0.8rem; color: ${heatColor};">${heatCurrent <= heatLimit ? '✅ SAFE' : '🚨 OVER LIMIT'}</span>
                     </div>
-                    <div class="risk-card-value" style="color: ${heatColor};">${heatCurrent}%</div>
-                    <div class="risk-card-sub">of ${heatLimit}% limit (${openCount} positions)</div>
-                    <div class="heat-bar-container">
-                        <div class="heat-bar-fill" style="width: ${Math.min(heatPct, 100)}%; background: ${heatColor};"></div>
-                        <div class="heat-bar-limit" style="left: 100%;">
-                            <span class="heat-bar-limit-label">${heatLimit}%</span>
-                        </div>
-                    </div>
+                    <!-- Semi-circle SVG gauge -->
+                    <svg class="heat-gauge-svg" width="120" height="70" viewBox="0 0 110 60">
+                        <!-- Track arc (half circle) -->
+                        <path
+                            class="gauge-track"
+                            d="M 10 55 A 45 45 0 0 1 100 55"
+                            fill="none"
+                            stroke="rgba(255,255,255,0.08)"
+                            stroke-width="10"
+                            stroke-linecap="round"
+                        />
+                        <!-- Fill arc -->
+                        <path
+                            class="gauge-fill"
+                            d="M 10 55 A 45 45 0 0 1 100 55"
+                            fill="none"
+                            stroke="${heatColor}"
+                            stroke-width="10"
+                            stroke-linecap="round"
+                            stroke-dasharray="${gaugeDash.toFixed(1)} ${(gaugeCircumference + 10).toFixed(1)}"
+                        />
+                        <text x="55" y="52" class="heat-gauge-value" style="fill:${heatColor}; font-size:1rem; font-weight:800;">${heatCurrent}%</text>
+                        <text x="55" y="60" class="heat-gauge-label" style="font-size:0.55rem; fill:rgba(148,163,184,0.9);">of ${heatLimit}% limit</text>
+                    </svg>
+                    <div class="risk-card-sub" style="margin-top:0.25rem;">${openCount} of ${maxPos} positions open</div>
                 </div>
 
-                <!-- Win Rate -->
+                <!-- Win Rate: horizontal bar -->
                 <div class="risk-card">
                     <div class="risk-card-header">
                         <span class="risk-card-title">📊 Win Rate</span>
                         <span style="font-size: 0.8rem; color: var(--text-muted);">Last ${totalTrades} trades</span>
                     </div>
-                    <div class="risk-card-value" style="color: ${winPct >= 55 ? 'var(--secondary)' : 'var(--accent)'};">${winPct.toFixed(0)}%</div>
-                    <div class="risk-card-sub">${wins}W / ${losses}L</div>
-                    <div class="winrate-bar">
-                        <div class="winrate-bar-win" style="width: ${totalTrades > 0 ? winPct : 50}%;"></div>
-                        <div class="winrate-bar-loss" style="width: ${totalTrades > 0 ? 100 - winPct : 50}%;"></div>
+                    <div class="risk-card-value" style="color: ${winPct >= 55 ? 'var(--secondary)' : 'var(--accent)'}; font-size:2rem; font-weight:800; margin-bottom:0.25rem;">${winPct.toFixed(0)}%</div>
+                    <div class="risk-winrate-container">
+                        <div class="wr-track">
+                            <div class="wr-fill" style="width:${winPctSafe}%; background: linear-gradient(90deg, ${wrColor}, ${wrColor}cc);"></div>
+                        </div>
+                        <div class="wr-labels">
+                            <span style="color:var(--secondary);">${wins}W</span>
+                            <span style="color:var(--danger);">${losses}L</span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Tilt Status -->
-                <div class="risk-card">
+                <!-- Tilt Status: counter dots + badge -->
+                <div class="risk-card" style="text-align:center;">
                     <div class="risk-card-header">
                         <span class="risk-card-title">🧠 Tilt Status</span>
-                        <span style="font-size: 0.8rem; color: ${tiltColor};">${tiltEmoji} ${tiltText}</span>
                     </div>
-                    <div class="risk-card-value" style="color: ${tiltColor};">${consecutiveLosses}</div>
-                    <div class="risk-card-sub">consecutive losses (${maxBeforeWarning} = warning, ${maxBeforeDanger} = stop)</div>
+                    <span class="risk-tilt-badge ${tiltBadgeClass}">${tiltEmoji} ${tiltText}</span>
+                    <div class="risk-card-sub" style="margin-top:0.5rem;">${consecutiveLosses} consecutive losses</div>
+                    <div class="tilt-counter-display" title="${maxBeforeWarning} = caution, ${maxBeforeDanger} = stop">
+                        ${tiltDots}
+                    </div>
+                    <div style="font-size:0.65rem; color:var(--text-muted); margin-top:0.35rem;">${maxBeforeWarning} = caution &nbsp;|&nbsp; ${maxBeforeDanger} = stop</div>
                 </div>
             </div>
 

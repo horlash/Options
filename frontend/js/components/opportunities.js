@@ -511,187 +511,171 @@ const opportunities = {
             });
         }
 
-        // Trading Systems collapsible section
+        // Trading Systems collapsible section (S4: Enhanced per wireframe View 3)
         const tsCount = opp.trading_systems ? Object.keys(opp.trading_systems).length : 0;
         const tsScore = opp.technical_score || 0;
         let tradingSystemsHtml = '';
         if (tsCount > 0) {
             const tsId = `ts-${index}`;
+            // Map system names to icons per wireframe spec
+            const tsIcons = {
+                'VIX': '🌊', 'vix': '🌊', 'VIX Regime': '🌊',
+                'P/C': '📊', 'pc_ratio': '📊', 'Put/Call': '📊', 'P/C Ratio': '📊',
+                'Sector': '📈', 'sector': '📈', 'Sector Rank': '📈',
+                'RSI-2': '⚡', 'rsi2': '⚡', 'RSI': '⚡',
+                'Minervini': '🎯', 'minervini': '🎯', 'Stage': '🎯',
+                'VWAP': '🏛️', 'vwap': '🏛️'
+            };
             let tsPillsHtml = '';
             for (const [name, data] of Object.entries(opp.trading_systems || {})) {
-                const signal = data.signal || data;
-                const pillColor = signal === 'BUY' ? 'var(--secondary)' : signal === 'SELL' ? 'var(--danger)' : 'var(--text-muted)';
-                tsPillsHtml += `<span style="display:inline-block;padding:2px 8px;margin:2px 4px 2px 0;border-radius:4px;font-size:0.7rem;font-weight:600;background:rgba(255,255,255,0.05);border:1px solid ${pillColor};color:${pillColor};">${name}: ${signal}</span>`;
+                const signal = typeof data === 'object' ? (data.signal || data.value || 'N/A') : data;
+                const detail = typeof data === 'object' ? (data.detail || data.description || '') : '';
+                // Determine pill color based on signal
+                let pillClass = 'ts-pill-neutral';
+                const sigStr = String(signal).toUpperCase();
+                if (sigStr === 'BUY' || sigStr === 'BULLISH' || sigStr === 'NORMAL' || sigStr === 'CALM' || sigStr.includes('ABOVE') || sigStr.includes('TOP')) {
+                    pillClass = 'ts-pill-green';
+                } else if (sigStr === 'SELL' || sigStr === 'BEARISH' || sigStr === 'CRISIS' || sigStr === 'FEAR' || sigStr.includes('BELOW') || sigStr.includes('STAGE 3') || sigStr.includes('STAGE 4')) {
+                    pillClass = 'ts-pill-red';
+                } else if (sigStr === 'CAUTION' || sigStr === 'ELEVATED' || sigStr.includes('EARLY')) {
+                    pillClass = 'ts-pill-amber';
+                }
+                const icon = tsIcons[name] || '📋';
+                const displayText = detail ? `${icon} ${name}: ${detail}` : `${icon} ${name}: ${signal}`;
+                tsPillsHtml += `<span class="ts-pill ${pillClass}">${displayText}</span>`;
             }
+            // Summary line color based on score
+            const summaryColorClass = tsScore >= 66 ? 'ts-score-green' : tsScore >= 41 ? 'ts-score-amber' : 'ts-score-red';
             tradingSystemsHtml = `
-                <div class="trading-systems-toggle" onclick="this.classList.toggle('expanded');this.nextElementSibling.classList.toggle('show');">
-                    <span class="ts-header">Trading Systems</span>
-                    <span class="ts-summary">${tsCount} Systems · Score: ${tsScore}/100</span>
-                    <span class="ts-chevron">▶</span>
-                </div>
-                <div class="trading-systems-content" id="${tsId}">
-                    ${tsPillsHtml}
+                <div class="trading-systems-section collapsed" id="ts-section-${index}">
+                    <div class="ts-toggle-header" onclick="(function(el){var sec=el.closest('.trading-systems-section');sec.classList.toggle('collapsed');var chev=el.querySelector('.ts-chevron');chev.textContent=sec.classList.contains('collapsed')?'▶':'▼';})(this)">
+                        <span class="ts-chevron">▶</span>
+                        <span class="ts-label">Trading Systems</span>
+                        <span class="ts-summary-inline">${tsCount} Systems · Score: ${tsScore}/100</span>
+                    </div>
+                    <div class="ts-body">
+                        <div class="ts-pills-wrap">
+                            ${tsPillsHtml}
+                        </div>
+                    </div>
                 </div>
             `;
         }
 
+        // IV & Greeks row (only if data available)
+        let greeksHtml = '';
+        const iv = opp.greeks?.iv || opp.implied_volatility;
+        const delta = opp.greeks?.delta;
+        const gamma = opp.greeks?.gamma;
+        const theta = opp.greeks?.theta;
+
+        if (iv || delta) {
+            greeksHtml = `
+                <div class="greeks-row" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; padding:0.5rem 0; border-top:1px solid rgba(255,255,255,0.06); margin-top:0.5rem;">
+                    <div class="greek-item" style="text-align:center;">
+                        <span style="display:block;font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">IV</span>
+                        <span style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-primary);">${iv ? (iv > 1 ? iv.toFixed(1) : (iv * 100).toFixed(1)) + '%' : '—'}</span>
+                    </div>
+                    <div class="greek-item" style="text-align:center;">
+                        <span style="display:block;font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">Δ Delta</span>
+                        <span style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-primary);">${delta !== undefined ? delta.toFixed(2) : '—'}</span>
+                    </div>
+                    <div class="greek-item" style="text-align:center;">
+                        <span style="display:block;font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">Γ Gamma</span>
+                        <span style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-primary);">${gamma !== undefined ? gamma.toFixed(4) : '—'}</span>
+                    </div>
+                    <div class="greek-item" style="text-align:center;">
+                        <span style="display:block;font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">Θ Theta</span>
+                        <span style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-primary);">${theta !== undefined ? theta.toFixed(4) : '—'}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // AI Cache Badge (show if AI has pre-scored this)
+        let aiBadgeHtml = '';
+        if (typeof aiCache !== 'undefined') {
+            const key = aiCache.buildKey(opp.ticker, opp.strike_price, opp.option_type, opp.expiration_date);
+            const cached = aiCache.get(key);
+            if (cached && cached.score !== undefined) {
+                const aiBadgeScore = cached.score;
+                const aiBadgeColor = aiBadgeScore >= 66 ? '#22c55e' : aiBadgeScore >= 41 ? '#f59e0b' : '#ef4444';
+                aiBadgeHtml = `<span style="font-size:0.7rem;padding:0.2rem 0.5rem;border-radius:999px;background:${aiBadgeColor}22;border:1px solid ${aiBadgeColor};color:${aiBadgeColor};font-weight:700;">🧠 AI: ${aiBadgeScore}</span>`;
+            }
+        }
+
+        const cardScore = opp.opportunity_score || 0;
+        const scoreColor = cardScore >= 75 ? 'var(--secondary)' : cardScore >= 50 ? 'var(--accent)' : 'var(--danger)';
+
+        const isCall2 = opp.option_type === 'Call';
+        const tradeBtnClass = isCall2 ? 'trade-btn-call' : 'trade-btn-put';
+        const analyzeBtn = `<button class="action-btn analyze-btn" data-analyze-index="${index}">🔍 Analyze</button>`;
+        const tradeBtnHtml = `<button class="action-btn trade-btn ${tradeBtnClass}" data-trade-index="${index}">${isCall2 ? '📈' : '📉'} Trade</button>`;
+
         return `
-            <div class="opportunity-card ${cardClass}" data-ticker="${opp.ticker}" data-index="${index}">
-                
-                <!-- HEADER: Color Coded -->
-                <div class="card-header">
-                    <div style="display:flex; align-items:baseline;">
-                        <span class="ticker-symbol">${opp.ticker}</span>
-                        <span class="price-display">$${opp.current_price ? opp.current_price.toFixed(2) : '-.--'}</span>
+            <div class="opportunity-card ${cardClass}" data-index="${index}">
+                <!-- Card Header Row -->
+                <div class="card-header-row">
+                    <div class="card-header-left">
+                        <span class="card-ticker">${opp.ticker}</span>
+                        <span class="card-type ${textClass}">${opp.option_type.toUpperCase()}</span>
                         ${scanBadgeHtml}
+                        ${aiBadgeHtml}
                     </div>
-                    <span class="score-badge-large ${opp.opportunity_score >= 66 ? 'score-high' : opp.opportunity_score >= 41 ? 'score-mid' : 'score-low'}">${opp.opportunity_score.toFixed(0)}<span class="score-out-of">/100</span></span>
+                    <div class="card-score-badge" style="background: ${scoreColor}22; border-color: ${scoreColor}; color: ${scoreColor};">${cardScore}</div>
                 </div>
 
-                <!-- BODY: Hero Action -->
-                <div class="card-body">
-                    <div class="hero-action">
-                        <span class="action-type">${actionText}</span>
-                        <div class="action-text ${textClass}">
-                            $${opp.strike_price.toFixed(2)}
-                        </div>
-                        <div class="profit-pill">
-                            +${opp.profit_potential.toFixed(0)}% Potential
-                        </div>
-                    </div>
+                <!-- Badges Row -->
+                ${badgesHtml || fundBadgesHtml ? `<div class="card-badges-row">${badgesHtml}${fundBadgesHtml}</div>` : ''}
 
-                    <!-- METRICS GRID -->
-                    <div class="metrics-grid">
-                        <div class="metric-row">
-                            <span class="m-label">Expiry</span>
-                            <span class="m-value">${expiryDate}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="m-label">Premium</span>
-                            <span class="m-value">$${opp.premium.toFixed(2)}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="m-label">Break Even</span>
-                            <span class="m-value">$${breakEven ? breakEven.toFixed(2) : '-'}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="m-label">Days Left</span>
-                            <span class="m-value">${opp.days_to_expiry} day${opp.days_to_expiry !== 1 ? 's' : ''}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="m-label">Volume</span>
-                            <span class="m-value">${(opp.volume || 0).toLocaleString()}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="m-label">Open Int</span>
-                            <span class="m-value">${(opp.open_interest || 0).toLocaleString()}</span>
-                        </div>
+                <!-- Key Metrics Grid -->
+                <div class="card-metrics-grid">
+                    <div class="metric-item">
+                        <span class="metric-label">Strike</span>
+                        <span class="metric-value">$${opp.strike_price.toFixed(2)}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Premium</span>
+                        <span class="metric-value">$${opp.premium.toFixed(2)}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Profit</span>
+                        <span class="metric-value" style="color: var(--secondary);">${opp.profit_potential.toFixed(0)}%</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Expiry</span>
+                        <span class="metric-value">${expiryDate}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">DTE</span>
+                        <span class="metric-value">${opp.days_to_expiry}d</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Break Even</span>
+                        <span class="metric-value">$${breakEven.toFixed(2)}</span>
                     </div>
                 </div>
 
-                <!-- FOOTER: Badges & Source -->
-                <div class="card-footer">
-                    <div style="display:flex; flex-direction:column; width:100%;">
-                        <div class="badge-container">
-                            ${badgesHtml}
-                        </div>
-                        <!-- NEW: Fundamental Badges Row -->
-                        <div class="fund-badges-container">
-                            ${fundBadgesHtml}
-                        </div>
-                        <span class="source-text">${source}</span>
-                    </div>
-                </div>
+                <!-- Greeks row (if available) -->
+                ${greeksHtml}
 
-                <!-- TRADING SYSTEMS (collapsible) -->
+                <!-- Trading Systems (Collapsible) -->
                 ${tradingSystemsHtml}
 
-                <!-- TRADE BUTTON (Gate 1: Card Score) -->
-                <div class="card-trade-area" style="padding: 0 1.25rem 0.75rem;">
-                    ${this._renderTradeButton(opp, index)}
+                <!-- Trade Actions -->
+                <div class="card-trade-area">
+                    <div class="card-actions">
+                        ${analyzeBtn}
+                        ${tradeBtnHtml}
+                    </div>
+                    <div class="edge-gate-label">Dual-Gate: Screen → AI → Trade</div>
                 </div>
             </div>
         `;
     },
 
-    // --- GATE 1: Card Score Threshold (≥41 to enable) ---
-    _renderTradeButton(opp, index) {
-        const score = opp.opportunity_score;
-        const isCall = opp.option_type === 'Call';
-        const btnClass = isCall ? 'trade-btn-call' : 'trade-btn-put';
-        const analyzeBtn = `<button class="action-btn analyze-btn" data-analyze-index="${index}">🔍 Analyze</button>`;
-
-        // Check if we have a cached AI result
-        const cacheKey = aiCache.buildKey(opp.ticker, opp.strike_price, opp.option_type, opp.expiration_date);
-        const cached = aiCache.get(cacheKey);
-
-        if (cached) {
-            const aiScore = cached.score || 0;
-            const aiVerdict = cached.verdict || 'UNKNOWN';
-            if (aiScore >= 66) {
-                return `
-                    <div class="card-actions">
-                        ${analyzeBtn}
-                        <button class="action-btn trade-btn ${btnClass}" data-trade-index="${index}">
-                            ✅ Trade ${aiScore}
-                        </button>
-                    </div>
-                    <div class="edge-gate-label" style="color: var(--secondary);">AI: FAVORABLE (${aiScore}/100) — Dual Gate ✅</div>
-                `;
-            } else if (aiScore >= 41) {
-                return `
-                    <div class="card-actions">
-                        ${analyzeBtn}
-                        <button class="action-btn trade-btn ${btnClass}" data-trade-index="${index}" style="opacity: 0.85;">
-                            ⚠️ Trade ${aiScore}
-                        </button>
-                    </div>
-                    <div class="edge-gate-label" style="color: var(--accent);">AI: RISKY (${aiScore}/100) — Proceed with Caution</div>
-                `;
-            } else {
-                return `
-                    <div class="card-actions">
-                        ${analyzeBtn}
-                        <button class="action-btn trade-btn trade-btn-disabled" style="background: rgba(220,38,38,0.15); border-color: var(--danger); color: var(--danger);" data-trade-index="${index}">
-                            🚫 AVOID ${aiScore}
-                        </button>
-                    </div>
-                    <div class="edge-gate-label" style="color: var(--danger);">AI recommends against this trade</div>
-                `;
-            }
-        }
-
-        // No AI result yet — Gate 1 check
-        if (score >= 41) {
-            return `
-                <div class="card-actions">
-                    ${analyzeBtn}
-                    <button class="action-btn trade-btn ${btnClass}" data-trade-index="${index}">
-                        ⚡ Trade
-                    </button>
-                </div>
-                <div class="edge-gate-label">Card Score ${score.toFixed(0)}/100 — Click Trade to run AI check</div>
-            `;
-        } else {
-            return `
-                <div class="card-actions">
-                    ${analyzeBtn}
-                    <button class="action-btn trade-btn trade-btn-disabled" disabled>
-                        🔒 Locked
-                    </button>
-                </div>
-                <div class="edge-gate-label" style="color: var(--text-muted);">Card Score ${score.toFixed(0)}/100 — Below 41 threshold</div>
-            `;
-        }
-    },
-
     updateCount(count) {
         const el = document.getElementById('opportunities-count');
         if (el) el.textContent = count;
-    },
-
-    sort(criteria) {
-        this.currentSort = criteria;
-        this.render(this.currentResults);
     }
 };
