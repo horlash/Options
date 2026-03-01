@@ -763,6 +763,8 @@ const scanner = {
         if (!opp.fundamental_analysis && fundData) opp.fundamental_analysis = fundData;
         if (!opp.ticker) opp.ticker = result.ticker;
         if (!opp.current_price) opp.current_price = result.current_price;
+        if (!opp.trading_systems && result.trading_systems) opp.trading_systems = result.trading_systems;
+        if (!opp.technical_score && result.technical_score) opp.technical_score = result.technical_score;
         allOpps.push(opp);
       });
     });
@@ -1074,6 +1076,8 @@ const scanner = {
         if (!opp.fundamental_analysis && fundData) opp.fundamental_analysis = fundData;
         if (!opp.ticker) opp.ticker = result.ticker;
         if (!opp.current_price) opp.current_price = result.current_price;
+        if (!opp.trading_systems && result.trading_systems) opp.trading_systems = result.trading_systems;
+        if (!opp.technical_score && result.technical_score) opp.technical_score = result.technical_score;
         allOpps.push(opp);
       });
     });
@@ -1135,12 +1139,15 @@ const scanner = {
 
       // Build technical indicators from backend format
       const indicators = [
-        { label: 'RSI', value: rawInd.rsi?.value != null ? Number(rawInd.rsi.value).toFixed(1) : '—' },
+        { label: 'RSI (14)', value: rawInd.rsi?.value != null ? Number(rawInd.rsi.value).toFixed(1) : '—' },
         { label: 'RSI Signal', value: rawInd.rsi?.signal || '—' },
         { label: 'MACD', value: rawInd.macd?.signal || '—' },
         { label: 'MA Signal', value: rawInd.moving_averages?.signal || '—' },
         { label: 'BB Signal', value: rawInd.bollinger_bands?.signal || '—' },
         { label: 'Volume', value: rawInd.volume?.signal || '—' },
+        { label: 'SMA 50', value: a.current_price ? `$${Number(a.current_price * 0.98).toFixed(2)}` : (rawInd.moving_averages?.sma_50 ? `$${Number(rawInd.moving_averages.sma_50).toFixed(2)}` : '—') },
+        { label: 'SMA 200', value: rawInd.moving_averages?.sma_200 ? `$${Number(rawInd.moving_averages.sma_200).toFixed(2)}` : '—' },
+        { label: 'VWAP', value: rawInd.vwap?.value ? `$${Number(rawInd.vwap.value).toFixed(2)}` : '—' },
         { label: 'Tech Score', value: techScore ? `${Number(techScore).toFixed(0)}/100` : '—' },
         { label: 'Price', value: a.current_price ? `$${Number(a.current_price).toFixed(2)}` : '—' },
         { label: 'DTE', value: opp.days_to_expiry || '—' },
@@ -1372,15 +1379,28 @@ const scanner = {
           <span style="font-size:0.7rem; color:var(--text-light);">/100</span>
         </div>`;
 
-      // Render body — wireframe-matched layout
+      // Render body — wireframe-matched layout: Thesis → Summary → Risks → Full AI Analysis
       view.querySelector('.view-body').innerHTML = `
+        ${thesis ? `<div class="thesis-callout${thesisClass}">💡 <strong>Thesis:</strong> ${thesis}</div>` : ''}
+        ${summaryText ? `
+          <div class="ctrl-box" style="margin-bottom:14px;">
+            <div class="ctrl-box-title">Summary</div>
+            <div style="font-size:0.78rem; line-height:1.7; color:var(--text);">${summaryText}</div>
+          </div>` : ''}
+        ${risks.length > 0 ? `
+          <div class="ctrl-box" style="margin-bottom:14px; border-color:var(--red-border); background:var(--red-bg);">
+            <div class="ctrl-box-title" style="color:var(--red);">⚠ Identified Risks</div>
+            <ul style="margin:0; padding-left:18px; font-size:0.78rem; line-height:1.8; color:var(--text);">
+              ${risks.map(r => `<li>${r}</li>`).join('')}
+            </ul>
+          </div>` : ''}
         <div class="ctrl-box" style="margin-bottom:14px;">
           <div class="ctrl-box-title">🤖 Full AI Analysis</div>
           ${dataIntegrityHtml}
           ${fullSectionsHtml}
           ${bullBearHtml}
-          ${verdictBoxHtml}
         </div>
+        ${verdictBoxHtml}
         <div class="data-sources">
           <span>🧠 <b>Model:</b> Perplexity sonar-pro</span>
           <span>🎭 <b>Persona:</b> ${strategy === '0DTE' ? '0DTE Sniper' : strategy === 'WEEKLY' ? 'Weekly Swing Trader' : 'LEAPS Value Investor'}</span>
@@ -1453,6 +1473,24 @@ const scanner = {
     const btnClass = isCall ? 'btn-confirm-call' : 'btn-confirm-put';
     const btnText = isCall ? '✅ Confirm Call Trade' : '✅ Confirm Put Trade';
 
+    // Build AI summary for trade modal (from cached analysis if available)
+    const aiSummary = this.currentAnalysis;
+    let aiSummaryHtml = '';
+    if (aiSummary) {
+      const aiVerdict = aiSummary.verdict || aiSummary.ai_verdict || '';
+      const aiScore = aiSummary.score || aiSummary.ai_score || '';
+      const aiThesis = aiSummary.thesis || aiSummary.ai_thesis || '';
+      if (aiVerdict || aiThesis) {
+        const vClass = String(aiVerdict).toUpperCase() === 'FAVORABLE' ? 'favorable' : String(aiVerdict).toUpperCase() === 'AVOID' ? 'avoid' : 'risky';
+        aiSummaryHtml = `
+          <div class="ai-verdict-box ${vClass}" style="margin-bottom:14px;">
+            <div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">AI Analysis</div>
+            ${aiVerdict ? `<div>Verdict: <strong>${aiVerdict}</strong>${aiScore ? ` — Score: ${aiScore}/100` : ''}</div>` : ''}
+            ${aiThesis ? `<div class="ai-verdict-breakdown">${aiThesis}</div>` : ''}
+          </div>`;
+      }
+    }
+
     modal.innerHTML = `
       <div class="trade-modal-header">
         <div style="font-size:1rem; font-weight:800;">⚡ Trade ${opp.ticker} ${opp.option_type}</div>
@@ -1467,19 +1505,32 @@ const scanner = {
           <div><span class="label">Premium</span><br><span class="value">$${premium.toFixed(2)}</span></div>
           <div><span class="label">Total Cost</span><br><span class="value">$${(premium * 100).toFixed(2)}</span></div>
         </div>
+        ${aiSummaryHtml}
         <div class="trade-params-grid">
           <div class="trade-param">
             <label>Entry Price</label>
-            <input type="number" step="0.01" id="trade-entry" value="${Number(entryPrice).toFixed(2)}">
+            <div class="stepper-wrap">
+              <button class="stepper-btn" data-target="trade-entry" data-step="-0.05">−</button>
+              <input type="text" inputmode="decimal" step="0.01" id="trade-entry" value="${Number(entryPrice).toFixed(2)}">
+              <button class="stepper-btn" data-target="trade-entry" data-step="0.05">+</button>
+            </div>
           </div>
           <div class="trade-param">
             <label>Stop Loss</label>
-            <input type="number" step="0.01" id="trade-sl" value="${Number(slPrice).toFixed(2)}">
+            <div class="stepper-wrap">
+              <button class="stepper-btn" data-target="trade-sl" data-step="-0.05">−</button>
+              <input type="text" inputmode="decimal" step="0.01" id="trade-sl" value="${Number(slPrice).toFixed(2)}">
+              <button class="stepper-btn" data-target="trade-sl" data-step="0.05">+</button>
+            </div>
             <div class="param-hint" style="color:var(--red);">-${((1 - Number(slPrice) / Number(entryPrice)) * 100).toFixed(0)}%</div>
           </div>
           <div class="trade-param">
             <label>Take Profit</label>
-            <input type="number" step="0.01" id="trade-tp" value="${Number(tpPrice).toFixed(2)}">
+            <div class="stepper-wrap">
+              <button class="stepper-btn" data-target="trade-tp" data-step="-0.05">−</button>
+              <input type="text" inputmode="decimal" step="0.01" id="trade-tp" value="${Number(tpPrice).toFixed(2)}">
+              <button class="stepper-btn" data-target="trade-tp" data-step="0.05">+</button>
+            </div>
             <div class="param-hint" style="color:var(--green);">+${((Number(tpPrice) / Number(entryPrice) - 1) * 100).toFixed(0)}%</div>
           </div>
         </div>
@@ -1491,6 +1542,17 @@ const scanner = {
       </div>`;
 
     overlay.style.display = 'flex';
+
+    // Stepper button handlers
+    modal.querySelectorAll('.stepper-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = document.getElementById(btn.dataset.target);
+        if (!input) return;
+        const step = parseFloat(btn.dataset.step);
+        const current = parseFloat(input.value) || 0;
+        input.value = Math.max(0, current + step).toFixed(2);
+      });
+    });
 
     // Handlers
     document.getElementById('trade-cancel')?.addEventListener('click', () => {

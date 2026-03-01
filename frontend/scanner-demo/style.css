@@ -2312,3 +2312,53 @@ body.dark .thesis-callout.risky {
   font-weight: 700;
   cursor: pointer;
 }
+
+/* Stepper wrap (−/+ buttons) */
+.stepper-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+}
+
+.stepper-wrap input {
+  flex: 1;
+  border: none;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  text-align: center;
+  padding: 6px 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: var(--bg);
+  color: var(--text);
+  min-width: 0;
+}
+
+.stepper-btn {
+  padding: 6px 10px;
+  border: none;
+  background: var(--surface, #f1f5f9);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  line-height: 1;
+  transition: background 0.1s;
+}
+
+.stepper-btn:hover {
+  background: var(--border);
+}
+
+body.dark .stepper-btn {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+body.dark .stepper-btn:hover {
+  background: rgba(148, 163, 184, 0.25);
+}
