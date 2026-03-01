@@ -422,6 +422,210 @@ class OratsAPI:
         }
 
     # ═══════════════════════════════════════════════════════════════
+    # SMART SECTOR SCAN: Bulk core data for pre-filtering
+    # ═══════════════════════════════════════════════════════════════
+
+    # ORATS sector ETF mapping: bestEtf → GICS Sector name (user-facing)
+    SECTOR_ETF_MAP = {
+        'XLK': 'Technology',
+        'XLV': 'Healthcare',
+        'XLF': 'Financials',
+        'XLE': 'Energy',
+        'XLI': 'Industrials',
+        'XLY': 'Consumer Discretionary',
+        'XLP': 'Consumer Staples',
+        'XLU': 'Utilities',
+        'XLRE': 'Real Estate',
+        'XLB': 'Materials',
+        'XLC': 'Communication Services',
+    }
+
+    # Reverse map: user-facing sector name → list of ETF codes
+    SECTOR_NAME_MAP = {}
+    for _etf, _name in SECTOR_ETF_MAP.items():
+        SECTOR_NAME_MAP.setdefault(_name.lower(), []).append(_etf)
+
+    @retry_api(max_retries=2, base_delay=1.0)
+    def get_cores_bulk(self, sector=None, fields=None):
+        """Fetch ORATS core data for entire universe in a single API call.
+
+        Returns ~5,000+ tickers with options-specific intelligence:
+        IV percentile, options volume, open interest, market width,
+        momentum, earnings proximity, and more.
+
+        Data is T-1 (prior trading day close) — suitable for screening
+        and ranking candidates, NOT for live trade execution.
+
+        SMART SECTOR SCAN: Replaces FMP screener as primary pre-filter.
+        ORATS already knows which tickers are optionable — no coverage
+        check needed downstream.
+
+        Args:
+            sector: Optional sector name to filter (e.g., 'Technology',
+                    'Healthcare'). Matched against ORATS bestEtf field.
+                    Also matches ORATS sectorName for industry-level
+                    filtering (e.g., 'Technology Hardware & Equipment').
+            fields: Optional comma-separated field list to reduce payload.
+                    Defaults to the ~25 fields needed for smart ranking.
+
+        Returns:
+            list[dict]: Ticker records with options metrics, filtered
+                        by sector if specified.
+        """
+        url = f"{self.base_url}/cores"
+        params = {"token": self.api_key}
+
+        # Request only the fields needed for ranking (reduces payload ~90%)
+        if fields:
+            params["fields"] = fields
+        else:
+            params["fields"] = (
+                "ticker,tradeDate,sectorName,bestEtf,mktCap,stkVolu,"
+                "ivPctile1y,ivPctile1m,avgOptVolu20d,"
+                "cVolu,pVolu,cOi,pOi,"
+                "mktWidthVol,iv30d,orHv20d,"
+                "stkPxChng1wk,stkPxChng1m,stkPxChng6m,"
+                "beta1y,daysToNextErn,impliedEarningsMove,"
+                "orIvXern20d,iv200Ma,pxAtmIv"
+            )
+
+        try:
+            # Larger timeout: full universe payload (~5k tickers)
+            response = requests.get(url, params=params, timeout=(5, 60))
+            response.raise_for_status()
+            data = response.json()
+            records = data.get("data", [])
+
+            # Client-side sector filter
+            if sector:
+                sector_lower = sector.lower().strip()
+
+                # Strategy 1: Match by bestEtf (broad sector)
+                # e.g., 'Technology' → 'XLK'
+                etf_codes = self.SECTOR_NAME_MAP.get(sector_lower, [])
+
+                # Strategy 2: Match by sectorName (industry group)
+                # e.g., 'Technology Hardware & Equipment' or 'Semiconductors'
+                filtered = []
+                for r in records:
+                    best_etf = (r.get("bestEtf") or "").upper()
+                    sector_name = (r.get("sectorName") or "").lower()
+
+                    # Match if ETF matches broad sector
+                    if best_etf in etf_codes:
+                        filtered.append(r)
+                    # Or if sectorName contains the search term (industry drill-down)
+                    elif sector_lower in sector_name:
+                        filtered.append(r)
+
+                records = filtered
+
+            logger.info(
+                f"ORATS /cores: {len(records)} tickers"
+                f"{f' in {sector}' if sector else ' (full universe)'}"
+            )
+            return records
+
+        except requests.exceptions.HTTPError as e:
+            if hasattr(e, 'response') and e.response is not None and e.response.status_code == 403:
+                logger.warning("ORATS /cores: Permission denied — check API key tier")
+            else:
+                logger.warning(f"ORATS /cores API Error: {e}")
+            raise  # Let retry decorator handle
+        except requests.exceptions.Timeout:
+            logger.warning("ORATS /cores: Timeout (60s) — universe fetch took too long")
+            return []
+        except Exception as e:
+            logger.warning(f"ORATS /cores bulk fetch error: {e}")
+            return []
+
+    # ═══════════════════════════════════════════════════════════════
+    # BATCH HISTORY: Parallel multi-ticker history fetch
+    # ═══════════════════════════════════════════════════════════════
+
+    def get_history_batch(self, tickers, days=400, max_workers=10, rate_limit_per_min=100):
+        """Fetch historical price data for multiple tickers in parallel.
+
+        Uses ThreadPoolExecutor with thread-safe rate limiting, matching
+        the concurrency pattern from BatchManager.
+
+        Performance: 30 tickers sequential ≈ 30-60s → parallel ≈ 5-8s
+        (bounded by ORATS rate limit: 100 req/min for history endpoint).
+
+        Args:
+            tickers: List of ticker symbols to fetch
+            days: Calendar days of history per ticker (default 400, same as get_history)
+            max_workers: Thread pool size (default 10)
+            rate_limit_per_min: Max requests per minute to ORATS /hist/dailies.
+                                Default 100 (conservative; ORATS allows 100/min on hist).
+
+        Returns:
+            dict: {ticker: price_history_dict, ...}
+                  Only includes tickers that returned valid data.
+                  Failed tickers are logged and silently excluded.
+        """
+        import concurrent.futures
+        import threading
+
+        if not tickers:
+            return {}
+
+        results = {}
+        total = len(tickers)
+        processed = [0]  # Mutable counter for thread-safe increment
+        delay = 60.0 / rate_limit_per_min if rate_limit_per_min > 0 else 0
+        lock = threading.Lock()
+        last_request_time = [0.0]  # Mutable for thread-safe update
+
+        logger.info(
+            f"ORATS get_history_batch: Starting parallel fetch for {total} tickers "
+            f"({max_workers} workers, {rate_limit_per_min} req/min)"
+        )
+        start_time = time.time()
+
+        def _fetch_single(ticker):
+            """Fetch history for one ticker with rate limiting."""
+            try:
+                # Thread-safe rate limiting (same pattern as BatchManager)
+                with lock:
+                    elapsed = time.time() - last_request_time[0]
+                    if elapsed < delay:
+                        time.sleep(delay - elapsed)
+                    last_request_time[0] = time.time()
+                return self.get_history(ticker, days=days)
+            except Exception as e:
+                logger.warning(f"ORATS get_history_batch: Error fetching {ticker}: {e}")
+                return None
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_ticker = {
+                executor.submit(_fetch_single, t): t
+                for t in tickers
+            }
+
+            for future in concurrent.futures.as_completed(future_to_ticker):
+                ticker = future_to_ticker[future]
+                try:
+                    data = future.result()
+                    if data and not data.get('empty', True):
+                        results[ticker] = data
+                    processed[0] += 1
+                    if processed[0] % 10 == 0:
+                        logger.info(
+                            f"ORATS get_history_batch: {processed[0]}/{total} fetched..."
+                        )
+                except Exception as exc:
+                    logger.error(
+                        f"ORATS get_history_batch: Unhandled error for {ticker}: {exc}"
+                    )
+
+        elapsed = time.time() - start_time
+        logger.info(
+            f"ORATS get_history_batch: Done. {len(results)}/{total} succeeded in {elapsed:.1f}s"
+        )
+        return results
+
+    # ═══════════════════════════════════════════════════════════════
     # Phase 3: New API Methods (P0 prerequisites)
     # ═══════════════════════════════════════════════════════════════
 

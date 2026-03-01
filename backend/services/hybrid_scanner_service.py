@@ -16,6 +16,7 @@ batch_manager, etc.) continue to call the same method names on this class.
 import os
 import json
 import logging
+import time
 from datetime import datetime, timedelta
 
 from backend.api.tradier import TradierAPI
@@ -67,9 +68,16 @@ class HybridScannerService:
     _orats_universe = None      # Loaded from orats_universe.json
     _spy_history = None         # F11 FIX: class-level cache (shared across instances)
 
-    # ═══════════════════════════════════════════════════════
+    # SMART SECTOR SCAN: Session cache for ORATS /cores data
+    # Data is T-1 (prior trading day) so caching for 1 hour is safe.
+    # Multiple sector scans in the same session reuse one API call.
+    _cores_cache = None
+    _cores_cache_time = 0
+    CORES_CACHE_TTL = 3600      # 1 hour in seconds
+
+    # ═══════════════════════════════════════════════════════════════════════
     #  INITIALIZATION
-    # ═══════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════════
 
     def __init__(self):
         self.yahoo_api = None  # REMOVED (Strict Mode)
@@ -113,9 +121,9 @@ class HybridScannerService:
         else:
             logger.warning("ORATS API NOT configured - Critical Error for Full Switch")
 
-    # ═══════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════════
     #  TICKER CACHE & UNIVERSE
-    # ═══════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════════
 
     def _refresh_ticker_cache(self):
         """Load tickers from local JSON file (backend/data/tickers.json)"""
@@ -206,13 +214,19 @@ class HybridScannerService:
         ticker = ticker.upper().strip()
         return ticker
 
-    # ═══════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════════
     #  SCANNING — delegated to sub-modules
-    # ═══════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════════
 
-    def scan_ticker(self, ticker, strict_mode=True, pre_fetched_data=None, direction='CALL'):
-        """Scan a single ticker for LEAP opportunities. Delegates to scanner_leaps."""
-        return scan_ticker_leaps(self, ticker, strict_mode, pre_fetched_data, direction)
+    def scan_ticker(self, ticker, strict_mode=True, pre_fetched_data=None, direction='CALL', pre_fetched_history=None):
+        """Scan a single ticker for LEAP opportunities. Delegates to scanner_leaps.
+        
+        Args:
+            pre_fetched_history: Optional pre-fetched price history dict from
+                                batch get_history_batch(). If provided, skips
+                                the per-ticker ORATS history API call.
+        """
+        return scan_ticker_leaps(self, ticker, strict_mode, pre_fetched_data, direction, pre_fetched_history)
 
     def scan_weekly_options(self, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched_data=None):
         """Scan a ticker for weekly options opportunities. Delegates to scanner_weekly."""
@@ -222,17 +236,78 @@ class HybridScannerService:
         """Scan a ticker for 0DTE options. Delegates to scanner_weekly."""
         return scan_0dte(self, ticker)
 
-    def scan_sector_top_picks(self, sector, min_volume, min_market_cap, limit=15, weeks_out=None, industry=None):
-        """Scan top picks in a sector. Delegates to scanner_sector."""
+    def scan_sector_top_picks(self, sector, min_volume, min_market_cap, limit=30, weeks_out=None, industry=None):
+        """Scan top picks in a sector. Delegates to scanner_sector.
+        
+        SMART SECTOR SCAN (v2): Default limit raised from 15 to 30.
+        Uses ORATS /cores for options-aware pre-filtering instead of FMP market-cap sort.
+        """
         return _scan_sector_top_picks(self, sector, min_volume, min_market_cap, limit, weeks_out, industry)
+
+    def _get_cores_cached(self, sector=None):
+        """Return cached ORATS /cores data, refreshing if stale.
+
+        SMART SECTOR SCAN: Caches the full /cores universe response so
+        multiple sector scans in one session only make ONE API call.
+        Data is T-1 (prior trading day close) so hourly caching is safe.
+
+        Args:
+            sector: Optional sector/industry name to filter.
+
+        Returns:
+            list[dict]: ORATS core records filtered by sector.
+        """
+        now = time.time()
+        orats_api = self.batch_manager.orats_api if hasattr(self.batch_manager, 'orats_api') else None
+
+        if not orats_api:
+            return []
+
+        # Check if cache needs refresh
+        if (HybridScannerService._cores_cache is None or
+                now - HybridScannerService._cores_cache_time > self.CORES_CACHE_TTL):
+            try:
+                # Fetch entire universe (no sector filter) — filter client-side
+                HybridScannerService._cores_cache = orats_api.get_cores_bulk(sector=None)
+                HybridScannerService._cores_cache_time = now
+                logger.info(
+                    f"\U0001f504 Refreshed ORATS /cores cache: "
+                    f"{len(HybridScannerService._cores_cache)} tickers"
+                )
+            except Exception as e:
+                logger.warning(f"\u26a0\ufe0f ORATS /cores cache refresh failed: {e}")
+                if HybridScannerService._cores_cache:
+                    logger.info("Using stale /cores cache")
+                else:
+                    return []
+
+        # Client-side sector filter on cached data
+        if sector and HybridScannerService._cores_cache:
+            sector_lower = sector.lower().strip()
+            etf_codes = orats_api.SECTOR_NAME_MAP.get(sector_lower, [])
+
+            filtered = []
+            for r in HybridScannerService._cores_cache:
+                best_etf = (r.get("bestEtf") or "").upper()
+                sector_name = (r.get("sectorName") or "").lower()
+
+                if best_etf in etf_codes:
+                    filtered.append(r)
+                elif sector_lower in sector_name:
+                    filtered.append(r)
+
+            logger.info(f"\U0001f4e6 /cores cache hit: {len(filtered)} tickers in '{sector}'")
+            return filtered
+
+        return HybridScannerService._cores_cache or []
 
     def scan_watchlist(self, username=None):
         """Scan user's watchlist. Delegates to scanner_sector."""
         return _scan_watchlist(self, username)
 
-    # ═══════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════════
     #  UTILITIES — delegated to scanner_utils
-    # ═══════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════════
 
     def _calculate_greeks_black_scholes(self, S, K, T, sigma, r=0.045, opt_type='call'):
         return calculate_greeks_black_scholes(self, S, K, T, sigma, r, opt_type)

@@ -304,37 +304,141 @@ class TechnicalIndicators:
     
     def get_all_indicators(self, price_history):
         """
-        Calculate all technical indicators
+        Calculate all technical indicators with graceful degradation.
+        
+        FIX-MINERV-B: Each indicator is wrapped in try/except so that partial
+        data (e.g., 50-199 bars) still produces useful results. Previously,
+        if calculate_moving_averages() returned None (needs 200 bars), the
+        downstream calculate_technical_score() could still consume it because
+        all signals default to 'neutral'. However, any unexpected exception
+        in a single indicator would crash the entire get_all_indicators() call
+        and abort the scan. This fix ensures:
+          1. Each indicator fails independently (no cascade)
+          2. Safe defaults are used for any failed indicator
+          3. A '_data_quality' key reports which indicators succeeded/degraded
         
         Args:
-            price_history: Price history data from TD Ameritrade
+            price_history: Price history data
         
         Returns:
-            Dictionary with all indicators and signals
+            Dictionary with all indicators and signals, or None if df fails
         """
         df = self.prepare_dataframe(price_history)
         
         if df is None:
             return None
         
-        # Calculate all indicators
-        rsi_value, rsi_signal = self.calculate_rsi(df)
-        macd_values, macd_signal = self.calculate_macd(df)
-        bb_values, bb_signal = self.calculate_bollinger_bands(df)
-        ma_values, ma_signal = self.calculate_moving_averages(df)
-        volume_values, volume_signal = self.analyze_volume(df)  # QW-6: removed duplicate call
-        sr_levels = self.calculate_support_resistance(df)
-        atr = self.calculate_atr(df)
-        hv_rank = self.calculate_hv_rank(df)
+        bars = len(df)
+        data_quality = {'bars': bars, 'degraded': [], 'failed': []}
         
-        # S3: RSI-2 (Connors Mean Reversion)
-        rsi2_data = self.calculate_rsi2(df)
+        # --- Safe defaults for each indicator ---
+        rsi_value, rsi_signal = None, 'neutral'
+        macd_values, macd_signal = None, 'neutral'
+        bb_values, bb_signal = None, 'neutral'
+        ma_values, ma_signal = None, 'neutral'
+        volume_values, volume_signal = None, 'normal'
+        sr_levels = None
+        atr = 0
+        hv_rank = 50
+        rsi2_data = {'value': None, 'signal': 'neutral', 'exit_trigger': False}
+        vwap_data = {'weekly_vwap': None, 'monthly_vwap': None, 'signal': 'neutral', 'score_boost': 0}
+        minervini_data = {'score': 0, 'stage': 'UNCLASSIFIED', 'criteria': {},
+                          'is_stage2': False, 'reason': 'insufficient_history'}
         
-        # S7A: VWAP Institutional Levels (EOD)
-        vwap_data = self.calculate_vwap_levels(df)
+        # --- Calculate each indicator with independent error handling ---
         
-        # S5: Minervini Stage 2 criteria
-        minervini_data = self.calculate_minervini_criteria(df)
+        # RSI (needs 14 bars)
+        try:
+            rsi_value, rsi_signal = self.calculate_rsi(df)
+        except Exception as e:
+            logger.warning(f"FIX-MINERV-B: RSI calculation failed: {e}")
+            data_quality['failed'].append('rsi')
+        
+        # MACD (needs 26 bars)
+        try:
+            macd_values, macd_signal = self.calculate_macd(df)
+        except Exception as e:
+            logger.warning(f"FIX-MINERV-B: MACD calculation failed: {e}")
+            data_quality['failed'].append('macd')
+        
+        # Bollinger Bands (needs 20 bars)
+        try:
+            bb_values, bb_signal = self.calculate_bollinger_bands(df)
+        except Exception as e:
+            logger.warning(f"FIX-MINERV-B: Bollinger Bands calculation failed: {e}")
+            data_quality['failed'].append('bollinger_bands')
+        
+        # Moving Averages (needs 200 bars — common degradation point)
+        try:
+            ma_values, ma_signal = self.calculate_moving_averages(df)
+            if ma_values is None and bars < 200:
+                data_quality['degraded'].append('moving_averages')
+                logger.debug(f"FIX-MINERV-B: Moving averages degraded ({bars} bars < 200 required)")
+        except Exception as e:
+            logger.warning(f"FIX-MINERV-B: Moving averages calculation failed: {e}")
+            data_quality['failed'].append('moving_averages')
+        
+        # Volume (needs 20 bars)
+        try:
+            volume_values, volume_signal = self.analyze_volume(df)  # QW-6: removed duplicate call
+        except Exception as e:
+            logger.warning(f"FIX-MINERV-B: Volume analysis failed: {e}")
+            data_quality['failed'].append('volume')
+        
+        # Support/Resistance (needs 20 bars)
+        try:
+            sr_levels = self.calculate_support_resistance(df)
+        except Exception as e:
+            logger.warning(f"FIX-MINERV-B: Support/Resistance calculation failed: {e}")
+            data_quality['failed'].append('support_resistance')
+        
+        # ATR (needs 14 bars)
+        try:
+            atr = self.calculate_atr(df)
+        except Exception as e:
+            logger.warning(f"FIX-MINERV-B: ATR calculation failed: {e}")
+            data_quality['failed'].append('atr')
+        
+        # HV Rank (needs 30 bars)
+        try:
+            hv_rank = self.calculate_hv_rank(df)
+        except Exception as e:
+            logger.warning(f"FIX-MINERV-B: HV Rank calculation failed: {e}")
+            data_quality['failed'].append('hv_rank')
+        
+        # S3: RSI-2 Connors Mean Reversion (needs 10 bars)
+        try:
+            rsi2_data = self.calculate_rsi2(df)
+        except Exception as e:
+            logger.warning(f"FIX-MINERV-B: RSI-2 calculation failed: {e}")
+            data_quality['failed'].append('rsi2')
+        
+        # S7A: VWAP Institutional Levels (needs 22 bars)
+        try:
+            vwap_data = self.calculate_vwap_levels(df)
+        except Exception as e:
+            logger.warning(f"FIX-MINERV-B: VWAP calculation failed: {e}")
+            data_quality['failed'].append('vwap')
+        
+        # S5: Minervini Stage 2 criteria (needs 252 bars — most demanding)
+        try:
+            minervini_data = self.calculate_minervini_criteria(df)
+            if bars < 252:
+                data_quality['degraded'].append('minervini')
+        except Exception as e:
+            logger.warning(f"FIX-MINERV-B: Minervini calculation failed: {e}")
+            data_quality['failed'].append('minervini')
+        
+        if data_quality['failed']:
+            logger.warning(
+                f"FIX-MINERV-B: {len(data_quality['failed'])} indicators failed "
+                f"({', '.join(data_quality['failed'])}), using safe defaults"
+            )
+        if data_quality['degraded']:
+            logger.info(
+                f"FIX-MINERV-B: {len(data_quality['degraded'])} indicators degraded "
+                f"due to insufficient bars ({bars}): {', '.join(data_quality['degraded'])}"
+            )
         
         return {
             'rsi': {
@@ -371,6 +475,8 @@ class TechnicalIndicators:
             'rsi2': rsi2_data,           # S3: Connors RSI-2
             'vwap': vwap_data,           # S7A: VWAP Levels
             'minervini': minervini_data,  # S5: Minervini Stage 2
+            # --- FIX-MINERV-B: Data quality metadata ---
+            '_data_quality': data_quality,
         }
     
     def calculate_technical_score(self, indicators):

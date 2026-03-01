@@ -43,26 +43,26 @@ if _allowed_origins:
 else:
     # Development fallback: allow all origins but log warning
     CORS(app)
-    logger.warning("ALLOWED_ORIGINS not set — CORS allows all origins. Set ALLOWED_ORIGINS for production.")
+    logger.warning("ALLOWED_ORIGINS not set \u2014 CORS allows all origins. Set ALLOWED_ORIGINS for production.")
 
 security_service = Security(app)
 
 # Warn if SECRET_KEY is auto-generated (sessions won't persist)
 if Config.SECRET_KEY_IS_DEFAULT:
-    logger.warning("SECRET_KEY not set — using random key. Sessions will not persist across restarts.")
+    logger.warning("SECRET_KEY not set \u2014 using random key. Sessions will not persist across restarts.")
 
 # XC-7: Rate limiting on login endpoint to prevent brute-force attacks
 if HAS_LIMITER:
     limiter = Limiter(
         get_remote_address,
         app=app,
-        default_limits=[],            # No global limit — only applied per-route
+        default_limits=[],            # No global limit \u2014 only applied per-route
         storage_uri="memory://",      # In-memory; works fine for single-process Pi deploy
     )
 else:
     limiter = None
     logging.getLogger(__name__).warning(
-        "flask-limiter not installed — login rate limiting disabled. "
+        "flask-limiter not installed \u2014 login rate limiting disabled. "
         "Run: pip install flask-limiter>=3.5.0"
     )
 
@@ -113,7 +113,7 @@ def login_page():
     # GET request - serve login page
     return app.send_static_file('login.html')
 
-# XC-7: Apply rate limit to login — 5 attempts/minute per IP
+# XC-7: Apply rate limit to login \u2014 5 attempts/minute per IP
 # Prevents brute-force attacks on the login endpoint
 if limiter is not None:
     login_page = limiter.limit("5/minute")(login_page)
@@ -463,13 +463,20 @@ def run_sector_scan():
         industry = data.get('industry')
         is_0dte = data.get('is_0dte', False)  # Explicit 0DTE flag from frontend
         
+        # SMART SECTOR SCAN: Accept optional scan_limit from frontend
+        # Default is 30 (set in scan_sector_top_picks). Frontend can override
+        # for Quick Scan (15) or Deep Scan (50) modes.
+        scan_limit = data.get('scan_limit')
+        if scan_limit is not None:
+            scan_limit = max(5, min(int(scan_limit), 75))  # Clamp to 5-75
+        
         if not sector:
              return jsonify({'success': False, 'error': 'Sector is required'}), 400
         
         # F43: Backend validation for 0DTE sector scans (frontend blocks this, but
         # enforce server-side too). 0DTE requires same-day expiry on specific tickers,
         # not broad sector sweeps.
-        # Note: weeks_out=0 means "This Week" expiry — NOT 0DTE. Only block explicit 0DTE.
+        # Note: weeks_out=0 means "This Week" expiry \u2014 NOT 0DTE. Only block explicit 0DTE.
         if is_0dte:
             return jsonify({
                 'success': False,
@@ -477,20 +484,25 @@ def run_sector_scan():
             }), 400
         
         # weeks_out: None = LEAPS mode, 0 = This Week, 1+ = weeks ahead
-        # Do NOT default to 1 — let None pass through for LEAPS sector scans
+        # Do NOT default to 1 \u2014 let None pass through for LEAPS sector scans
         if weeks_out is not None:
             weeks_out = int(weeks_out)
         
         service = get_scanner()
-        logger.info(f"Starting Sector Scan: {sector} (weeks_out={weeks_out}, industry={industry})")
+        logger.info(f"Starting Smart Sector Scan: {sector} (weeks_out={weeks_out}, industry={industry}, limit={scan_limit or 'default'})")
         
-        results = service.scan_sector_top_picks(
+        # Build kwargs \u2014 only pass limit if frontend specified it
+        scan_kwargs = dict(
             sector=sector,
             min_market_cap=min_market_cap,
             min_volume=min_volume,
             weeks_out=weeks_out,
             industry=industry
         )
+        if scan_limit is not None:
+            scan_kwargs['limit'] = scan_limit
+        
+        results = service.scan_sector_top_picks(**scan_kwargs)
         
         return jsonify({
             'success': True,
@@ -643,18 +655,18 @@ def get_ai_analysis_route(ticker):
         logger.error(f"Error getting AI analysis: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ═══════════════════════════════════════════════════════════════
-# Phase 3: APScheduler — Background Engine
-# ═══════════════════════════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+# Phase 3: APScheduler \u2014 Background Engine
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 def init_scheduler(app):
     """Initialize APScheduler with the monitoring engine jobs.
 
     Jobs:
-      1. sync_tradier_orders   — every 60s  (market hours only)
-      2. update_price_snapshots — every 40s  (market hours only)
-      3. pre_market_bookend     — Mon-Fri 9:25 AM ET
-      4. post_market_bookend    — Mon-Fri 4:05 PM ET
+      1. sync_tradier_orders   \u2014 every 60s  (market hours only)
+      2. update_price_snapshots \u2014 every 40s  (market hours only)
+      3. pre_market_bookend     \u2014 Mon-Fri 9:25 AM ET
+      4. post_market_bookend    \u2014 Mon-Fri 4:05 PM ET
     """
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
@@ -719,7 +731,7 @@ def init_scheduler(app):
             max_instances=1,  # P2-A3: prevent overlapping bookend runs
         )
 
-        # P0-8: Job 5: Lifecycle sync — process stale PENDING/CLOSING trades + expire
+        # P0-8: Job 5: Lifecycle sync \u2014 process stale PENDING/CLOSING trades + expire
         scheduler.add_job(
             func=monitor.lifecycle_sync,
             trigger=IntervalTrigger(seconds=120),
@@ -734,16 +746,16 @@ def init_scheduler(app):
 
         logger = logging.getLogger(__name__)
         logger.info(
-            "APScheduler started — 5 jobs registered "
+            "APScheduler started \u2014 5 jobs registered "
             "(order sync 60s, snapshots 40s, bookends 9:25/16:05 ET, lifecycle 120s)"
         )
         logger.info(
             "APScheduler started - 5 background jobs registered"
-            "   • sync_tradier_orders  (every 60s)\n"
-            "   • update_price_snapshots (every 40s)\n"
-            "   • pre_market_bookend   (9:25 AM ET Mon-Fri)\n"
-            "   • post_market_bookend  (4:05 PM ET Mon-Fri)\n"
-            "   • lifecycle_sync       (every 120s)\n"
+            "   \u2022 sync_tradier_orders  (every 60s)\n"
+            "   \u2022 update_price_snapshots (every 40s)\n"
+            "   \u2022 pre_market_bookend   (9:25 AM ET Mon-Fri)\n"
+            "   \u2022 post_market_bookend  (4:05 PM ET Mon-Fri)\n"
+            "   \u2022 lifecycle_sync       (every 120s)\n"
         )
 
     except ImportError:
