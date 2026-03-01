@@ -2,453 +2,212 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Options Scanner - AI-Powered Options Analysis</title>
-    <link rel="stylesheet" href="css/styles.css?v=100">
-    <link rel="stylesheet" href="css/components/watchlist.css?v=100">
-    <link rel="stylesheet" href="css/components/scanner.css?v=100">
-    <link rel="stylesheet" href="css/components/opportunities.css?v=100">
-    <link rel="stylesheet" href="css/components/analysis-detail.css?v=100">
-    <link rel="stylesheet" href="css/components/trading.css?v=103">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
-        rel="stylesheet">
-    <script src="vendor/chart.umd.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Options Scanner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/v2/style.css">
 </head>
 
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="container">
-            <div class="header-content">
-                <div class="logo">
-                    <div class="logo-icon">📈</div>
-                    <h1>Options Scanner</h1>
-                </div>
-                <div class="header-stats">
-                    <div class="stat-item">
-                        <span class="stat-label">Watchlist</span>
-                        <span class="stat-value" id="watchlist-count">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Opportunities</span>
-                        <span class="stat-value" id="opportunities-count">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Open Trades</span>
-                        <span class="stat-value" id="open-trades-count" style="color: var(--primary-light);">3</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Heat</span>
-                        <span class="stat-value" id="portfolio-heat" style="color: var(--accent);">4.1%</span>
-                    </div>
-                    <div class="stat-item">
-                        <a href="/logout" class="btn-logout" title="Sign Out" style="display:inline-flex;align-items:center;gap:4px;color:#94a3b8;text-decoration:none;font-size:0.85rem;padding:4px 10px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);transition:all 0.2s;" onmouseover="this.style.color='#ef4444';this.style.borderColor='#ef4444'" onmouseout="this.style.color='#94a3b8';this.style.borderColor='rgba(148,163,184,0.3)'"><span id="logged-in-user" style="font-weight:600;"></span> 🚩 Logout</a>
-                    </div>
-                </div>
-            </div>
-        </div>
+
+  <!-- APP SHELL -->
+  <div id="app-shell">
+
+    <!-- App Header -->
+    <header class="app-header">
+      <div class="app-header-left">📈 Options Scanner</div>
+      <div class="app-header-right">
+        <span class="hdr-stat">Watchlist: <b id="watchlist-count">0</b></span>
+        <span class="hdr-stat">Opportunities: <b id="opportunities-count">0</b></span>
+        <span class="hdr-stat">Open Trades: <b id="open-trades-count">0</b></span>
+        <span class="hdr-stat">Heat: <b id="heat-value">—</b></span>
+        <span class="hdr-stat" id="username-display" style="font-weight:600; display:none;">👤</span>
+        <button class="hdr-theme-toggle" id="theme-toggle" title="Toggle dark/light mode">☀️</button>
+        <span class="hdr-stat hdr-logout" id="logout-btn">Logout</span>
+      </div>
     </header>
 
-    <!-- Tab Navigation -->
-    <nav class="nav-tabs">
-        <button class="nav-tab active" onclick="switchTab('scanner', this)">
-            <span class="tab-icon">🎯</span> Scanner
-        </button>
-        <button class="nav-tab" onclick="switchTab('portfolio', this)">
-            <span class="tab-icon">💼</span> Portfolio
-        </button>
-        <button class="nav-tab" onclick="switchTab('risk', this)">
-            <span class="tab-icon">🛡️</span> Risk
-        </button>
+    <!-- App Tabs -->
+    <nav class="app-tabs">
+      <span class="app-tab active" data-tab="scanner">Scanner</span>
+      <span class="app-tab" data-tab="portfolio">Portfolio</span>
+      <span class="app-tab" data-tab="risk">Risk</span>
     </nav>
 
-    <!-- Main Content -->
-    <main class="main-content">
+    <!-- Scanner Tab Content -->
+    <div id="tab-scanner" class="tab-content active">
+      <div class="scanner-body">
 
-        <!-- SCANNER TAB (existing content, untouched) -->
-        <div id="tab-scanner" class="tab-panel active">
-            <div class="container">
-                <!-- Scanner Body: Sidebar + Main -->
-                <div class="scanner-body">
-                    <!-- LEFT SIDEBAR (230px) -->
-                    <aside class="scanner-sidebar">
-                        <!-- Scan Control -->
-                        <div class="sidebar-section">
-                            <h2>Scan Control</h2>
-                            <div class="scan-mode-grid">
-                                <button id="mode-0dte" class="btn btn-mode btn-mode-0dte">⚡ 0DTE</button>
-                                <button id="mode-weekly-0" class="btn btn-mode active">This Week</button>
-                                <button id="mode-weekly-1" class="btn btn-mode">Next Week</button>
-                                <button id="mode-weekly-2" class="btn btn-mode">Next 2 Weeks</button>
-                                <button id="mode-leaps" class="btn btn-mode">Leaps</button>
-                            </div>
-                            <div id="scan-progress" class="scan-progress hidden">
-                                <div class="progress-bar">
-                                    <div class="progress-fill"></div>
-                                </div>
-                                <p id="progress-text" class="progress-text">Scanning watchlist...</p>
-                            </div>
-                        </div>
+        <!-- Left Sidebar / Control Panel -->
+        <aside class="control-panel">
 
-                        <!-- Recent History -->
-                        <div class="sidebar-section">
-                            <h2>Recent History</h2>
-                            <div id="search-history" class="history-list">
-                                <div class="empty-state-small">No recent searches</div>
-                            </div>
-                        </div>
-
-                        <!-- Smart Search -->
-                        <div class="sidebar-section">
-                            <h2>Smart Search</h2>
-                            <form id="quick-scan-form" class="ticker-form" autocomplete="off" style="position: relative;">
-                                <input type="text" id="quick-scan-input" class="input-field"
-                                    placeholder="Search Ticker (e.g. NVDA, AAPL)" autocomplete="off">
-                                <div id="autocomplete-list" class="autocomplete-list" style="z-index: 9999;"></div>
-                                <button type="button" class="btn btn-primary" style="width:100%;"
-                                    onclick="(() => { const t = document.getElementById('quick-scan-input').value.trim().toUpperCase(); if (!t) { toast.error('Please enter a ticker symbol'); return; } if (!scanner.isValidTicker(t)) { toast.error('Unknown ticker \'' + t + '\'. Use the autocomplete to find valid symbols.'); return; } updateHistory(t); scanner.scanTicker(t); })()">
-                                    Scan
-                                </button>
-                            </form>
-                        </div>
-
-                        <!-- Sector Scan -->
-                        <div class="sidebar-section">
-                            <h2>Sector Scan</h2>
-                            <div class="sector-controls" style="display: flex; flex-direction: column; gap: 10px;">
-                                <select id="sector-select" class="select-field">
-                                    <option value="">Select Sector...</option>
-                                    <option value="Technology">Technology</option>
-                                    <option value="Financial Services">Financial Services</option>
-                                    <option value="Healthcare">Healthcare</option>
-                                    <option value="Consumer Cyclical">Consumer Cyclical</option>
-                                    <option value="Consumer Defensive">Consumer Defensive</option>
-                                    <option value="Energy">Energy</option>
-                                    <option value="Industrials">Industrials</option>
-                                    <option value="Communication Services">Communication Services</option>
-                                    <option value="Basic Materials">Basic Materials</option>
-                                    <option value="Real Estate">Real Estate</option>
-                                    <option value="Utilities">Utilities</option>
-                                </select>
-
-                                <select id="industry-select" class="select-field" style="display: none;">
-                                    <option value="">Any Subsector</option>
-                                </select>
-
-                                <!-- Progressive disclosure: hidden until sector selected -->
-                                <div id="sector-extra-filters" style="display: none; flex-direction: column; gap: 10px;">
-                                    <div style="display: flex; gap: 10px;">
-                                        <select id="cap-select" class="select-field" style="flex: 1; padding: 6px 12px;">
-                                            <option value="0">Any Cap</option>
-                                            <option value="200000000000">Mega (>200B)</option>
-                                            <option value="10000000000">Large (>10B)</option>
-                                            <option value="2000000000">Mid (>2B)</option>
-                                        </select>
-                                        <select id="vol-select" class="select-field" style="flex: 1; padding: 6px 12px;">
-                                            <option value="0">Any Vol</option>
-                                            <option value="1000000">High (>1M)</option>
-                                            <option value="500000">Med (>500k)</option>
-                                        </select>
-                                    </div>
-                                    <button id="btn-sector-scan" class="btn btn-secondary full-width-btn">
-                                        Scan Top Picks
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </aside>
-
-                    <!-- MAIN CONTENT AREA -->
-                    <div class="scanner-main">
-                        <!-- Watchlist Inline Row -->
-                        <section class="watchlist-inline-row">
-                            <form id="watchlist-add-form" class="watchlist-add-inline" autocomplete="off" style="position: relative;">
-                                <input type="text" id="watchlist-input" class="input-field" placeholder="Add Ticker (e.g. AMD)" autocomplete="off" style="width:120px; padding:6px 10px; font-size:0.85rem;">
-                                <div id="watchlist-autocomplete-list" class="autocomplete-list" style="z-index: 9999;"></div>
-                                <button type="button" id="btn-add-watchlist" class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem;">Add</button>
-                            </form>
-                            <div class="watchlist-inline-label">
-                                <span>My Watchlist</span>
-                                <span class="watchlist-count-badge"><span id="watchlist-count-display">0</span>/30</span>
-                            </div>
-                            <div id="watchlist-container" class="watchlist-chips">
-                                <span class="empty-state-small">Watchlist is empty</span>
-                            </div>
-                        </section>
-
-                <!-- Opportunities Section -->
-                <section class="opportunities-section">
-                    <div class="section-header">
-                        <h2>Opportunities <span id="opportunities-mode-label"
-                                style="font-size: 1.25rem; color: #94a3b8; font-weight: 400; margin-left: 10px;">Leaps</span>
-                            <span id="opportunities-ticker-price"
-                                style="font-size: 1rem; margin-left: 15px; background-color: #2196f3; color: white; padding: 4px 12px; border-radius: 20px; font-weight: 600; display: none; vertical-align: middle;"></span>
-
-                            <!-- Profit Filters -->
-                            <div class="profit-filters"
-                                style="display: inline-flex; gap: 8px; margin-left: 20px; vertical-align: middle;">
-                                <button class="btn-filter" data-value="15">>15%</button>
-                                <button class="btn-filter" data-value="25">>25%</button>
-                                <button class="btn-filter" data-value="35">>35%</button>
-                            </div>
-                        </h2>
-                        <p class="section-subtitle">High-potential options based on your scan criteria</p>
-                        <div class="filter-controls">
-                            <select id="ticker-filter" class="select-field">
-                                <option value="all">All Tickers</option>
-                            </select>
-                            <select id="sort-select" class="select-field">
-                                <option value="score">Sort by Score</option>
-                                <option value="profit">Sort by Profit Potential</option>
-                                <option value="expiry">Sort by Expiry</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div id="opportunities-container" class="opportunities-grid">
-                        <!-- Opportunity cards will be inserted here -->
-                    </div>
-                </section>
-
-                    </div><!-- /scanner-main -->
-                </div><!-- /scanner-body -->
-
-                <!-- Detailed Analysis Modal -->
-                <div id="analysis-modal" class="modal hidden">
-                    <!-- purely decorative backdrop (no pointer events) -->
-                    <div class="analysis-modal-bg"></div>
-                    <div class="modal-content">
-                        <button class="modal-close" id="close-modal">&times;</button>
-                        <div id="analysis-detail">
-                            <!-- Detailed analysis will be inserted here -->
-                        </div>
-                    </div>
-                </div>
+          <!-- 1. Scan Control -->
+          <div class="ctrl-box">
+            <div class="ctrl-box-title">Scan Control</div>
+            <div class="ctrl-btn-row">
+              <button class="ctrl-btn mode-btn" id="mode-0dte" data-mode="0dte">⚡ 0DTE</button>
+              <button class="ctrl-btn mode-btn" id="mode-weekly-0" data-mode="weekly-0">This Week</button>
+              <button class="ctrl-btn mode-btn" id="mode-weekly-1" data-mode="weekly-1">Next Week</button>
             </div>
-        </div> <!-- /tab-scanner -->
-
-        <!-- PORTFOLIO TAB -->
-        <div id="tab-portfolio" class="tab-panel">
-            <div class="container">
-
-                <!-- Portfolio Header & Controls -->
-                <div class="portfolio-header"
-                    style="position:fixed; top:148px; left:0; right:0; z-index:80; background:var(--bg-primary); padding:0.5rem 1.5rem; border-bottom:1px solid var(--border); backdrop-filter:blur(10px);">
-                    <div class="portfolio-tabs">
-                        <button class="p-tab active" data-view="open">📊 Open Positions</button>
-                        <button class="p-tab" data-view="history">📜 Trade History</button>
-                        <button class="p-tab" data-view="performance">📈 Performance</button>
-                        <button class="p-tab" data-view="settings">⚙️ Settings</button>
-                    </div>
-                    <!-- W3: Mobile dropdown (hidden on desktop via CSS, shown ≤600px) -->
-                    <select class="portfolio-mobile-select" style="display:none;" aria-label="Portfolio section" onchange="portfolio.switchView ? portfolio.switchView(this.value) : void 0">
-                        <option value="open">📊 Open Positions</option>
-                        <option value="history">📜 Trade History</option>
-                        <option value="performance">📈 Performance</option>
-                        <option value="settings">⚙️ Settings</option>
-                    </select>
-
-                    <div class="portfolio-controls">
-                        <div class="auto-refresh-toggle">
-                            <label class="switch">
-                                <input type="checkbox" id="portfolio-auto-refresh" checked>
-                                <span class="slider round"></span>
-                            </label>
-                            <span class="label-text">Auto-Refresh</span>
-                        </div>
-                        <button id="btn-refresh-portfolio" class="btn-icon" title="Refresh Now">
-                            🔄 <span id="portfolio-last-updated">--:--:--</span>
-                        </button>
-                        <button id="btn-export-csv" class="btn-secondary" style="display:none;">
-                            ⬇️ Export CSV
-                        </button>
-                    </div>
-                </div>
-
-                <!-- MODE BANNER (Phase 6) -->
-                <div id="mode-banner" class="mode-banner mode-sandbox">
-                    🧪 SANDBOX MODE — Fake money (Tradier)
-                </div>
-
-                <!-- VIEW 1: OPEN POSITIONS -->
-                <div id="portfolio-view-open" class="portfolio-view">
-                    <!-- Stat Cards -->
-                    <div class="portfolio-stats-row">
-                        <!-- Populated by JS -->
-                    </div>
-
-                    <!-- Positions Table -->
-                    <div class="table-container">
-                        <table class="data-table" id="portfolio-table">
-                            <thead>
-                                <tr>
-                                    <th>Ticker</th>
-                                    <th>Type</th>
-                                    <th>Strike</th>
-                                    <th>Entry</th>
-                                    <th>Current</th>
-                                    <th>P&L</th>
-                                    <th>SL / TP</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="portfolio-body">
-                                <!-- Rows rendered by JS -->
-                            </tbody>
-                        </table>
-                        <div id="portfolio-empty-state" class="empty-state hidden">
-                            <div class="empty-icon">🧘</div>
-                            <h3>Cash is a Position</h3>
-                            <p>No open trades. Scan for new opportunities.</p>
-                            <button class="btn-primary" onclick="app.switchTab('scanner')">Go to Scanner</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- VIEW 2: TRADE HISTORY -->
-                <div id="portfolio-view-history" class="portfolio-view hidden">
-                    <div class="history-filters">
-                        <button class="filter-pill active" data-filter="ALL">All</button>
-                        <button class="filter-pill" data-filter="WIN">Wins 🟢</button>
-                        <button class="filter-pill" data-filter="LOSS">Losses 🔴</button>
-                        <button class="filter-pill" data-filter="EXPIRED">Expired</button>
-                        <button class="filter-pill" data-filter="SL_HIT">SL Hit</button>
-                        <button class="filter-pill" data-filter="TP_HIT">TP Hit</button>
-                        <!-- Ticker Filter -->
-                        <select id="history-ticker-filter" class="select-field"
-                            style="font-size:0.78rem; padding:0.25rem 0.5rem; min-width:90px; margin-left:0.5rem;"
-                            onchange="portfolio.setHistoryTickerFilter(this.value)">
-                            <option value="ALL">All Tickers</option>
-                        </select>
-                        <!-- Date range pickers -->
-                        <div style="display:flex; align-items:center; gap:0.4rem; margin-left:0.5rem;">
-                            <label style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">From</label>
-                            <input type="date" id="history-date-from"
-                                style="background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border); border-radius:6px; padding:0.25rem 0.5rem; font-size:0.78rem;"
-                                onchange="portfolio.applyHistoryDateFilter()">
-                            <label style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">To</label>
-                            <input type="date" id="history-date-to"
-                                style="background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border); border-radius:6px; padding:0.25rem 0.5rem; font-size:0.78rem;"
-                                onchange="portfolio.applyHistoryDateFilter()">
-                            <button onclick="portfolio.resetHistoryDateFilter()" title="Reset date filter"
-                                style="background:transparent; border:1px solid var(--border); border-radius:6px; padding:0.25rem 0.5rem; font-size:0.78rem; color:var(--text-muted); cursor:pointer;"
-                                onmouseover="this.style.color='var(--text-primary)'"
-                                onmouseout="this.style.color='var(--text-muted)'">&#x2715; Reset</button>
-                        </div>
-                        <div style="flex:1;"></div>
-                        <div class="export-dropdown" style="position:relative;">
-                            <button class="filter-pill" id="btn-export-history"
-                                onclick="portfolio.toggleExportMenu()">&#x1F4E5; Export &#x25BC;</button>
-                            <div id="export-menu" class="export-menu hidden">
-                                <button onclick="portfolio.exportHistory('csv')">&#x1F4C4; Export CSV</button>
-                                <button onclick="portfolio.exportHistory('json')">&#x1F5C2;&#xFE0F; Export JSON</button>
-                            </div>
-                        </div>
-
-                    </div>
-                    <!-- History Summary Bar -->
-                    <div id="history-summary" class="history-summary"></div>
-                    <div class="table-container">
-                        <table class="data-table" id="history-table">
-                            <thead>
-                                <tr>
-                                    <th class="sortable-th" onclick="portfolio.sortHistory('ticker')">Ticker <span
-                                            id="sort-arrow-ticker"></span></th>
-                                    <th class="sortable-th" onclick="portfolio.sortHistory('type')">Type <span
-                                            id="sort-arrow-type"></span></th>
-                                    <th>Entry &rarr; Exit</th>
-                                    <th class="sortable-th" onclick="portfolio.sortHistory('pnl')">P&L <span
-                                            id="sort-arrow-pnl"></span></th>
-                                    <th class="sortable-th" onclick="portfolio.sortHistory('held')">Held <span
-                                            id="sort-arrow-held"></span></th>
-                                    <th>Reason</th>
-                                    <th>Exit Eff.</th>
-                                    <th class="sortable-th" onclick="portfolio.sortHistory('date')">Date <span
-                                            id="sort-arrow-date"></span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="history-body">
-                                <!-- Rows rendered by JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- VIEW 3: PERFORMANCE -->
-                <div id="portfolio-view-performance" class="portfolio-view hidden">
-                    <!-- Charts & Analytics rendered here -->
-                    <div class="loading-placeholder">
-                        &#x23F3; Loading Analytics...
-                    </div>
-                </div>
-
-                <!-- VIEW 4: SETTINGS (Phase 6) -->
-                <div id="portfolio-view-settings" class="portfolio-view hidden">
-                    <!-- Rendered by renderSettingsView() -->
-                    <div class="loading-placeholder">
-                        &#x23F3; Loading Settings...
-                    </div>
-                </div>
-
+            <div class="ctrl-btn-row">
+              <button class="ctrl-btn mode-btn" id="mode-weekly-2" data-mode="weekly-2">Next 2 Weeks</button>
+              <button class="ctrl-btn mode-btn" id="mode-leaps" data-mode="leaps">Leaps</button>
             </div>
-        </div>
+          </div>
 
-        <!-- RISK DASHBOARD TAB -->
-        <div id="tab-risk" class="tab-panel">
-            <div class="container">
-                <!-- Sandbox banner for Risk page -->
-                <div id="risk-mode-banner" class="mode-banner mode-sandbox" style="margin-top: 1rem;">
-                    🧪 SANDBOX MODE — Fake money (Tradier)
-                </div>
-                <div id="risk-content">
-                    <!-- Rendered by risk-dashboard.js -->
-                </div>
+          <!-- 2. Smart Search -->
+          <div class="ctrl-box">
+            <div class="ctrl-box-title">Smart Search</div>
+            <div class="ctrl-input-stacked" style="position:relative;">
+              <input type="text" id="quick-scan-input" class="ctrl-input full-width"
+                placeholder="Enter ticker symbol..." autocomplete="off" spellcheck="false">
+              <div id="autocomplete-list" class="autocomplete-dropdown" style="display:none;"></div>
+              <button class="ctrl-btn scan-btn full-width" id="btn-scan-ticker">🔍 Scan Ticker</button>
             </div>
-        </div>
+          </div>
 
-    </main>
+          <!-- 3. Sector Scan -->
+          <div class="ctrl-box">
+            <div class="ctrl-box-title">Sector Scan</div>
+            <select class="ctrl-select" id="sector-select">
+              <option value="">Select sector...</option>
+              <option value="Technology">Technology</option>
+              <option value="Financial Services">Financial Services</option>
+              <option value="Healthcare">Healthcare</option>
+              <option value="Consumer Cyclical">Consumer Cyclical</option>
+              <option value="Consumer Defensive">Consumer Defensive</option>
+              <option value="Energy">Energy</option>
+              <option value="Industrials">Industrials</option>
+              <option value="Communication Services">Communication Services</option>
+              <option value="Basic Materials">Basic Materials</option>
+              <option value="Real Estate">Real Estate</option>
+              <option value="Utilities">Utilities</option>
+            </select>
+            <!-- Progressive disclosure — shown after sector selection -->
+            <div id="sector-extra-filters" style="display:none; flex-direction:column; gap:6px; margin-top:6px;">
+              <select class="ctrl-select" id="industry-select">
+                <option value="">Any Subsector</option>
+              </select>
+              <select class="ctrl-select" id="vol-select">
+                <option value="">Any Volume</option>
+                <option value="500000">Volume: Medium (&gt;500K)</option>
+                <option value="1000000">Volume: High (&gt;1M)</option>
+                <option value="5000000">Volume: Very High (&gt;5M)</option>
+              </select>
+              <select class="ctrl-select" id="cap-select">
+                <option value="">Any Market Cap</option>
+                <option value="2000000000">Mid Cap (&gt;$2B)</option>
+                <option value="10000000000">Large Cap (&gt;$10B)</option>
+                <option value="100000000000">Mega Cap (&gt;$100B)</option>
+              </select>
+              <button class="ctrl-btn scan-btn full-width" id="btn-sector-scan">🔍 Scan Sector</button>
+            </div>
+          </div>
 
-    <!-- Trade Modal Overlay -->
-    <div id="trade-modal-overlay" class="modal-overlay-trade">
-        <!-- Rendered by trade-modal.js -->
+          <!-- 4. Recent History -->
+          <div class="ctrl-box">
+            <div class="ctrl-box-title">Recent History</div>
+            <div id="recent-history-list">
+              <div class="ctrl-placeholder">No recent scans</div>
+            </div>
+          </div>
+
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+
+          <!-- Scan Progress Bar -->
+          <div id="scan-progress" class="scan-progress hidden">
+            <div class="scan-progress-bar"></div>
+            <span class="scan-progress-text">Scanning...</span>
+          </div>
+
+          <!-- Watchlist Row -->
+          <div class="watchlist-row">
+            <div class="watchlist-add" style="position:relative;">
+              <input type="text" id="watchlist-input" class="ctrl-input" placeholder="Add to Watchlist..."
+                autocomplete="off" spellcheck="false">
+              <div id="watchlist-autocomplete" class="autocomplete-dropdown" style="display:none;"></div>
+            </div>
+            <div class="watchlist-label">My Watchlist</div>
+            <div class="watchlist-chips" id="watchlist-chips">
+              <!-- Chips rendered by JS -->
+            </div>
+          </div>
+
+          <!-- Opportunities Header -->
+          <div class="opportunities-header">
+            <div class="opp-title">
+              Opportunities <span class="opp-mode-label" id="opportunities-mode-label">This Week</span>
+            </div>
+            <div class="opp-filters">
+              <span class="filter-pill btn-filter active" data-value="15">&gt;15%</span>
+              <span class="filter-pill btn-filter" data-value="25">&gt;25%</span>
+              <span class="filter-pill btn-filter" data-value="35">&gt;35%</span>
+              <select class="ctrl-select sm" id="ticker-filter">
+                <option value="all">All Tickers</option>
+              </select>
+              <select class="ctrl-select sm" id="sort-select">
+                <option value="score">Sort: Score</option>
+                <option value="profit">Sort: Profit</option>
+                <option value="expiry">Sort: Expiry</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Opportunities Container -->
+          <div id="opportunities-container">
+            <div class="empty-state">
+              <div class="empty-icon">🔍</div>
+              <div class="empty-text">No active scan results. Run a scan to discover opportunities.</div>
+            </div>
+          </div>
+
+        </main>
+      </div>
     </div>
 
-    <!-- Toast Notifications -->
-    <div id="toast-container" class="toast-container"></div>
-
-    <!-- Scripts -->
-    <script src="js/utils/api.js?v=18"></script>
-    <script src="js/utils/toast.js?v=18"></script>
-    <script src="js/utils/charts.js?v=18"></script>
-    <script src="js/utils/ai-cache.js?v=2"></script>
-    <script src="js/components/watchlist.js?v=18"></script>
-    <script src="js/components/scanner.js?v=18"></script>
-    <script src="js/components/opportunities.js?v=21"></script>
-    <script src="js/components/analysis-detail.js?v=19"></script>
-    <script src="js/components/trade-modal.js?v=24"></script>
-    <script src="js/paper_api.js?v=1"></script>
-    <script src="js/components/portfolio.js?v=24"></script>
-    <script src="js/components/risk-dashboard.js?v=19"></script>
-    <script src="js/app.js?v=21"></script>
-    <!-- Custom Action Modal -->
-    <div id="action-modal" class="portfolio-action-overlay hidden" onclick="portfolio.closeModal(event)">
-        <div class="modal-card" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h3 id="modal-title">Action</h3>
-                <button class="modal-close" onclick="portfolio.closeModal()">&times;</button>
-            </div>
-            <div id="modal-body" class="modal-body">
-                <!-- Dynamically populated -->
-            </div>
-            <div id="modal-footer" class="modal-footer">
-                <!-- Dynamically populated -->
-            </div>
-        </div>
+    <!-- Portfolio Tab (placeholder) -->
+    <div id="tab-portfolio" class="tab-content">
+      <div class="coming-soon-state">
+        <div class="empty-icon">📊</div>
+        <div class="empty-text">Portfolio view — coming soon</div>
+      </div>
     </div>
 
+    <!-- Risk Tab (placeholder) -->
+    <div id="tab-risk" class="tab-content">
+      <div class="coming-soon-state">
+        <div class="empty-icon">🛡️</div>
+        <div class="empty-text">Risk management — coming soon</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Analyze Detail View (hidden, populated by JS) -->
+  <div id="analyze-view" class="overlay-view" style="display:none;"></div>
+
+  <!-- AI Analysis Result View (hidden, populated by JS) -->
+  <div id="ai-result-view" class="overlay-view" style="display:none;"></div>
+
+  <!-- Trade Modal Overlay -->
+  <div id="trade-modal-overlay" class="modal-overlay" style="display:none;">
+    <div id="trade-modal" class="modal-content"></div>
+  </div>
+
+  <!-- Trade Result Overlay (success/failure) -->
+  <div id="trade-result-overlay" class="modal-overlay" style="display:none;">
+    <div id="trade-result-modal" class="modal-content"></div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/v2/app.js"></script>
 </body>
 
 </html>
