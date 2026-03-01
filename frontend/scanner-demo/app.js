@@ -213,6 +213,23 @@ const scanner = {
   currentOpp: null,       // Selected opportunity for analyze/trade views
   currentAnalysis: null,  // Last analysis response
 
+  // Bi-directional AI cache (5-minute TTL, keyed per card)
+  aiCache: {},
+  AI_CACHE_TTL: 5 * 60 * 1000,
+  getAICacheKey(opp) {
+    return `${opp.ticker}|${opp.strike_price}|${opp.expiration_date}|${opp.option_type}`;
+  },
+  getCachedAI(opp) {
+    const key = this.getAICacheKey(opp);
+    const entry = this.aiCache[key];
+    if (entry && (Date.now() - entry.timestamp) < this.AI_CACHE_TTL) return entry.data;
+    if (entry) delete this.aiCache[key];
+    return null;
+  },
+  setCachedAI(opp, aiResult) {
+    this.aiCache[this.getAICacheKey(opp)] = { data: aiResult, timestamp: Date.now() };
+  },
+
   // ---- HELPERS ----
   getFridayDate(weeksOut) {
     const today = new Date();
@@ -1337,18 +1354,22 @@ const scanner = {
     });
 
     try {
-      const result = await api.getAIAnalysis(ticker, {
-        strategy,
-        expiry: opp.expiration_date,
-        strike: opp.strike_price,
-        type: opp.option_type
-      });
+      // Check AI cache first
+      let ai = this.getCachedAI(opp);
+      if (!ai) {
+        const result = await api.getAIAnalysis(ticker, {
+          strategy,
+          expiry: opp.expiration_date,
+          strike: opp.strike_price,
+          type: opp.option_type
+        });
 
-      if (!result.success || !result.ai_analysis) {
-        throw new Error(result.error || 'AI analysis unavailable');
+        if (!result.success || !result.ai_analysis) {
+          throw new Error(result.error || 'AI analysis unavailable');
+        }
+        ai = result.ai_analysis;
+        this.setCachedAI(opp, ai);  // Store in cache
       }
-
-      const ai = result.ai_analysis;
       const score = ai.score || 0;
       const verdict = ai.verdict || 'RISKY';
       const scoreClass = score >= 66 ? 'score-green' : score >= 41 ? 'score-amber' : 'score-red';
@@ -1500,6 +1521,9 @@ const scanner = {
     cleaned = cleaned.replace(/\n*\{\s*"score"[\s\S]*\}\s*$/m, '');
     // Also strip standalone json-like blocks
     cleaned = cleaned.replace(/\n*\{\s*"verdict"[\s\S]*\}\s*$/m, '');
+    // Strip duplicate '## Verdict' / '---\n## Verdict' sections (already shown in verdict box)
+    cleaned = cleaned.replace(/\n*-{3,}\s*\n+#{1,3}\s*Verdict[\s\S]*$/i, '');
+    cleaned = cleaned.replace(/\n*#{1,3}\s*Verdict[\s\S]*$/i, '');
 
     // Parse numbered sections from Perplexity markdown
     const sections = [];
@@ -1524,11 +1548,34 @@ const scanner = {
   // ============================================================
   // TRADE MODAL
   // ============================================================
-  showTradeModal(opp) {
+  async showTradeModal(opp) {
     this.currentOpp = opp;
     const overlay = document.getElementById('trade-modal-overlay');
     const modal = document.getElementById('trade-modal');
     if (!overlay || !modal) return;
+
+    // Auto-fetch AI analysis if not cached
+    let aiData = this.getCachedAI(opp);
+    if (!aiData) {
+      // Show modal overlay with loading indicator while fetching
+      overlay.style.display = 'block';
+      modal.innerHTML = `<div style="padding:40px; text-align:center;"><div class="ai-spinner"></div><div style="margin-top:12px; font-size:0.85rem; color:var(--text-muted);">Fetching AI Analysis...</div></div>`;
+      try {
+        let strategy = 'LEAP';
+        if (this.scanMode === '0dte') strategy = '0DTE';
+        else if (this.scanMode.startsWith('weekly')) strategy = 'WEEKLY';
+        const result = await api.getAIAnalysis(opp.ticker, {
+          strategy,
+          expiry: opp.expiration_date,
+          strike: opp.strike_price,
+          type: opp.option_type
+        });
+        if (result.success && result.ai_analysis) {
+          aiData = result.ai_analysis;
+          this.setCachedAI(opp, aiData);
+        }
+      } catch (e) { /* AI summary optional — continue without it */ }
+    }
 
     const isCall = opp.option_type === 'Call';
     const premium = opp.premium || 0;
@@ -1543,8 +1590,7 @@ const scanner = {
     const btnClass = isCall ? 'btn-confirm-call' : 'btn-confirm-put';
     const btnText = isCall ? '✅ Confirm Call Trade' : '✅ Confirm Put Trade';
 
-    // Build AI summary for trade modal (from cached AI result or analysis)
-    const aiData = this.currentAIResult || this.currentAnalysis;
+    // Build AI summary for trade modal (from cache)
     let aiSummaryHtml = '';
     if (aiData) {
       const aiVerdict = aiData.verdict || aiData.ai_verdict || '';
