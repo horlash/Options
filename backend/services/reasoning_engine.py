@@ -332,8 +332,8 @@ class ReasoningEngine:
             # Remove bare JSON objects at end
             clean_analysis = re.sub(r'\n*\{\s*"score"\s*:[\s\S]*?\}\s*$', '', clean_analysis)
             # Truncate at "Verdict:" line — this is always the second-to-last item in Perplexity output
-            # Handles: "Verdict: FAVORABLE", "**Verdict:** RISKY", "## Verdict", "5. Verdict:" etc.
-            verdict_match = re.search(r'\n+\**\s*(?:\d+\.\s*)?(?:#{1,3}\s*)?Verdict\s*[:*]', clean_analysis, re.IGNORECASE)
+            # Handles all variants: "Verdict:", "5. Verdict:", "5. **Verdict:**", "**5. Verdict:**", "## Verdict", etc.
+            verdict_match = re.search(r'\n+\**\s*(?:\d+\.\s*)?(?:#{1,3}\s*)?\**\s*Verdict\s*\**\s*[:*]', clean_analysis, re.IGNORECASE)
             if verdict_match:
                 clean_analysis = clean_analysis[:verdict_match.start()]
             # Clean trailing whitespace and horizontal rules
