@@ -6,13 +6,15 @@ from backend.config import Config
 logger = logging.getLogger(__name__)
 
 
-def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, direction='CALL'):
+def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, direction='CALL', pre_fetched_history=None):
     """
     Perform complete LEAP analysis on a single ticker.
     strict_mode: If True, blocks tickers with poor fundamentals (ROE/Margin).
                  If False, allows them but marks as "Speculative".
     pre_fetched_data: Optional injected option chain data (for batch processing)
     direction: 'CALL' (bullish LEAPs) or 'PUT' (bearish LEAPs) — P0-17
+    pre_fetched_history: Optional pre-fetched price history from batch
+                         get_history_batch(). Skips per-ticker API call if provided.
     """
     ticker = scanner._normalize_ticker(ticker)
     logger.info(f"\n{'='*50}")
@@ -156,7 +158,11 @@ def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, 
         logger.info(f"[1/5] MTA Trend Alignment (ORATS Strict)...")
 
         price_history = None
-        if scanner.use_orats:
+        if pre_fetched_history:
+            # Use batch-fetched history (skips per-ticker API call)
+            price_history = pre_fetched_history
+            logger.info(f"   ℹ️  Using Pre-Fetched History (Batch Mode)")
+        elif scanner.use_orats:
             try:
                 price_history = scanner.batch_manager.orats_api.get_history(ticker)
             except Exception as e:

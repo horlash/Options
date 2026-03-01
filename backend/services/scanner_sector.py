@@ -41,32 +41,32 @@ def scan_watchlist(scanner, username=None):
     return results
 
 
-# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-# SMART SECTOR SCAN \u2014 Industrial-grade ticker selection
-# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+# ═══════════════════════════════════════════════════════════════════════════════
+# SMART SECTOR SCAN — Industrial-grade ticker selection
+# ═══════════════════════════════════════════════════════════════════════════════
 #
-# Architecture (v2 \u2014 replaces FMP-only screener):
-#   1. ORATS /cores (single API call) \u2192 full sector universe with options metrics
+# Architecture (v2 — replaces FMP-only screener):
+#   1. ORATS /cores (single API call) → full sector universe with options metrics
 #   2. Smart rank by IV percentile, liquidity, momentum, mispricing
 #   3. No ORATS coverage filter needed (source IS ORATS)
 #   4. Batch option chain fetch (concurrent via BatchManager)
 #   5. Deep scan per ticker (sequential)
-#   6. Global filter \u2192 top 100 opportunities
+#   6. Global filter → top 100 opportunities
 #
 # Why this is better than v1 (FMP screener):
-#   - FMP sorted by market cap only \u2192 missed mid-cap gems
+#   - FMP sorted by market cap only → missed mid-cap gems
 #   - ORATS /cores provides IV percentile, options volume, market width
 #   - Tickers are pre-qualified for options tradability
 #   - Single API call replaces FMP screener + ORATS coverage check
 #
 # Scoring rationale (industry-validated):
 #   - IV Percentile extremes (25%): High OR low IV = opportunity
-#   - Options Liquidity (25%): avgOptVolu20d \u2014 must be tradeable
-#   - Market Tightness (15%): mktWidthVol \u2014 tight = better fills
+#   - Options Liquidity (25%): avgOptVolu20d — must be tradeable
+#   - Market Tightness (15%): mktWidthVol — tight = better fills
 #   - Price Momentum (15%): 1-month stock price change
 #   - IV/HV Divergence (10%): Volatility mispricing signal
 #   - Open Interest Buildup (10%): Institutional conviction signal
-# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
 def _rank_options_candidates(candidates, min_market_cap=0, min_volume=0, limit=30):
@@ -77,7 +77,7 @@ def _rank_options_candidates(candidates, min_market_cap=0, min_volume=0, limit=3
 
     Args:
         candidates: list of ORATS /cores records for a sector
-        min_market_cap: Minimum market cap filter (user param, in thousands \u2014 ORATS mktCap unit)
+        min_market_cap: Minimum market cap filter (user param, in thousands — ORATS mktCap unit)
         min_volume: Minimum stock volume filter (user param)
         limit: How many top candidates to return
 
@@ -85,7 +85,7 @@ def _rank_options_candidates(candidates, min_market_cap=0, min_volume=0, limit=3
         list[dict]: Top N candidates sorted by composite score,
                     each dict augmented with 'scan_score' and 'symbol' fields
     """
-    # \u2500\u2500 Step 1: Hard filters (eliminate unworthy) \u2500\u2500
+    # ── Step 1: Hard filters (eliminate unworthy) ──
     filtered = []
     for c in candidates:
         ticker = c.get("ticker", "")
@@ -124,7 +124,7 @@ def _rank_options_candidates(candidates, min_market_cap=0, min_volume=0, limit=3
 
     logger.info(f"\U0001f4ca Smart Rank: {len(filtered)} passed hard filters (from {len(candidates)} raw)")
 
-    # \u2500\u2500 Step 2: Normalize metrics using percentile rank \u2500\u2500
+    # ── Step 2: Normalize metrics using percentile rank ──
     def percentile_rank(values, value):
         """Rank a value within a list as 0-100 percentile."""
         if not values or value is None:
@@ -152,23 +152,23 @@ def _rank_options_candidates(candidates, min_market_cap=0, min_volume=0, limit=3
         div = abs((iv - hv) / hv * 100) if hv > 0 else 0
         divergences.append(div)
 
-    # \u2500\u2500 Step 3: Score each candidate \u2500\u2500
+    # ── Step 3: Score each candidate ──
     scored = []
     for i, c in enumerate(filtered):
-        # --- IV Percentile (25%) \u2014 reward EXTREMES (high OR low) ---
+        # --- IV Percentile (25%) — reward EXTREMES (high OR low) ---
         # High IV (>75) = premium selling opportunity
         # Low IV (<25) = cheap LEAP entry opportunity
         # Both are interesting; middle is boring
         raw_iv_pct = iv_pcts[i]
-        # Transform: distance from 50 (center) \u2192 0-100 scale
-        # ivPctile=5 \u2192 score=90, ivPctile=50 \u2192 score=0, ivPctile=95 \u2192 score=90
+        # Transform: distance from 50 (center) → 0-100 scale
+        # ivPctile=5 → score=90, ivPctile=50 → score=0, ivPctile=95 → score=90
         iv_extremeness = abs(raw_iv_pct - 50) * 2  # 0-100 scale
         iv_score = min(iv_extremeness, 100)
 
         # --- Options Liquidity (25%) ---
         liq_score = percentile_rank(opt_vols, opt_vols[i])
 
-        # --- Market Tightness (15%) \u2014 lower width = higher score ---
+        # --- Market Tightness (15%) — lower width = higher score ---
         width_score = 100 - percentile_rank(mkt_widths, mkt_widths[i])
 
         # --- Price Momentum (15%) ---
@@ -195,7 +195,7 @@ def _rank_options_candidates(candidates, min_market_cap=0, min_volume=0, limit=3
         c["symbol"] = c.get("ticker", "")  # Normalize for downstream compatibility
         scored.append(c)
 
-    # \u2500\u2500 Step 4: Sort and return top N \u2500\u2500
+    # ── Step 4: Sort and return top N ──
     scored.sort(key=lambda x: x["scan_score"], reverse=True)
 
     top_n = scored[:limit]
@@ -218,14 +218,14 @@ def _rank_options_candidates(candidates, min_market_cap=0, min_volume=0, limit=3
 
 def scan_sector_top_picks(scanner, sector, min_volume, min_market_cap, limit=30, weeks_out=None, industry=None):
     """
-    Smart Sector Scan \u2014 Industrial-grade ticker selection (v2).
+    Smart Sector Scan — Industrial-grade ticker selection (v2).
 
     Architecture:
-      1. ORATS /cores (single API call) \u2192 full sector with options metrics
+      1. ORATS /cores (single API call) → full sector with options metrics
       2. Smart rank by IV percentile, liquidity, momentum, mispricing
       3. Batch option chain fetch (concurrent via BatchManager)
       4. Deep scan per ticker (sequential)
-      5. Global filter \u2192 top 100 opportunities
+      5. Global filter → top 100 opportunities
 
     Key change from v1:
       - Replaced FMP screener (market-cap only) with ORATS /cores ranking
@@ -237,9 +237,9 @@ def scan_sector_top_picks(scanner, sector, min_volume, min_market_cap, limit=30,
     ind_label = f" | {industry}" if industry else ""
     logger.info(f"\U0001f680 Starting Smart Sector Scan: {sector}{ind_label} [{mode_label}] [Cap > {min_market_cap}, Vol > {min_volume}]")
 
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-    # Step 1: ORATS /cores \u2014 single API call for sector universe
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
+    # Step 1: ORATS /cores — single API call for sector universe
+    # ═══════════════════════════════════════════════════════════════════════
     all_sector_tickers = []
     orats_api = scanner.batch_manager.orats_api if hasattr(scanner.batch_manager, 'orats_api') else None
 
@@ -260,11 +260,11 @@ def scan_sector_top_picks(scanner, sector, min_volume, min_market_cap, limit=30,
         except Exception as e:
             logger.warning(f"\u26a0\ufe0f ORATS /cores failed: {e}")
 
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
     # Fallback: FMP screener (backward compatible)
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
     if not all_sector_tickers:
-        logger.warning("\u26a0\ufe0f ORATS /cores unavailable \u2014 falling back to FMP screener")
+        logger.warning("\u26a0\ufe0f ORATS /cores unavailable — falling back to FMP screener")
         candidates = []
         try:
             candidates = scanner.fmp_api.get_stock_screener(
@@ -305,9 +305,9 @@ def scan_sector_top_picks(scanner, sector, min_volume, min_market_cap, limit=30,
             candidates = [c for c in candidates if c['symbol'] in tickers]
 
     else:
-        # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+        # ═══════════════════════════════════════════════════════════════════════
         # Step 2: Smart Rank (ORATS path)
-        # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+        # ═══════════════════════════════════════════════════════════════════════
         candidates = _rank_options_candidates(
             all_sector_tickers,
             min_market_cap=min_market_cap,
@@ -324,12 +324,12 @@ def scan_sector_top_picks(scanner, sector, min_volume, min_market_cap, limit=30,
             f"(from {len(all_sector_tickers)} in sector). Starting deep scan..."
         )
 
-        # No ORATS coverage filter needed \u2014 source IS ORATS
+        # No ORATS coverage filter needed — source IS ORATS
         tickers = [c["ticker"] for c in candidates]
 
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
     # Step 3: Batch Fetch Option Chains (concurrent)
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
     batch_data = {}
     if scanner.use_orats:
         logger.info(f"\U0001f680 Batch Fetching Options for {len(tickers)} tickers (ORATS)...")
@@ -338,9 +338,26 @@ def scan_sector_top_picks(scanner, sector, min_volume, min_market_cap, limit=30,
         except Exception as e:
             logger.warning(f"\u26a0\ufe0f Batch Fetch Failed: {e}")
 
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Step 3b: Batch Fetch Price History (concurrent)
+    # ═══════════════════════════════════════════════════════════════════════
+    # Pre-fetch history for all tickers in parallel (30 seq -> 5-8s parallel)
+    # Each deep scan call needs get_history() for technical indicators.
+    # Without batch: 30 tickers * 1-2s each = 30-60s sequential.
+    # With batch: all in parallel via ThreadPoolExecutor = 5-8s.
+    batch_history = {}
+    if scanner.use_orats and orats_api:
+        logger.info(f"\U0001f4ca Batch Fetching History for {len(tickers)} tickers (ORATS parallel)...")
+        try:
+            batch_history = orats_api.get_history_batch(tickers)
+            logger.info(f"\u2705 Batch History: {len(batch_history)}/{len(tickers)} tickers fetched")
+        except Exception as e:
+            logger.warning(f"\u26a0\ufe0f Batch History Fetch Failed: {e} (will fall back to per-ticker)")
+
+    # ═══════════════════════════════════════════════════════════════════════
     # Step 4: Deep Scan (sequential per ticker)
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
     # XC-1: VIX Regime Filter (S1: Enhanced RegimeDetector)
     vix_level = None
     vix_regime = 'NORMAL'
@@ -375,14 +392,15 @@ def scan_sector_top_picks(scanner, sector, min_volume, min_market_cap, limit=30,
             continue
 
         opts = batch_data.get(ticker)
+        hist = batch_history.get(ticker)  # Pre-fetched history (None if batch failed)
 
         # Choose Scan Mode
         if weeks_out is not None:
             res = scanner.scan_weekly_options(ticker, weeks_out=weeks_out, pre_fetched_data=opts)
         else:
-            res = scanner.scan_ticker(ticker, pre_fetched_data=opts, direction='CALL') # LEAP (calls)
+            res = scanner.scan_ticker(ticker, pre_fetched_data=opts, direction='CALL', pre_fetched_history=hist) # LEAP (calls)
             # P0-17: Also scan for put LEAPs (bearish)
-            res_put = scanner.scan_ticker(ticker, pre_fetched_data=opts, direction='PUT')
+            res_put = scanner.scan_ticker(ticker, pre_fetched_data=opts, direction='PUT', pre_fetched_history=hist)
             if res_put and res_put.get('opportunities'):
                 if res and res.get('opportunities'):
                     # Merge put opportunities into the call result
@@ -396,9 +414,9 @@ def scan_sector_top_picks(scanner, sector, min_volume, min_market_cap, limit=30,
                 res['scan_score'] = cand['scan_score']
             all_results.append(res)
 
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
     # Step 5: Global Filter & Regroup
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
     # Flatten all opportunities to find absolute best
     all_opps = []
     results_map = {} # Ticker -> Result Object

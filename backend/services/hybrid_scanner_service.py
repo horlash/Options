@@ -1,15 +1,15 @@
 """
-HybridScannerService \u2014 Orchestrator
+HybridScannerService — Orchestrator
 ====================================
 Refactored from a 2,250-line monolith into a slim orchestrator that delegates
 scanning logic to focused sub-modules:
 
-  - scanner_leaps.py   \u2192 scan_ticker_leaps()       (LEAPS scanning)
-  - scanner_weekly.py  \u2192 scan_weekly(), scan_0dte() (Weekly/0DTE scanning)
-  - scanner_sector.py  \u2192 scan_sector_top_picks(), scan_watchlist()
-  - scanner_utils.py   \u2192 Greeks, caching, AI analysis, sentiment, helpers
+  - scanner_leaps.py   → scan_ticker_leaps()       (LEAPS scanning)
+  - scanner_weekly.py  → scan_weekly(), scan_0dte() (Weekly/0DTE scanning)
+  - scanner_sector.py  → scan_sector_top_picks(), scan_watchlist()
+  - scanner_utils.py   → Greeks, caching, AI analysis, sentiment, helpers
 
-The public API contract is unchanged \u2014 all existing callers (app.py routes,
+The public API contract is unchanged — all existing callers (app.py routes,
 batch_manager, etc.) continue to call the same method names on this class.
 """
 
@@ -75,9 +75,9 @@ class HybridScannerService:
     _cores_cache_time = 0
     CORES_CACHE_TTL = 3600      # 1 hour in seconds
 
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
     #  INITIALIZATION
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
 
     def __init__(self):
         self.yahoo_api = None  # REMOVED (Strict Mode)
@@ -121,9 +121,9 @@ class HybridScannerService:
         else:
             logger.warning("ORATS API NOT configured - Critical Error for Full Switch")
 
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
     #  TICKER CACHE & UNIVERSE
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
 
     def _refresh_ticker_cache(self):
         """Load tickers from local JSON file (backend/data/tickers.json)"""
@@ -214,13 +214,19 @@ class HybridScannerService:
         ticker = ticker.upper().strip()
         return ticker
 
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-    #  SCANNING \u2014 delegated to sub-modules
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
+    #  SCANNING — delegated to sub-modules
+    # ═══════════════════════════════════════════════════════════════════════
 
-    def scan_ticker(self, ticker, strict_mode=True, pre_fetched_data=None, direction='CALL'):
-        """Scan a single ticker for LEAP opportunities. Delegates to scanner_leaps."""
-        return scan_ticker_leaps(self, ticker, strict_mode, pre_fetched_data, direction)
+    def scan_ticker(self, ticker, strict_mode=True, pre_fetched_data=None, direction='CALL', pre_fetched_history=None):
+        """Scan a single ticker for LEAP opportunities. Delegates to scanner_leaps.
+        
+        Args:
+            pre_fetched_history: Optional pre-fetched price history dict from
+                                batch get_history_batch(). If provided, skips
+                                the per-ticker ORATS history API call.
+        """
+        return scan_ticker_leaps(self, ticker, strict_mode, pre_fetched_data, direction, pre_fetched_history)
 
     def scan_weekly_options(self, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched_data=None):
         """Scan a ticker for weekly options opportunities. Delegates to scanner_weekly."""
@@ -261,7 +267,7 @@ class HybridScannerService:
         if (HybridScannerService._cores_cache is None or
                 now - HybridScannerService._cores_cache_time > self.CORES_CACHE_TTL):
             try:
-                # Fetch entire universe (no sector filter) \u2014 filter client-side
+                # Fetch entire universe (no sector filter) — filter client-side
                 HybridScannerService._cores_cache = orats_api.get_cores_bulk(sector=None)
                 HybridScannerService._cores_cache_time = now
                 logger.info(
@@ -299,9 +305,9 @@ class HybridScannerService:
         """Scan user's watchlist. Delegates to scanner_sector."""
         return _scan_watchlist(self, username)
 
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-    #  UTILITIES \u2014 delegated to scanner_utils
-    # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    # ═══════════════════════════════════════════════════════════════════════
+    #  UTILITIES — delegated to scanner_utils
+    # ═══════════════════════════════════════════════════════════════════════
 
     def _calculate_greeks_black_scholes(self, S, K, T, sigma, r=0.045, opt_type='call'):
         return calculate_greeks_black_scholes(self, S, K, T, sigma, r, opt_type)
