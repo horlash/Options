@@ -122,3 +122,62 @@ class PortfolioRiskManager:
                 'ticker_exposure_pct': round(ticker_pct, 2),
             }
         }
+
+    # GAP-1 FIX: Portfolio-level max drawdown circuit breaker
+    def check_drawdown(self, current_portfolio_value, peak_portfolio_value,
+                       block_threshold_pct=15.0, close_threshold_pct=25.0):
+        """
+        Check if portfolio drawdown has breached circuit breaker levels.
+
+        Args:
+            current_portfolio_value: Current total portfolio value
+            peak_portfolio_value: Highest portfolio value recorded (high-water mark)
+            block_threshold_pct: Drawdown % that blocks new trades (default 15%)
+            close_threshold_pct: Drawdown % that triggers auto-close all (default 25%)
+
+        Returns:
+            dict with 'status', 'drawdown_pct', 'action', 'message'
+            status: 'ok' | 'block_new_trades' | 'close_all_positions'
+        """
+        if peak_portfolio_value <= 0:
+            return {
+                'status': 'ok',
+                'drawdown_pct': 0,
+                'action': 'none',
+                'message': 'No peak value recorded yet',
+            }
+
+        drawdown_pct = ((peak_portfolio_value - current_portfolio_value) / peak_portfolio_value) * 100
+        drawdown_pct = max(0, drawdown_pct)  # Can't have negative drawdown
+
+        if drawdown_pct >= close_threshold_pct:
+            logger.critical(
+                f"CIRCUIT BREAKER: Drawdown {drawdown_pct:.1f}% >= {close_threshold_pct}% "
+                f"(peak=${peak_portfolio_value:.2f}, current=${current_portfolio_value:.2f}). "
+                f"ACTION: CLOSE ALL POSITIONS"
+            )
+            return {
+                'status': 'close_all_positions',
+                'drawdown_pct': round(drawdown_pct, 2),
+                'action': 'close_all',
+                'message': f'Drawdown {drawdown_pct:.1f}% exceeds {close_threshold_pct}% limit. All positions should be closed.',
+            }
+        elif drawdown_pct >= block_threshold_pct:
+            logger.warning(
+                f"CIRCUIT BREAKER: Drawdown {drawdown_pct:.1f}% >= {block_threshold_pct}% "
+                f"(peak=${peak_portfolio_value:.2f}, current=${current_portfolio_value:.2f}). "
+                f"ACTION: BLOCK NEW TRADES"
+            )
+            return {
+                'status': 'block_new_trades',
+                'drawdown_pct': round(drawdown_pct, 2),
+                'action': 'block',
+                'message': f'Drawdown {drawdown_pct:.1f}% exceeds {block_threshold_pct}% limit. New trades blocked.',
+            }
+        else:
+            return {
+                'status': 'ok',
+                'drawdown_pct': round(drawdown_pct, 2),
+                'action': 'none',
+                'message': f'Drawdown {drawdown_pct:.1f}% within limits.',
+            }

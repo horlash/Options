@@ -360,7 +360,9 @@ class TechnicalIndicators:
             'volatility': {
                 'values': {
                     'atr': atr,
-                    'iv_rank': hv_rank # Map HV Rank to IV Rank slot for now as proxy
+                    'hv_rank': hv_rank,  # BUG-TI-1 FIX: Properly labeled as HV Rank
+                    # iv_percentile is added by the scanner from ORATS ivPctile1y
+                    # DO NOT use hv_rank as a proxy for IV rank — they measure different things
                 },
                 'signal': 'neutral'
             },
