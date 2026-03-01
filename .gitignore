@@ -53,4 +53,5 @@ node_modules/
 ngrok.exe
 *.exe.old
 *.whl
-temp_cleanup/
+temp_cleanup/Options-portfolio-latest.zip
+Options-main-latest.zip

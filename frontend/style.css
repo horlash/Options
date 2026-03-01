@@ -2362,3 +2362,151 @@ body.dark .stepper-btn {
 body.dark .stepper-btn:hover {
   background: rgba(148, 163, 184, 0.25);
 }
+
+/* ============================================================
+   TRADIER CREDENTIAL SETUP MODAL
+   ============================================================ */
+.tradier-setup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.tradier-setup-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  min-width: 380px;
+  max-width: 440px;
+  overflow: hidden;
+  animation: tradier-modal-in 0.2s ease-out;
+}
+
+@keyframes tradier-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.tradier-setup-header {
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tradier-setup-body {
+  padding: 18px 24px 22px;
+}
+
+.tradier-field {
+  margin-bottom: 14px;
+}
+
+.tradier-field label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+
+.tradier-field input {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.tradier-field input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.tradier-setup-status {
+  font-size: 0.78rem;
+  padding: 6px 0;
+  min-height: 24px;
+  transition: color 0.2s;
+}
+
+.tradier-setup-status.info {
+  color: var(--blue);
+}
+
+.tradier-setup-status.success {
+  color: var(--green);
+  font-weight: 600;
+}
+
+.tradier-setup-status.error {
+  color: var(--red);
+}
+
+.tradier-setup-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.tradier-setup-actions .btn-cancel {
+  padding: 8px 18px;
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font);
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.tradier-setup-actions .btn-cancel:hover {
+  border-color: var(--text);
+  color: var(--text);
+}
+
+.tradier-setup-actions .btn-primary {
+  padding: 8px 20px;
+  font-size: 0.78rem;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--blue);
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font);
+  font-weight: 600;
+  transition: background 0.15s;
+}
+
+.tradier-setup-actions .btn-primary:hover {
+  background: #2563eb;
+}
+
+.tradier-setup-actions .btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

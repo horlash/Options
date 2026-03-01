@@ -195,6 +195,19 @@ const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tradeData)
     });
+  },
+  async getPaperSettings() {
+    return this.request('/paper/settings');
+  },
+  async savePaperSettings(data) {
+    return this.request('/paper/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+  async testBrokerConnection() {
+    return this.request('/paper/settings/test-connection');
   }
 };
 
@@ -208,6 +221,7 @@ const scanner = {
   recentHistory: [],
   currentResults: [],
   currentProfitFilter: 15,
+  _tradierCredsVerified: false,  // Cache: skip re-check after first success
   currentTickerFilter: 'all',
   currentSort: 'score',
   currentOpp: null,       // Selected opportunity for analyze/trade views
@@ -1573,9 +1587,144 @@ const scanner = {
   },
 
   // ============================================================
+  // TRADIER CREDENTIAL GATE
+  // ============================================================
+  async ensureTradierCredentials() {
+    // If already verified this session, skip
+    if (this._tradierCredsVerified) return true;
+
+    // Check if credentials exist via settings API
+    try {
+      const settings = await api.getPaperSettings();
+      if (settings.success && settings.settings) {
+        const s = settings.settings;
+        if (s.tradier_account_id && s.has_sandbox_token) {
+          this._tradierCredsVerified = true;
+          return true;
+        }
+      }
+    } catch (e) { /* fall through to show modal */ }
+
+    // No credentials — show the setup modal and wait for user action
+    return await this.showTradierSetupModal();
+  },
+
+  showTradierSetupModal() {
+    return new Promise((resolve) => {
+      // Create modal overlay
+      let overlay = document.getElementById('tradier-setup-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'tradier-setup-overlay';
+        overlay.className = 'tradier-setup-overlay';
+        document.body.appendChild(overlay);
+      }
+
+      overlay.innerHTML = `
+        <div class="tradier-setup-modal">
+          <div class="tradier-setup-header">
+            <div style="font-size:1.1rem; font-weight:800;">🔑 Tradier Broker Setup</div>
+            <div style="font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
+              Enter your Tradier sandbox credentials to enable paper trading.
+            </div>
+          </div>
+          <div class="tradier-setup-body">
+            <div class="tradier-field">
+              <label>Account ID</label>
+              <input type="text" id="tradier-setup-account" placeholder="e.g. VA12345678" autocomplete="off">
+            </div>
+            <div class="tradier-field">
+              <label>Sandbox API Token</label>
+              <input type="password" id="tradier-setup-token" placeholder="Paste your sandbox access token" autocomplete="off">
+            </div>
+            <div id="tradier-setup-status" class="tradier-setup-status"></div>
+            <div class="tradier-setup-actions">
+              <button class="btn-cancel" id="tradier-setup-cancel">Cancel</button>
+              <button class="btn-primary" id="tradier-setup-save">🔗 Test & Save</button>
+            </div>
+            <div style="font-size:0.68rem; color:var(--text-light); margin-top:10px; text-align:center;">
+              Credentials are encrypted at rest. You can update them in Portfolio → Settings.
+            </div>
+          </div>
+        </div>`;
+      overlay.style.display = 'flex';
+
+      const cleanup = (result) => {
+        overlay.style.display = 'none';
+        resolve(result);
+      };
+
+      // Cancel
+      document.getElementById('tradier-setup-cancel').addEventListener('click', () => cleanup(false));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
+
+      // Test & Save
+      document.getElementById('tradier-setup-save').addEventListener('click', async () => {
+        const accountId = document.getElementById('tradier-setup-account').value.trim();
+        const token = document.getElementById('tradier-setup-token').value.trim();
+        const statusEl = document.getElementById('tradier-setup-status');
+        const saveBtn = document.getElementById('tradier-setup-save');
+
+        if (!accountId || !token) {
+          statusEl.textContent = '⚠ Both fields are required.';
+          statusEl.className = 'tradier-setup-status error';
+          return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = '⏳ Testing...';
+        statusEl.textContent = 'Saving credentials and testing connection...';
+        statusEl.className = 'tradier-setup-status info';
+
+        try {
+          // Save credentials first
+          const saveResult = await api.savePaperSettings({
+            tradier_account_id: accountId,
+            tradier_sandbox_token: token
+          });
+
+          if (!saveResult.success) {
+            statusEl.textContent = '❌ Failed to save: ' + (saveResult.error || 'Unknown error');
+            statusEl.className = 'tradier-setup-status error';
+            saveBtn.disabled = false;
+            saveBtn.textContent = '🔗 Test & Save';
+            return;
+          }
+
+          // Test connection
+          const testResult = await api.testBrokerConnection();
+          if (testResult.success) {
+            statusEl.textContent = '✅ Connection verified! Proceeding to trade...';
+            statusEl.className = 'tradier-setup-status success';
+            scanner._tradierCredsVerified = true;
+            setTimeout(() => cleanup(true), 800);
+          } else {
+            statusEl.textContent = '❌ Connection failed: ' + (testResult.error || 'Invalid credentials');
+            statusEl.className = 'tradier-setup-status error';
+            saveBtn.disabled = false;
+            saveBtn.textContent = '🔗 Test & Save';
+          }
+        } catch (e) {
+          statusEl.textContent = '❌ Error: ' + (e.message || 'Network error');
+          statusEl.className = 'tradier-setup-status error';
+          saveBtn.disabled = false;
+          saveBtn.textContent = '🔗 Test & Save';
+        }
+      });
+    });
+  },
+
+  // ============================================================
   // TRADE MODAL
   // ============================================================
   async showTradeModal(opp) {
+    // Gate: ensure Tradier credentials are set up
+    const hasCredentials = await this.ensureTradierCredentials();
+    if (!hasCredentials) {
+      toast.warn('Paper trading requires Tradier broker credentials.');
+      return;
+    }
+
     this.currentOpp = opp;
     const overlay = document.getElementById('trade-modal-overlay');
     const modal = document.getElementById('trade-modal');
@@ -1755,6 +1904,12 @@ const scanner = {
       if (result.success) {
         this.showTradeResult('success', result.trade, result.broker_msg);
       } else {
+        // If broker auth failed, invalidate cached credentials so user is re-prompted
+        const errLower = (result.error || '').toLowerCase();
+        if (errLower.includes('unauthorized') || errLower.includes('401') || errLower.includes('invalid token') || errLower.includes('credentials')) {
+          this._tradierCredsVerified = false;
+          toast.error('Broker credentials invalid. You will be prompted to re-enter them on your next trade.');
+        }
         this.showTradeResult('failure', opp, null, result.error || 'Unknown error');
       }
     } catch (e) {
