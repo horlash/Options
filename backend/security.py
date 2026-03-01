@@ -41,7 +41,11 @@ class Security:
             ]
             
             # Allow static resources and specific public routes
-            if (request.endpoint in public_endpoints or 
+            # P0-NEW-2 FIX: Blueprint endpoints are prefixed (e.g., 'paper.health_check').
+            # Use suffix match so health_check works regardless of blueprint prefix.
+            endpoint = request.endpoint or ''
+            if (endpoint in public_endpoints or
+                endpoint.endswith('.health_check') or
                 request.path.startswith('/static') or 
                 request.path.endswith('.css') or 
                 request.path.endswith('.js') or 

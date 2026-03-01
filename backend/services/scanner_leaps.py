@@ -29,6 +29,9 @@ def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, 
     # Initialize badges early for strict mode logging
     fund_badges = []
     fund_score = 0
+    # P1-NEW-1 FIX: Initialize VIX variables early (was using fragile locals() introspection)
+    vix_level_leap = None
+    vix_regime_leap = 'NORMAL'
 
     try:
         # [PHASE 1] EXPERT QUALITY MOAT CHECK (Finnhub)
@@ -44,8 +47,8 @@ def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, 
             # G16: Use Perplexity macro sentiment for indices/ETFs
             try:
                 macro = scanner.reasoning_engine.get_macro_sentiment(
-                    vix_level=vix_level_leap if 'vix_level_leap' in locals() else None,
-                    vix_regime=vix_regime_leap if 'vix_regime_leap' in locals() else 'NORMAL'
+                    vix_level=vix_level_leap,
+                    vix_regime=vix_regime_leap
                 )
                 if macro and macro.get('score'):
                     sentiment_score = macro['score']
@@ -217,7 +220,8 @@ def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, 
         # P0-11: Preserve history price as ORATS fallback
         history_price = current_price  # from df['Close'].iloc[-1] above
         current_price = 0
-        pe_ratio = 0
+        # P1-NEW-5 FIX: Extract PE ratio from FMP quote (was hardcoded to 0)
+        pe_ratio = fmp_quote.get('pe', None) if fmp_quote else None
 
         # 2. Get Real-Time Price (ORATS Priority)
         if scanner.use_orats:
@@ -342,10 +346,7 @@ def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, 
                 logger.warning(f"   ⚠️ ORATS Fetch Failed: {e}")
                 options_data = None
 
-        # Fallback to Schwab
-        if not options_data and scanner.use_schwab:
-            logger.info(f"   ℹ️  Fetching from Schwab API (Observed Date Calculation)...")
-            options_data = scanner.schwab_api.get_leap_options_chain(ticker, min_days=150)  # 5+ months
+        # P3-NEW-4: Schwab fallback removed (ORATS is primary data source)
 
         if options_data:
             # Enforce 30% Profit Floor for LEAPs
@@ -525,8 +526,8 @@ def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, 
             if scanner.use_orats and cores:
                 div_date_str = cores.get('divDate')
                 if div_date_str:
-                    from datetime import datetime as dt_parse
-                    div_date = dt_parse.strptime(str(div_date_str)[:10], '%Y-%m-%d').date()
+                    # P2-NEW-5 FIX: Removed redundant 'from datetime import datetime as dt_parse' alias
+                    div_date = datetime.strptime(str(div_date_str)[:10], '%Y-%m-%d').date()
                     days_to_div = (div_date - datetime.now().date()).days
                     if 0 < days_to_div <= 30:
                         logger.warning(f"   ⚠️ DIVIDEND in {days_to_div} days ({div_date})")
@@ -634,9 +635,10 @@ def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, 
                 'score': fund_score,
                 'badges': fund_badges,
                 'fmp_rating': fmp_rating.get('rating', 'N/A') if fmp_rating else "N/A",
-                'eps_growth': f"{y_fundamentals.get('trailing_eps')} -> {y_fundamentals.get('forward_eps')}" if y_fundamentals else "N/A",
-                'analyst_rating': y_fundamentals.get('analyst_rating') if y_fundamentals else "N/A",
-                'pe_ratio': pe_ratio if pe_ratio else (y_fundamentals.get('pe_ratio') if y_fundamentals else "N/A")
+                # P1-NEW-2 FIX: Removed dead y_fundamentals references (Yahoo was removed in Strict Mode)
+                'eps_growth': "N/A",
+                'analyst_rating': "N/A",
+                'pe_ratio': pe_ratio if pe_ratio else "N/A"
             },
             'opportunities': ranked_opportunities,
             'data_source': 'ORATS' if scanner.use_orats else 'Schwab',

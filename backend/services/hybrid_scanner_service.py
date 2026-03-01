@@ -105,7 +105,7 @@ class HybridScannerService:
 
         # Check configuration
         self.use_tradier = self.tradier_api.is_configured()
-        self.use_schwab = False  # DISABLED
+        # P3-NEW-4: Schwab removed — ORATS is the primary data source
         self.use_orats = self.batch_manager.orats_api.is_configured() if hasattr(self.batch_manager, 'orats_api') else False
 
         # Initialize Ticker Cache if empty

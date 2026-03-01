@@ -47,6 +47,16 @@ else:
 
 security_service = Security(app)
 
+# P2-NEW-2 FIX: Properly clean up scoped_session after each request
+# Prevents stale data when sessions are reused across threads (10-15 users)
+try:
+    from backend.database.paper_session import PaperScopedSession
+    @app.teardown_appcontext
+    def remove_paper_session(exc=None):
+        PaperScopedSession.remove()
+except ImportError:
+    pass  # Paper trading DB not configured
+
 # Warn if SECRET_KEY is auto-generated (sessions won't persist)
 if Config.SECRET_KEY_IS_DEFAULT:
     logger.warning("SECRET_KEY not set \u2014 using random key. Sessions will not persist across restarts.")
@@ -348,7 +358,8 @@ def scan_ticker(ticker):
         else:
             return jsonify({
                 'success': False,
-                'error': f'Ticker {ticker} rejected by filters (MTA/Moat) or data unavailable'
+                'error': f'Ticker {ticker} rejected by filters (MTA/Moat) or data unavailable',
+                'hint': 'This may occur during non-market hours or if the ticker fails trend/moat filters. Try during market hours or check the server logs for specific rejection reasons.'
             }), 200
     except Exception as e:
         return jsonify({

@@ -94,16 +94,13 @@ class OptionsAnalyzer:
         try:
             # Format: "2024-12-20:365"
             exp_date = datetime.strptime(exp_date_str.split(':')[0], '%Y-%m-%d')
-        except:
+        except Exception:  # P2-NEW-7 FIX: Was bare except — now catches only real errors
             return opportunities
         
         # Calculate days to expiry
         days_to_expiry = (exp_date - datetime.now()).days
         
-        # NOTE: Reduced LEAP filter check here as it blocks weekly scans
-        # The service layer handles expiration filtering (daily/weekly vs LEAPs)
-        # if days_to_expiry < self.min_leap_days:
-        #    return opportunities
+        # NOTE: LEAP filter check handled by the service layer (daily/weekly vs LEAPs)
         
         logger.debug(f"   Processing {len(strikes)} strikes for {exp_date_str} ({days_to_expiry} days)")
         rejected_reasons = []
@@ -238,6 +235,7 @@ class OptionsAnalyzer:
                 'days_to_expiry': days_to_expiry,
                 'premium': premium,
                 'bid': bid,
+                'ask': ask,  # P2-NEW-6 FIX: Explicitly include ask price
                 'contract_cost': contract_cost,
                 'volume': volume,
                 'open_interest': open_interest,
@@ -673,7 +671,7 @@ class OptionsAnalyzer:
         # --- Theta Efficiency ---
         # Theta/Premium ratio: how much daily decay costs as % of position
         # F9 FIX: Weight theta penalty by DTE — near-expiry theta hurts more
-        dte = opp.get('daysToExpiration', 30) or 30
+        dte = opp.get('days_to_expiry', 30) or 30  # P2-NEW-8 FIX: Was 'daysToExpiration' (wrong key)
         dte_factor = max(0.5, min(2.0, 30 / max(dte, 1)))  # 2x penalty at 15 DTE, 0.5x at 60+ DTE
         if premium > 0 and theta > 0:
             theta_pct = theta / premium  # Daily decay as fraction of premium

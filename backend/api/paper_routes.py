@@ -334,15 +334,43 @@ def place_trade():
                     'error': f'Daily trade limit reached ({user_settings.max_daily_trades})'
                 }), 429
 
-        if user_settings and user_settings.max_positions:
-            open_count = (
-                db.query(func.count(PaperTrade.id))
-                .filter(
-                    PaperTrade.username == username,
-                    PaperTrade.status == TradeStatus.OPEN.value,
-                )
-                .scalar()
+        # ── P1-NEW-4 FIX: Validate option_type is CALL or PUT ──
+        if not data.get('option_type') or data['option_type'].upper() not in ('CALL', 'PUT'):
+            return jsonify({
+                'success': False,
+                'error': 'option_type must be CALL or PUT'
+            }), 400
+
+        # ── P1-NEW-3 FIX: Validate numeric inputs are positive ──
+        try:
+            _entry_price = float(data.get('entry_price', 0))
+            _strike = float(data.get('strike', 0))
+            _qty = int(data.get('qty', 1))
+        except (ValueError, TypeError):
+            return jsonify({
+                'success': False,
+                'error': 'entry_price, strike, and qty must be valid numbers'
+            }), 400
+
+        if _entry_price <= 0:
+            return jsonify({'success': False, 'error': 'entry_price must be positive'}), 400
+        if _strike <= 0:
+            return jsonify({'success': False, 'error': 'strike must be positive'}), 400
+        if _qty < 1:
+            return jsonify({'success': False, 'error': 'qty must be >= 1'}), 400
+
+        # ── P1-NEW-6 FIX: Query open positions ONCE, reuse for all checks ──
+        open_trades_all = (
+            db.query(PaperTrade)
+            .filter(
+                PaperTrade.username == username,
+                PaperTrade.status == TradeStatus.OPEN.value,
             )
+            .all()
+        )
+        open_count = len(open_trades_all)
+
+        if user_settings and user_settings.max_positions:
             if open_count >= user_settings.max_positions:
                 return jsonify({
                     'success': False,
@@ -389,9 +417,8 @@ def place_trade():
             }), 400
 
         # ── P3 BUG-E2: Recompute gate_verdict server-side ──
-        if card_score is not None and float(card_score) < 40:
-            server_gate_verdict = 'FAIL'
-        elif ai_verdict and str(ai_verdict).upper() in ('AVOID', 'STRONG_AVOID'):
+        # P0-NEW-4 FIX: Removed unreachable card_score < 40 check (already returned at L379)
+        if ai_verdict and str(ai_verdict).upper() in ('AVOID', 'STRONG_AVOID'):
             server_gate_verdict = 'FAIL'
         elif card_score is not None and float(card_score) >= 70:
             server_gate_verdict = 'STRONG_PASS'
@@ -403,16 +430,9 @@ def place_trade():
         # ── P1 CRIT-3: Portfolio heat limit enforcement ──
         # NEW-BUG-2 FIX: Use 'is not None' to handle heat_limit_pct=0 correctly (0 is falsy but valid)
         if user_settings and user_settings.heat_limit_pct is not None and user_settings.account_balance:
-            open_positions_for_heat = (
-                db.query(PaperTrade)
-                .filter(
-                    PaperTrade.username == username,
-                    PaperTrade.status == TradeStatus.OPEN.value,
-                )
-                .all()
-            )
+            # P1-NEW-6 FIX: Reuse open_trades_all from earlier query
             current_heat_value = sum(
-                t.entry_price * t.qty * 100 for t in open_positions_for_heat
+                t.entry_price * t.qty * 100 for t in open_trades_all
             )
             proposed_cost = float(data['entry_price']) * int(data.get('qty', 1)) * 100
             total_heat_value = current_heat_value + proposed_cost
@@ -430,21 +450,14 @@ def place_trade():
         # Previously advisory-only (never called). Now enforced as pre-trade check.
         try:
             prm = PortfolioRiskManager()
-            open_trades_for_prm = (
-                db.query(PaperTrade)
-                .filter(
-                    PaperTrade.username == username,
-                    PaperTrade.status == TradeStatus.OPEN.value,
-                )
-                .all()
-            )
+            # P1-NEW-6 FIX: Reuse open_trades_all from earlier query
             current_positions = [
                 {
                     'ticker': t.ticker,
                     'sector': getattr(t, 'sector', None),
                     'cost': t.entry_price * t.qty * 100,
                 }
-                for t in open_trades_for_prm
+                for t in open_trades_all
             ]
             proposed_cost = float(data['entry_price']) * int(data.get('qty', 1)) * 100
             account_size = user_settings.account_balance if user_settings and user_settings.account_balance else 50000
