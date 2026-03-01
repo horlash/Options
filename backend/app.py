@@ -136,6 +136,14 @@ def index_v2():
 def serve_v2_static(filename):
     return send_from_directory(os.path.join(project_root, 'frontend'), filename)
 
+@app.route('/portfolio')
+def portfolio_index():
+    return send_from_directory(os.path.join(project_root, 'frontend', 'portfolio'), 'index.html')
+
+@app.route('/portfolio/<path:filename>')
+def serve_portfolio_static(filename):
+    return send_from_directory(os.path.join(project_root, 'frontend', 'portfolio'), filename)
+
 @app.route('/api/me', methods=['GET'])
 def get_current_user():
     """Return the logged-in username for frontend display"""

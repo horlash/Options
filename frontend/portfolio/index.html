@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Options Scanner — Portfolio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <!-- APP SHELL -->
+  <div id="app-shell">
+
+    <!-- App Header (matches scanner) -->
+    <header class="app-header">
+      <div class="app-header-left">📈 Options Scanner</div>
+      <div class="app-header-right">
+        <span class="hdr-stat" id="hdr-portfolio-val">Portfolio: <b>—</b></span>
+        <span class="hdr-stat" id="hdr-today-pnl">Today: <b>—</b></span>
+        <span class="hdr-stat" id="hdr-open-count">Open: <b>—</b></span>
+        <button class="hdr-theme-toggle" id="theme-toggle" title="Toggle dark/light mode">☀️</button>
+        <span class="hdr-stat hdr-logout" onclick="window.location.href='/login'">Logout</span>
+      </div>
+    </header>
+
+    <!-- App Tabs -->
+    <nav class="app-tabs">
+      <span class="app-tab" data-tab="scanner">Scanner</span>
+      <span class="app-tab active" data-tab="portfolio">Portfolio</span>
+      <span class="app-tab disabled">Risk</span>
+    </nav>
+
+    <!-- Portfolio Tab Content -->
+    <div id="tab-portfolio" class="tab-content active">
+
+      <!-- Sub-Tabs -->
+      <div class="portfolio-sub-tabs" id="portfolioSubTabs">
+        <button class="sub-tab active" data-sub="open-positions">Open Positions</button>
+        <button class="sub-tab" data-sub="trade-history">Trade History</button>
+        <button class="sub-tab" data-sub="performance">Performance</button>
+        <button class="sub-tab" data-sub="settings">Settings</button>
+      </div>
+
+      <!-- Mobile: Sub-tab dropdown -->
+      <div class="mobile-sub-select-wrapper" id="mobileSubSelect">
+        <select class="mobile-sub-select" id="mobileSubDropdown">
+          <option value="open-positions" selected>Open Positions</option>
+          <option value="trade-history">Trade History</option>
+          <option value="performance">Performance</option>
+          <option value="settings">Settings</option>
+        </select>
+      </div>
+
+      <!-- Mode Banner -->
+      <div class="mode-banner">🟢 SANDBOX MODE — Paper trading active</div>
+
+      <!-- ============================================================ -->
+      <!-- SUB-VIEW 1: OPEN POSITIONS                                   -->
+      <!-- ============================================================ -->
+      <div class="sub-panel active" id="sub-open-positions">
+        <div class="content-area">
+
+          <!-- Stat Cards (dynamic) -->
+          <div class="port-stat-cards" id="stat-cards">
+            <div class="port-stat-card">
+              <div class="port-stat-label">Portfolio Value</div>
+              <div class="port-stat-value">Loading...</div>
+            </div>
+            <div class="port-stat-card">
+              <div class="port-stat-label">Today's P&L</div>
+              <div class="port-stat-value">—</div>
+            </div>
+            <div class="port-stat-card">
+              <div class="port-stat-label">Open Positions</div>
+              <div class="port-stat-value">—</div>
+            </div>
+            <div class="port-stat-card">
+              <div class="port-stat-label">Cash Available</div>
+              <div class="port-stat-value">—</div>
+            </div>
+          </div>
+
+          <!-- Positions Table (dynamic) -->
+          <div class="port-table-wrapper">
+            <table class="port-table">
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Type</th>
+                  <th>Strike</th>
+                  <th>Entry</th>
+                  <th>Current</th>
+                  <th>P&L</th>
+                  <th>SL / TP</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="positions-table-body">
+                <tr>
+                  <td colspan="9" style="text-align:center;padding:32px;">Loading positions...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- SUB-VIEW 2: TRADE HISTORY                                    -->
+      <!-- ============================================================ -->
+      <div class="sub-panel" id="sub-trade-history">
+        <div class="content-area">
+
+          <!-- Summary Bar (dynamic) -->
+          <div class="port-summary-bar" id="history-summary">
+            <div class="port-summary-box">
+              <div class="port-sum-label">Total Closed</div>
+              <div class="port-sum-value">—</div>
+            </div>
+            <div class="port-summary-box">
+              <div class="port-sum-label">Win Rate</div>
+              <div class="port-sum-value">—</div>
+            </div>
+            <div class="port-summary-box">
+              <div class="port-sum-label">Realized P&L</div>
+              <div class="port-sum-value">—</div>
+            </div>
+          </div>
+
+          <!-- Filter Row -->
+          <div class="port-filter-row" id="history-filters">
+            <button class="port-pill-filter active">All</button>
+            <button class="port-pill-filter">Wins</button>
+            <button class="port-pill-filter">Losses</button>
+            <button class="port-pill-filter">Expired</button>
+            <button class="port-pill-filter">SL Hit</button>
+            <button class="port-pill-filter">TP Hit</button>
+          </div>
+
+          <!-- Trade History Table (dynamic) -->
+          <div class="port-table-wrapper">
+            <table class="port-table">
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Type</th>
+                  <th>Entry → Exit</th>
+                  <th>P&L</th>
+                  <th>Held</th>
+                  <th>Reason</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody id="history-table-body">
+                <tr>
+                  <td colspan="7" style="text-align:center;padding:32px;">Click the Trade History tab to load data.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Export Buttons -->
+          <div class="port-export-row">
+            <button class="port-btn btn-export-csv">📥 Export CSV</button>
+            <button class="port-btn btn-export-json">📥 Export JSON</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- SUB-VIEW 3: PERFORMANCE                                      -->
+      <!-- ============================================================ -->
+      <div class="sub-panel" id="sub-performance">
+        <div class="content-area">
+
+          <!-- KPI Cards (dynamic) -->
+          <div class="port-kpi-cards" id="perf-kpi-cards">
+            <div style="text-align:center;padding:24px;">Click the Performance tab to load analytics.</div>
+          </div>
+
+          <!-- Charts Grid (dynamic) -->
+          <div class="port-charts-grid" id="perf-charts-grid"></div>
+
+          <!-- Breakdown Tables (dynamic) -->
+          <div class="port-breakdown-grid" id="perf-breakdown-grid"></div>
+
+          <!-- Export -->
+          <div class="port-export-row">
+            <button class="port-btn btn-export-csv">📥 Export CSV</button>
+            <button class="port-btn btn-export-json">📥 Export JSON</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- SUB-VIEW 4: SETTINGS                                         -->
+      <!-- ============================================================ -->
+      <div class="sub-panel" id="sub-settings">
+        <div class="content-area">
+
+          <div class="port-settings-grid" id="settings-grid">
+
+            <!-- 1. Trading Mode -->
+            <div class="port-settings-section">
+              <div class="port-section-header">⚡ Trading Mode</div>
+              <div class="port-section-body">
+                <div class="port-settings-row">
+                  <span class="port-setting-label">Active Mode</span>
+                  <div class="port-mode-toggle">
+                    <button class="port-mode-opt active-green" data-mode="TRADIER_SANDBOX">Sandbox</button>
+                    <button class="port-mode-opt inactive" data-mode="TRADIER_LIVE">Live</button>
+                  </div>
+                </div>
+                <div class="port-settings-annotation">Toggle between paper trading (Sandbox) and real money (Live).
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Broker Credentials -->
+            <div class="port-settings-section">
+              <div class="port-section-header">🔑 Broker Credentials</div>
+              <div class="port-section-body">
+                <div class="port-settings-row">
+                  <span class="port-setting-label">Tradier Account ID</span>
+                  <input type="text" class="port-settings-input" id="set-tradier-id" placeholder="Account ID">
+                </div>
+                <div class="port-settings-row">
+                  <span class="port-setting-label">Status</span>
+                  <span class="port-status-dot" id="broker-status">Checking...</span>
+                </div>
+                <div class="port-settings-annotation">Tradier brokerage connection. Credentials are encrypted at rest.
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Portfolio Settings -->
+            <div class="port-settings-section">
+              <div class="port-section-header">💼 Portfolio Settings</div>
+              <div class="port-section-body">
+                <div class="port-settings-row">
+                  <span class="port-setting-label">Account Balance</span>
+                  <input type="number" class="port-settings-input" id="set-account-balance" value="25000">
+                </div>
+                <div class="port-settings-annotation">Account balance tracks current equity.</div>
+              </div>
+            </div>
+
+            <!-- 4. Risk Management -->
+            <div class="port-settings-section">
+              <div class="port-section-header">🛡️ Risk Management</div>
+              <div class="port-section-body">
+                <div class="port-settings-row">
+                  <span class="port-setting-label">Max Simultaneous Positions</span>
+                  <input type="number" class="port-settings-input" id="set-max-positions" value="5">
+                </div>
+                <div class="port-settings-row">
+                  <span class="port-setting-label">Daily Loss Limit</span>
+                  <input type="number" class="port-settings-input" id="set-daily-loss" value="500">
+                </div>
+                <div class="port-settings-row">
+                  <span class="port-setting-label">Default SL %</span>
+                  <input type="number" class="port-settings-input" id="set-default-sl" value="20">
+                </div>
+                <div class="port-settings-row">
+                  <span class="port-setting-label">Default TP %</span>
+                  <input type="number" class="port-settings-input" id="set-default-tp" value="50">
+                </div>
+                <div class="port-settings-row">
+                  <span class="port-setting-label">Max Daily Trades</span>
+                  <input type="number" class="port-settings-input" id="set-max-daily" value="10">
+                </div>
+                <div class="port-settings-annotation">Risk parameters that govern position sizing and loss limits.</div>
+              </div>
+            </div>
+
+            <!-- 5. Trade Behavior -->
+            <div class="port-settings-section">
+              <div class="port-section-header">🔄 Trade Behavior</div>
+              <div class="port-section-body">
+                <div class="port-settings-row">
+                  <span class="port-setting-label">Auto-close at Expiry</span>
+                  <label class="port-toggle-switch">
+                    <input type="checkbox" id="set-auto-close" checked>
+                    <span class="port-toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="port-settings-row">
+                  <span class="port-setting-label">Require Confirmation</span>
+                  <label class="port-toggle-switch">
+                    <input type="checkbox" id="set-require-confirm" checked>
+                    <span class="port-toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="port-settings-annotation">Auto-close prevents positions from expiring unmanaged.</div>
+              </div>
+            </div>
+
+            <!-- 6. Preferences -->
+            <div class="port-settings-section">
+              <div class="port-section-header">🎨 Preferences</div>
+              <div class="port-section-body">
+                <div class="port-settings-row">
+                  <span class="port-setting-label">Alert on SL/TP Hit</span>
+                  <label class="port-toggle-switch">
+                    <input type="checkbox" id="set-alert-bracket" checked>
+                    <span class="port-toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="port-settings-annotation">Alerts fire browser notifications when SL/TP triggers.</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Save Button -->
+          <div class="port-save-row">
+            <button class="port-btn port-btn-primary" id="btn-save-settings">💾 Save Settings</button>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /tab-portfolio -->
+
+  </div><!-- /app-shell -->
+
+  <!-- Adjust Modal CSS (inline for simplicity) -->
+  <style>
+    .port-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    .port-modal {
+      background: var(--surface, #fff);
+      border-radius: 12px;
+      padding: 24px;
+      min-width: 340px;
+      max-width: 420px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .port-modal h3 {
+      margin: 0 0 16px;
+      font-size: 1.1rem;
+    }
+
+    .port-status-dot.disconnected {
+      color: var(--red, #ef4444);
+    }
+
+    .port-status-dot.disconnected::before {
+      background: var(--red, #ef4444);
+    }
+  </style>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

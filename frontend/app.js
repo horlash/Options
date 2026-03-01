@@ -1858,11 +1858,7 @@ const scanner = {
     });
     document.getElementById('result-portfolio')?.addEventListener('click', () => {
       overlay.style.display = 'none';
-      // Switch to portfolio tab
-      document.querySelectorAll('.app-tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-      document.querySelector('[data-tab="portfolio"]')?.classList.add('active');
-      document.getElementById('tab-portfolio')?.classList.add('active');
+      window.location.href = '/portfolio';
     });
     document.getElementById('result-retry')?.addEventListener('click', () => {
       overlay.style.display = 'none';
@@ -1896,4 +1892,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   await checkAuth();
   // Init scanner
   await scanner.init();
+
+  // Portfolio tab navigation
+  document.querySelector('.app-tab[data-tab="portfolio"]')?.addEventListener('click', () => {
+    window.location.href = '/portfolio';
+  });
 });
