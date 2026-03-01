@@ -7,6 +7,29 @@ from backend.database.models import ScanResult, Opportunity, NewsCache
 logger = logging.getLogger(__name__)
 
 
+# P0-MM-W2 FIX: Centralized spread calculation — industry standard (ask-bid)/mid
+def calculate_spread_pct(bid, ask):
+    """
+    Calculate bid-ask spread percentage using the industry-standard mid-price formula.
+    Formula: (ask - bid) / mid, where mid = (ask + bid) / 2
+    
+    This is the correct formula used by CBOE, market makers, and institutional traders.
+    Previously the codebase had inconsistent formulas:
+      - scanner_weekly.py used (ask-bid)/ask (WRONG)
+      - context_service.py used (ask-bid)/mid (CORRECT)
+    Now unified here.
+    
+    Returns:
+        float: Spread as decimal (0.10 = 10%), or 0.0 if bid/ask invalid
+    """
+    if ask <= 0 or bid < 0 or ask <= bid:
+        return 0.0
+    mid = (ask + bid) / 2
+    if mid <= 0:
+        return 0.0
+    return (ask - bid) / mid
+
+
 def calculate_greeks_black_scholes(scanner, S, K, T, sigma, r=0.045, opt_type='call'):
     """
     Estimate Greeks using Black-Scholes (Pure Python, no scipy).
@@ -447,59 +470,42 @@ def get_detailed_analysis(scanner, ticker, expiry_date=None):
                 current_price = q.get('price', 0)
 
         # 2. Calculate Indicators
-        indicators = {
-            'rsi': {'value': 0, 'signal': 'neutral'},
-            'macd': {'signal': 'neutral'},
-            'bollinger_bands': {'signal': 'neutral'},
-            'moving_averages': {'signal': 'neutral'},
-            'volume': {'signal': 'neutral'}
-        }
-
+        # FIX #14: Use get_all_indicators() to get full values (RSI-2, VWAP, SMA values)
+        # instead of individual calculate_* calls that discard the values dict.
+        indicators = None
         technical_score = 50
 
         if history:
             logger.debug("Preparing DataFrame...")
-            df = scanner.technical_analyzer.prepare_dataframe(history)
-
-            # Check explicitly
-            if df is not None and not df.empty:
-                logger.debug(f"DataFrame Ready: {len(df)} rows")
-
-                # RSI
-                logger.debug("Calc RSI...")
-                rsi_val, rsi_sig = scanner.technical_analyzer.calculate_rsi(df)
-                indicators['rsi'] = {'value': rsi_val, 'signal': rsi_sig}
-
-                # MACD
-                logger.debug("Calc MACD...")
-                macd_vals, macd_sig = scanner.technical_analyzer.calculate_macd(df)
-                if macd_vals:
-                    indicators['macd'] = {'signal': macd_sig}
-
-                # BB
-                logger.debug("Calc BB...")
-                bb_vals, bb_sig = scanner.technical_analyzer.calculate_bollinger_bands(df)
-                if bb_vals:
-                    indicators['bollinger_bands'] = {'signal': bb_sig}
-
-                # MA
-                logger.debug("Calc MA...")
-                ma_vals, ma_sig = scanner.technical_analyzer.calculate_moving_averages(df)
-                if ma_vals:
-                    indicators['moving_averages'] = {'signal': ma_sig}
-
-                # Volume
-                logger.debug("Calc Volume...")
-                vol_vals, vol_sig = scanner.technical_analyzer.analyze_volume(df)
-                if vol_vals:
-                    indicators['volume'] = {'signal': vol_sig}
-
-                # Tech Score
-                logger.debug("Calc Score...")
-                # Fix: Pass indicators dict, not df. Returns scalar, not dict.
+            # Use get_all_indicators for full indicator suite (matches weekly scan output)
+            indicators = scanner.technical_analyzer.get_all_indicators(history)
+            
+            if indicators:
+                logger.debug(f"Full indicators computed via get_all_indicators")
                 technical_score = scanner.technical_analyzer.calculate_technical_score(indicators)
             else:
-                logger.debug("DF is empty or None")
+                logger.debug("get_all_indicators returned None")
+                indicators = {
+                    'rsi': {'value': 0, 'signal': 'neutral'},
+                    'macd': {'signal': 'neutral'},
+                    'bollinger_bands': {'signal': 'neutral'},
+                    'moving_averages': {'signal': 'neutral'},
+                    'volume': {'signal': 'neutral'},
+                    'rsi2': {},
+                    'vwap': {},
+                    'minervini': {},
+                }
+        else:
+            indicators = {
+                'rsi': {'value': 0, 'signal': 'neutral'},
+                'macd': {'signal': 'neutral'},
+                'bollinger_bands': {'signal': 'neutral'},
+                'moving_averages': {'signal': 'neutral'},
+                'volume': {'signal': 'neutral'},
+                'rsi2': {},
+                'vwap': {},
+                'minervini': {},
+            }
 
         # 3. Sentiment
         sentiment_score, sentiment_details = get_sentiment_score(scanner, ticker)
@@ -528,7 +534,9 @@ def get_detailed_analysis(scanner, ticker, expiry_date=None):
             'sentiment_score': sentiment_score,
             'indicators': indicators,
             'sentiment_analysis': sentiment_details,
-            'opportunities': opportunities
+            'opportunities': opportunities,
+            # FIX #14: Propagate trading_systems from scan result to analysis endpoint
+            'trading_systems': scan_res.get('trading_systems', {}) if scan_res else {},
         }
 
         return sanitize_for_json(result)

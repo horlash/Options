@@ -50,14 +50,64 @@ def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, 
                     logger.info(f"   G16 Macro Sentiment (Index): {sentiment_score}/100")
             except Exception as e:
                 logger.warning(f"   ⚠️ G16 macro sentiment failed: {e}")
+        elif scanner.use_orats:
+            # P0-MM-L2 FIX: Use ORATS hist/cores for options-centric fundamentals
+            # REPLACES Finnhub get_basic_financials() which caused FORBIDDEN aborts
+            # ORATS provides options-relevant data: div yield, implied earnings move, options volume
+            try:
+                cores = scanner.batch_manager.orats_api.get_hist_cores(clean_ticker)
+                if cores:
+                    div_yield = cores.get('divYield', 0) or 0
+                    implied_earn_move = cores.get('impliedEarningsMove', 0) or 0
+                    avg_opt_vol = cores.get('avgOptVolu20d', 0) or 0
+                    days_to_earn = cores.get('daysToNextErn')
+                    iv_pctile = cores.get('ivPctile1y', 50) or 50
+                    
+                    logger.info(f"   • ORATS Fundamentals: DivYield={div_yield:.2f}%, ImpliedEarnMove={implied_earn_move:.1f}%, AvgOptVol={avg_opt_vol:.0f}")
+                    logger.info(f"   • ORATS Context: IV Percentile={iv_pctile:.0f}, DaysToEarn={days_to_earn}")
+                    
+                    # Options-centric quality scoring (replaces ROE/Margin)
+                    # High options volume = liquid, tradeable name
+                    # Moderate IV = good premium but not overpriced
+                    # Dividend yield = income potential for LEAPS holders
+                    quality_fail_reasons = []
+                    
+                    if avg_opt_vol < 100:
+                        quality_fail_reasons.append(f"Low Options Volume ({avg_opt_vol:.0f} avg daily)")
+                    
+                    if iv_pctile > 90:
+                        quality_fail_reasons.append(f"Extremely High IV ({iv_pctile:.0f} percentile)")
+                        fund_badges.append("High IV ⚠️")
+                    elif iv_pctile > 70:
+                        fund_badges.append("Elevated IV")
+                    
+                    if div_yield > 2:
+                        fund_badges.append(f"Dividend {div_yield:.1f}%")
+                        fund_score += 10
+                    
+                    if avg_opt_vol > 1000:
+                        fund_badges.append("Liquid Options")
+                        fund_score += 10
+                    
+                    if quality_fail_reasons:
+                        logger.warning(f"⚠️ ORATS Quality Flags: {', '.join(quality_fail_reasons)}")
+                        if strict_mode and avg_opt_vol < 50:
+                            logger.error(f"❌ Ultra-low options volume. Aborting in strict mode.")
+                            return None
+                else:
+                    logger.warning("⚠️ No ORATS hist/cores data. Proceeding with caution.")
+            except Exception as e:
+                # P0-MM-L2: NEVER abort on data fetch failure — degrade gracefully
+                logger.warning(f"⚠️ ORATS fundamentals fetch failed: {e}. Proceeding without.")
         elif scanner.finnhub_api:
+            # LEGACY FALLBACK: Only used if ORATS is not configured
+            # P0-MM-L2 FIX: No longer aborts on FORBIDDEN — just warns and continues
             financials = scanner.finnhub_api.get_basic_financials(clean_ticker)
 
             if financials == "FORBIDDEN":
-                logger.error("⚠️ Finnhub Limit Reached or Feature Blocked. Aborting Scan (Strict Quality Mode).")
-                return None
-
-            if financials:
+                logger.warning("⚠️ Finnhub FORBIDDEN — skipping fundamentals (non-fatal)")
+                # P0-MM-L2 FIX: Removed `return None` — scan continues without fundamentals
+            elif financials:
                 roe = financials.get('roe')
                 gross_margin = financials.get('gross_margin')
 
@@ -317,7 +367,33 @@ def scan_ticker_leaps(scanner, ticker, strict_mode=True, pre_fetched_data=None, 
                     if dte >= 150:
                         leap_opps.append(o)
                 logger.info(f"   • Filtered {len(parsed_opps)} options -> {len(leap_opps)} LEAPs (>150 days)")
-                opportunities.extend(leap_opps)
+
+                # P0-MM-L1 FIX: LEAPS-specific liquidity filter
+                # LEAPs are illiquid by nature — must enforce spread + OI minimums
+                # that the weekly scanner doesn't need.
+                from backend.services.scanner_utils import calculate_spread_pct
+                filtered_leaps = []
+                for o in leap_opps:
+                    o_bid = o.get('bid', 0)
+                    o_ask = o.get('ask', 0)
+                    o_oi = o.get('open_interest', 0)
+                    
+                    # Reject wide spreads (>40% for LEAPs — stricter than weekly's 25%)
+                    if o_bid > 0 and o_ask > 0:
+                        leap_spread = calculate_spread_pct(o_bid, o_ask)
+                        if leap_spread > 0.40:
+                            logger.info(f"   LEAPS FILTERED: spread {leap_spread:.0%} > 40% (bid={o_bid} ask={o_ask})")
+                            continue
+                    
+                    # Reject low OI (<500 for LEAPs — ensures meaningful liquidity)
+                    if o_oi < 500:
+                        logger.info(f"   LEAPS FILTERED: OI {o_oi} < 500 minimum")
+                        continue
+                    
+                    filtered_leaps.append(o)
+                
+                logger.info(f"   • Liquidity filter: {len(leap_opps)} LEAPs -> {len(filtered_leaps)} passed (spread<40%, OI>=500)")
+                opportunities.extend(filtered_leaps)
 
         # [PHASE 3] VOLATILITY SKEW ANALYSIS
         # P0-2: Skew was always 50 because use_schwab=False. Now uses ORATS live/summaries

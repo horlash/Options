@@ -28,6 +28,7 @@ from backend.services.lifecycle import LifecycleManager
 from backend.services.broker.factory import BrokerFactory
 from backend.services.broker.exceptions import BrokerException
 from backend.services.context_service import ContextService
+from backend.analysis.portfolio_risk_manager import PortfolioRiskManager
 from backend.utils.market_hours import get_market_status
 
 logger = logging.getLogger(__name__)
@@ -424,6 +425,51 @@ def place_trade():
                         f'limit {user_settings.heat_limit_pct:.1f}%'
                     )
                 }), 400
+
+        # ── BUG-PRM-1 FIX: Portfolio Risk Manager hard gate ──
+        # Previously advisory-only (never called). Now enforced as pre-trade check.
+        try:
+            prm = PortfolioRiskManager()
+            open_trades_for_prm = (
+                db.query(PaperTrade)
+                .filter(
+                    PaperTrade.username == username,
+                    PaperTrade.status == TradeStatus.OPEN.value,
+                )
+                .all()
+            )
+            current_positions = [
+                {
+                    'ticker': t.ticker,
+                    'sector': getattr(t, 'sector', None),
+                    'cost': t.entry_price * t.qty * 100,
+                }
+                for t in open_trades_for_prm
+            ]
+            proposed_cost = float(data['entry_price']) * int(data.get('qty', 1)) * 100
+            account_size = user_settings.account_balance if user_settings and user_settings.account_balance else 50000
+            
+            risk_check = prm.check_trade(
+                ticker=data['ticker'].upper(),
+                sector=data.get('sector'),
+                trade_cost=proposed_cost,
+                account_size=account_size,
+                current_positions=current_positions,
+            )
+            
+            if not risk_check['allowed']:
+                return jsonify({
+                    'success': False,
+                    'error': f"Portfolio risk check failed: {'; '.join(risk_check['violations'])}",
+                    'risk_check': risk_check,
+                }), 400
+            
+            # Include warnings in response even if trade is allowed
+            if risk_check.get('warnings'):
+                logger.warning(f"PRM warnings for {data['ticker']}: {risk_check['warnings']}")
+        except Exception as e:
+            # Non-fatal: log but don't block trade if PRM itself errors
+            logger.warning(f"PortfolioRiskManager check failed (non-fatal): {e}")
 
         trade = PaperTrade(
             username=username,

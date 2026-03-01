@@ -129,6 +129,10 @@ class SentimentAnalyzer:
             'breakdown': [],
             'headlines': headlines or [],
             'article_count': 0,
+            # FIX #15: Finnhub visibility fields
+            'sentiment_source': 'neutral_default',  # enum: finnhub_premium, perplexity_fallback, neutral_default
+            'finnhub_status': 'no_data',  # enum: success, forbidden, timeout, no_data
+            'sentiment_confidence': 'low',  # enum: high, medium, low
         }
 
         # 1. Try Finnhub premium
@@ -142,14 +146,32 @@ class SentimentAnalyzer:
                 'score': fh_score,
                 'source': fh_source,
             })
+            # FIX #15: Finnhub visibility
+            result['sentiment_source'] = 'finnhub_premium'
+            result['finnhub_status'] = 'success'
+            result['sentiment_confidence'] = 'high'
+        elif finnhub_premium_data == 'FORBIDDEN':
+            # FIX #15: Track Finnhub forbidden status even when falling back
+            result['finnhub_status'] = 'forbidden'
+            if headlines:
+                px_score, px_breakdown = self.score_headlines_with_perplexity(ticker, headlines)
+                result['score'] = px_score
+                result['source'] = 'Perplexity AI (headline analysis)'
+                result['article_count'] = len(headlines)
+                result['breakdown'].extend(px_breakdown)
+                result['sentiment_source'] = 'perplexity_fallback'
+                result['sentiment_confidence'] = 'medium'
         elif headlines:
             # 2. Try Perplexity AI scoring
+            result['finnhub_status'] = 'no_data'
             px_score, px_breakdown = self.score_headlines_with_perplexity(ticker, headlines)
             result['score'] = px_score
             result['source'] = 'Perplexity AI (headline analysis)'
             result['article_count'] = len(headlines)
             result['breakdown'].extend(px_breakdown)
-        # else: stays at neutral 50
+            result['sentiment_source'] = 'perplexity_fallback'
+            result['sentiment_confidence'] = 'medium'
+        # else: stays at neutral 50 with defaults
 
         # Derive signal
         result['signal'] = self.get_sentiment_signal(result['score'])
@@ -159,8 +181,10 @@ class SentimentAnalyzer:
     # ------------------------------------------------------------------
     # LEGACY COMPATIBILITY — kept for callers that still use old interface
     # ------------------------------------------------------------------
-    def analyze_articles(self, articles):
-        """Legacy wrapper — extracts headlines and routes through new pipeline."""
+    def analyze_articles(self, articles, ticker=''):
+        """Legacy wrapper — extracts headlines and routes through new pipeline.
+        BUG-SA1 FIX: Now accepts ticker parameter instead of using empty string.
+        """
         if not articles:
             return {
                 'overall_score': 0,
@@ -173,7 +197,7 @@ class SentimentAnalyzer:
             }
 
         headlines = [a.get('headline', '') for a in articles if a.get('headline')]
-        ticker = ''  # Caller should use analyze_sentiment directly
+        # BUG-SA1 FIX: ticker is now passed as parameter, not hardcoded empty
         px_score, _ = self.score_headlines_with_perplexity(ticker, headlines)
 
         # Map to legacy format

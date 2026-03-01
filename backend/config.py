@@ -34,6 +34,12 @@ class Config:
     RSI_OVERSOLD = int(os.getenv('RSI_OVERSOLD', 30))
     RSI_OVERBOUGHT = int(os.getenv('RSI_OVERBOUGHT', 70))
     MIN_VOLUME_MULTIPLIER = float(os.getenv('MIN_VOLUME_MULTIPLIER', 1.5))
+
+    # P0-MM-W1: Fill assumption for profit calculations
+    # 'ask' = conservative (assume you pay the full ask on buys) — INDUSTRY DEFAULT
+    # 'mid' = optimistic (mid-price fills — paper trading only)
+    # 'natural' = realistic (ask - $0.05 price improvement for liquid names)
+    FILL_ASSUMPTION = os.getenv('FILL_ASSUMPTION', 'ask')
     
     # Database — Scanner (existing SQLite)
     DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./leap_scanner.db')
