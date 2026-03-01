@@ -1179,7 +1179,7 @@ const scanner = {
       <div class="view-header">
         <button class="back-btn" id="analyze-back">← Back to Results</button>
         <span class="view-ticker">${ticker}</span>
-        <span class="view-subtitle">$${opp.current_price ? opp.current_price.toFixed(2) : '—'} · ${opp.option_type} · ${expiryDate}</span>
+        <span class="view-subtitle">$${opp.strike_price ? opp.strike_price.toFixed(2) : '—'} · ${opp.option_type} · ${expiryDate}</span>
         <div style="margin-left:auto; display:flex; align-items:baseline; gap:4px;">
           <div class="card-score ${scoreClass}" style="width:44px;height:44px;font-size:1rem;">${score.toFixed(0)}</div>
           <span style="font-size:0.7rem; color:var(--text-light);">/100</span>
@@ -1514,16 +1514,19 @@ const scanner = {
   },
 
   parseAIAnalysisSections(text) {
-    // Strip JSON blocks from the end of AI output before parsing
+    // Strip JSON/Verdict blocks from AI output (already shown in verdict box)
     let cleaned = text;
-    // Remove trailing JSON block: {"score":..., "verdict":..., ...}
-    cleaned = cleaned.replace(/\n*```json[\s\S]*?```\n*/g, '');
-    cleaned = cleaned.replace(/\n*\{\s*"score"[\s\S]*\}\s*$/m, '');
-    // Also strip standalone json-like blocks
-    cleaned = cleaned.replace(/\n*\{\s*"verdict"[\s\S]*\}\s*$/m, '');
-    // Strip duplicate '## Verdict' / '---\n## Verdict' sections (already shown in verdict box)
+    // 1. Remove backtick-fenced json code blocks (```json ... ```)
+    cleaned = cleaned.replace(/\n*`{3,}json[\s\S]*?`{3,}\s*/g, '');
+    // 2. Remove bare JSON objects starting with "score" or "verdict"
+    cleaned = cleaned.replace(/\n*\{\s*"(?:score|verdict)"[\s\S]*?\}\s*$/gm, '');
+    // 3. Remove trailing "Verdict: X\nConviction Score: N" text blocks
+    cleaned = cleaned.replace(/\n*(?:---\s*\n+)?Verdict:\s*\w+[\s\S]*?Conviction\s+Score:\s*\d+[\s\S]*$/i, '');
+    // 4. Remove heading-style "## Verdict" sections and everything after
     cleaned = cleaned.replace(/\n*-{3,}\s*\n+#{1,3}\s*Verdict[\s\S]*$/i, '');
     cleaned = cleaned.replace(/\n*#{1,3}\s*Verdict[\s\S]*$/i, '');
+    // 5. Clean up trailing whitespace and horizontal rules
+    cleaned = cleaned.replace(/\n*-{3,}\s*$/, '').trimEnd();
 
     // Parse numbered sections from Perplexity markdown
     const sections = [];
@@ -1557,9 +1560,9 @@ const scanner = {
     // Auto-fetch AI analysis if not cached
     let aiData = this.getCachedAI(opp);
     if (!aiData) {
-      // Show modal overlay with loading indicator while fetching
+      // Show full-page centered loading spinner while fetching
       overlay.style.display = 'block';
-      modal.innerHTML = `<div style="padding:40px; text-align:center;"><div class="ai-spinner"></div><div style="margin-top:12px; font-size:0.85rem; color:var(--text-muted);">Fetching AI Analysis...</div></div>`;
+      modal.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60vh;"><div class="ai-spinner"></div><div style="margin-top:16px; font-size:0.95rem; color:var(--text-muted);">Fetching AI Analysis...</div><div style="font-size:0.75rem; color:var(--text-light); margin-top:4px;">This may take 10-15 seconds</div></div>`;
       try {
         let strategy = 'LEAP';
         if (this.scanMode === '0dte') strategy = '0DTE';
