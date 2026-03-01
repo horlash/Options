@@ -25,13 +25,67 @@ const INDUSTRIES = {
 };
 
 const TS_ICONS = {
-  'VIX': '🌊', 'vix': '🌊', 'VIX Regime': '🌊',
-  'P/C': '📊', 'pc_ratio': '📊', 'Put/Call': '📊', 'P/C Ratio': '📊',
-  'Sector': '📈', 'sector': '📈', 'Sector Rank': '📈',
+  'VIX': '🌊', 'vix': '🌊', 'VIX Regime': '🌊', 'vix_regime': '🌊',
+  'P/C': '📊', 'pc_ratio': '📊', 'Put/Call': '📊', 'P/C Ratio': '📊', 'put_call': '📊',
+  'Sector': '📈', 'sector': '📈', 'Sector Rank': '📈', 'sector_momentum': '📈',
   'RSI-2': '⚡', 'rsi2': '⚡', 'RSI': '⚡',
   'Minervini': '🎯', 'minervini': '🎯', 'Stage': '🎯',
-  'VWAP': '🏛️', 'vwap': '🏛️'
+  'VWAP': '📍', 'vwap': '📍'
 };
+
+// Transform structured backend trading_systems to display-friendly pills
+function formatTradingSystems(ts) {
+  if (!ts || typeof ts !== 'object') return {};
+  const out = {};
+  // VIX Regime
+  if (ts.vix_regime) {
+    const v = ts.vix_regime;
+    const level = v.level != null ? Number(v.level).toFixed(1) : '';
+    out['VIX Regime'] = { signal: v.regime || 'N/A', detail: level ? `VIX ${level} (${v.regime || ''})` : v.regime || '' };
+  }
+  // Put/Call Ratio
+  if (ts.put_call) {
+    const p = ts.put_call;
+    const ratio = p.ratio != null ? Number(p.ratio).toFixed(2) : '';
+    const bias = p.contrarian_bias || p.signal || '';
+    out['P/C Ratio'] = { signal: bias || 'N/A', detail: ratio ? `${ratio} (${bias})` : bias };
+  }
+  // Sector Momentum
+  if (ts.sector_momentum && ts.sector_momentum.tier !== 'disabled') {
+    const s = ts.sector_momentum;
+    const sector = s.sector || '';
+    const rank = s.rank != null ? `#${s.rank}` : '';
+    const tier = s.tier || '';
+    out['Sector'] = { signal: tier || 'N/A', detail: `${sector} ${rank} (${tier})`.trim() };
+  }
+  // RSI-2
+  if (ts.rsi2 && ts.rsi2.value != null) {
+    const r = ts.rsi2;
+    out['RSI-2'] = { signal: r.signal || 'N/A', detail: `${Number(r.value).toFixed(1)} (${r.signal || ''})` };
+  }
+  // Minervini
+  if (ts.minervini && ts.minervini.stage) {
+    const m = ts.minervini;
+    const label = m.stage === 'STAGE_2' ? 'Stage 2' : m.stage === 'STAGE_2A' ? 'Stage 2A' : m.stage.replace(/_/g, ' ');
+    out['Minervini'] = { signal: m.stage, detail: `${label} (${m.score || 0}/${m.max_score || 8})` };
+  }
+  // VWAP
+  if (ts.vwap && ts.vwap.signal) {
+    const w = ts.vwap;
+    out['VWAP'] = { signal: w.signal || 'N/A', detail: w.signal || '' };
+  }
+  // Pass through already-formatted entries (LEAPS format fallback)
+  for (const [k, v] of Object.entries(ts)) {
+    if (!out[k] && !['vix_regime', 'put_call', 'sector_momentum', 'rsi2', 'minervini', 'vwap', 'score_adjustments'].includes(k)) {
+      if (typeof v === 'object' && v !== null) {
+        out[k] = { signal: v.signal || v.value || 'N/A', detail: v.detail || v.description || '' };
+      } else {
+        out[k] = { signal: String(v), detail: '' };
+      }
+    }
+  }
+  return out;
+}
 
 // ============================================================
 // TOAST SYSTEM
@@ -894,21 +948,22 @@ const scanner = {
     if (['Unknown', 'Market Data', 'Data: Composite'].includes(source)) source = '';
 
     // Trading Systems section
-    const tsCount = opp.trading_systems ? Object.keys(opp.trading_systems).length : 0;
+    const tsFormatted = formatTradingSystems(opp.trading_systems);
+    const tsCount = Object.keys(tsFormatted).length;
     const tsScore = opp.technical_score || score;
     let tradingSystemsHtml = '';
     if (tsCount > 0) {
       let tsPillsHtml = '';
-      for (const [name, data] of Object.entries(opp.trading_systems)) {
-        const signal = typeof data === 'object' ? (data.signal || data.value || 'N/A') : data;
-        const detail = typeof data === 'object' ? (data.detail || data.description || '') : '';
+      for (const [name, data] of Object.entries(tsFormatted)) {
+        const signal = data.signal || 'N/A';
+        const detail = data.detail || '';
         const sigStr = String(signal).toUpperCase();
         let pillClass = 'ts-pill gray ts-pill-neutral';
-        if (sigStr === 'BUY' || sigStr === 'BULLISH' || sigStr === 'NORMAL' || sigStr === 'CALM' || sigStr.includes('ABOVE') || sigStr.includes('TOP')) {
+        if (sigStr === 'BUY' || sigStr === 'BULLISH' || sigStr === 'NORMAL' || sigStr === 'CALM' || sigStr.includes('ABOVE') || sigStr.includes('TOP') || sigStr.includes('STAGE_2')) {
           pillClass = 'ts-pill green ts-pill-green';
-        } else if (sigStr === 'SELL' || sigStr === 'BEARISH' || sigStr === 'CRISIS' || sigStr === 'FEAR' || sigStr.includes('BELOW') || sigStr.includes('STAGE 3') || sigStr.includes('STAGE 4')) {
+        } else if (sigStr === 'SELL' || sigStr === 'BEARISH' || sigStr === 'CRISIS' || sigStr === 'FEAR' || sigStr.includes('BELOW') || sigStr.includes('STAGE_3') || sigStr.includes('STAGE_4')) {
           pillClass = 'ts-pill red ts-pill-red';
-        } else if (sigStr === 'CAUTION' || sigStr === 'ELEVATED' || sigStr.includes('EARLY')) {
+        } else if (sigStr === 'CAUTION' || sigStr === 'ELEVATED' || sigStr.includes('EARLY') || sigStr.includes('OVERBOUGHT')) {
           pillClass = 'ts-pill amber ts-pill-amber';
         }
         const icon = TS_ICONS[name] || '📋';
@@ -1135,22 +1190,24 @@ const scanner = {
       //                  sentiment_analysis, sentiment_score
       const rawInd = a.indicators || {};
       const techScore = a.technical_score || opp.opportunity_score || 0;
-      const ts = opp.trading_systems || {};
+      // Source trading systems from analysis API (has trading_systems from scan), fallback to opp
+      const tsRaw = a.trading_systems || opp.trading_systems || {};
+      const ts = formatTradingSystems(tsRaw);
 
       // Build technical indicators from backend format
       const indicators = [
         { label: 'RSI (14)', value: rawInd.rsi?.value != null ? Number(rawInd.rsi.value).toFixed(1) : '—' },
-        { label: 'RSI Signal', value: rawInd.rsi?.signal || '—' },
+        { label: 'RSI-2', value: rawInd.rsi2?.value != null ? Number(rawInd.rsi2.value).toFixed(1) : '—' },
         { label: 'MACD', value: rawInd.macd?.signal || '—' },
         { label: 'MA Signal', value: rawInd.moving_averages?.signal || '—' },
         { label: 'BB Signal', value: rawInd.bollinger_bands?.signal || '—' },
         { label: 'Volume', value: rawInd.volume?.signal || '—' },
+        { label: 'SMA 5', value: rawInd.moving_averages?.values?.sma_5 ? `$${Number(rawInd.moving_averages.values.sma_5).toFixed(2)}` : '—' },
         { label: 'SMA 50', value: rawInd.moving_averages?.values?.sma_50 ? `$${Number(rawInd.moving_averages.values.sma_50).toFixed(2)}` : '—' },
         { label: 'SMA 200', value: rawInd.moving_averages?.values?.sma_200 ? `$${Number(rawInd.moving_averages.values.sma_200).toFixed(2)}` : '—' },
         { label: 'VWAP', value: rawInd.vwap?.value ? `$${Number(rawInd.vwap.value).toFixed(2)}` : '—' },
         { label: 'Tech Score', value: techScore ? `${Number(techScore).toFixed(0)}/100` : '—' },
         { label: 'Price', value: a.current_price ? `$${Number(a.current_price).toFixed(2)}` : '—' },
-        { label: 'DTE', value: opp.days_to_expiry || '—' },
       ];
 
       const indicatorsHtml = indicators.map(i => `
@@ -1159,18 +1216,18 @@ const scanner = {
           <div class="indicator-value">${i.value}</div>
         </div>`).join('');
 
-      // Trading systems pills
+      // Trading systems pills (already formatted by formatTradingSystems)
       let tsPillsHtml = '';
       for (const [name, data] of Object.entries(ts)) {
-        const signal = typeof data === 'object' ? (data.signal || data.value || 'N/A') : data;
-        const detail = typeof data === 'object' ? (data.detail || data.description || '') : '';
+        const signal = data.signal || 'N/A';
+        const detail = data.detail || '';
         const sigStr = String(signal).toUpperCase();
         let pillClass = 'ts-pill gray ts-pill-neutral';
-        if (sigStr === 'BUY' || sigStr === 'BULLISH' || sigStr === 'NORMAL' || sigStr === 'CALM' || sigStr.includes('ABOVE') || sigStr.includes('TOP')) {
+        if (sigStr === 'BUY' || sigStr === 'BULLISH' || sigStr === 'NORMAL' || sigStr === 'CALM' || sigStr.includes('ABOVE') || sigStr.includes('TOP') || sigStr.includes('STAGE_2')) {
           pillClass = 'ts-pill green ts-pill-green';
-        } else if (sigStr === 'SELL' || sigStr === 'BEARISH' || sigStr === 'CRISIS' || sigStr === 'FEAR' || sigStr.includes('BELOW') || sigStr.includes('STAGE 3') || sigStr.includes('STAGE 4')) {
+        } else if (sigStr === 'SELL' || sigStr === 'BEARISH' || sigStr === 'CRISIS' || sigStr === 'FEAR' || sigStr.includes('BELOW') || sigStr.includes('STAGE_3') || sigStr.includes('STAGE_4')) {
           pillClass = 'ts-pill red ts-pill-red';
-        } else if (sigStr === 'CAUTION' || sigStr === 'ELEVATED' || sigStr.includes('EARLY')) {
+        } else if (sigStr === 'CAUTION' || sigStr === 'ELEVATED' || sigStr.includes('EARLY') || sigStr.includes('OVERBOUGHT')) {
           pillClass = 'ts-pill amber ts-pill-amber';
         }
         const icon = TS_ICONS[name] || '📋';
