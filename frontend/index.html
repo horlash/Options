@@ -170,13 +170,176 @@
       </div>
     </div>
 
-    <!-- Portfolio Tab (placeholder) -->
+    <!-- Portfolio Tab Content -->
     <div id="tab-portfolio" class="tab-content">
-      <div class="coming-soon-state">
-        <div class="empty-icon">📊</div>
-        <div class="empty-text">Portfolio view — coming soon</div>
+
+      <!-- Sub-Tabs -->
+      <div class="portfolio-sub-tabs" id="portfolioSubTabs">
+        <button class="sub-tab active" data-sub="open-positions">Open Positions</button>
+        <button class="sub-tab" data-sub="trade-history">Trade History</button>
+        <button class="sub-tab" data-sub="performance">Performance</button>
+        <button class="sub-tab" data-sub="settings">Settings</button>
       </div>
-    </div>
+
+      <!-- Mobile: Sub-tab dropdown -->
+      <div class="mobile-sub-select-wrapper" id="mobileSubSelect">
+        <select class="mobile-sub-select" id="mobileSubDropdown">
+          <option value="open-positions" selected>Open Positions</option>
+          <option value="trade-history">Trade History</option>
+          <option value="performance">Performance</option>
+          <option value="settings">Settings</option>
+        </select>
+      </div>
+
+      <!-- Mode Banner -->
+      <div class="mode-banner">🟢 SANDBOX MODE — Paper trading active</div>
+
+      <!-- SUB-VIEW 1: OPEN POSITIONS -->
+      <div class="sub-panel active" id="sub-open-positions">
+        <div class="content-area">
+          <div class="port-stat-cards" id="stat-cards">
+            <div class="port-stat-card">
+              <div class="port-stat-label">Portfolio Value</div>
+              <div class="port-stat-value">Loading...</div>
+            </div>
+            <div class="port-stat-card">
+              <div class="port-stat-label">Today's P&L</div>
+              <div class="port-stat-value">—</div>
+            </div>
+            <div class="port-stat-card">
+              <div class="port-stat-label">Open Positions</div>
+              <div class="port-stat-value">—</div>
+            </div>
+            <div class="port-stat-card">
+              <div class="port-stat-label">Cash Available</div>
+              <div class="port-stat-value">—</div>
+            </div>
+          </div>
+          <div class="port-table-wrapper">
+            <table class="port-table">
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Type</th>
+                  <th>Strike</th>
+                  <th>Entry</th>
+                  <th>Current</th>
+                  <th>P&L</th>
+                  <th>SL / TP</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="positions-table-body">
+                <tr>
+                  <td colspan="9" style="text-align:center;padding:32px;">Loading positions...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-VIEW 2: TRADE HISTORY -->
+      <div class="sub-panel" id="sub-trade-history">
+        <div class="content-area">
+          <div class="port-summary-bar" id="history-summary">
+            <div class="port-summary-box">
+              <div class="port-sum-label">Total Closed</div>
+              <div class="port-sum-value">—</div>
+            </div>
+            <div class="port-summary-box">
+              <div class="port-sum-label">Win Rate</div>
+              <div class="port-sum-value">—</div>
+            </div>
+            <div class="port-summary-box">
+              <div class="port-sum-label">Realized P&L</div>
+              <div class="port-sum-value">—</div>
+            </div>
+          </div>
+          <div class="port-filter-row" id="history-filters">
+            <button class="port-pill-filter active">All</button>
+            <button class="port-pill-filter">Wins</button>
+            <button class="port-pill-filter">Losses</button>
+            <button class="port-pill-filter">Expired</button>
+            <button class="port-pill-filter">SL Hit</button>
+            <button class="port-pill-filter">TP Hit</button>
+            <span style="margin-left:auto;"></span>
+            <select id="history-ticker-filter" class="port-filter-select">
+              <option value="ALL">All Tickers</option>
+            </select>
+          </div>
+          <div class="port-filter-row" style="gap:8px;margin-top:4px;">
+            <label style="font-size:0.72rem;color:var(--text-muted);font-weight:600;">From</label>
+            <input type="date" id="history-date-start" class="port-filter-date">
+            <label style="font-size:0.72rem;color:var(--text-muted);font-weight:600;">To</label>
+            <input type="date" id="history-date-end" class="port-filter-date">
+            <button class="port-btn port-btn-sm" id="history-reset-filters" style="margin-left:auto;">↺ Reset</button>
+          </div>
+          <div class="port-table-wrapper">
+            <table class="port-table">
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Type</th>
+                  <th>Entry → Exit</th>
+                  <th>P&L</th>
+                  <th>Held</th>
+                  <th>Reason</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody id="history-table-body">
+                <tr>
+                  <td colspan="7" style="text-align:center;padding:32px;">Click the Trade History tab to load data.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="port-export-row">
+            <button class="port-btn btn-export-csv">📥 Export CSV</button>
+            <button class="port-btn btn-export-json">📥 Export JSON</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-VIEW 3: PERFORMANCE -->
+      <div class="sub-panel" id="sub-performance">
+        <div class="content-area">
+          <div class="port-filter-row" id="perf-period-filters" style="margin-bottom:12px;">
+            <button class="port-pill-filter">30D</button>
+            <button class="port-pill-filter">YTD</button>
+            <button class="port-pill-filter active">All</button>
+            <button class="port-pill-filter">Custom</button>
+          </div>
+          <div id="perf-custom-range" style="display:none;gap:8px;align-items:center;margin-bottom:12px;">
+            <label style="font-size:0.72rem;color:var(--text-muted);font-weight:600;">From</label>
+            <input type="date" id="perf-custom-start" class="port-filter-date">
+            <label style="font-size:0.72rem;color:var(--text-muted);font-weight:600;">To</label>
+            <input type="date" id="perf-custom-end" class="port-filter-date">
+          </div>
+          <div class="port-kpi-cards" id="perf-kpi-cards">
+            <div style="text-align:center;padding:24px;">Click the Performance tab to load analytics.</div>
+          </div>
+          <div class="port-charts-grid" id="perf-charts-grid"></div>
+          <div class="port-breakdown-grid" id="perf-breakdown-grid"></div>
+          <div class="port-export-row">
+            <button class="port-btn btn-export-csv">📥 Export CSV</button>
+            <button class="port-btn btn-export-json">📥 Export JSON</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-VIEW 4: SETTINGS -->
+      <div class="sub-panel" id="sub-settings">
+        <div class="content-area">
+          <div class="port-settings-grid" id="settings-grid">
+            <div style="text-align:center;padding:24px;">Loading settings...</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-portfolio -->
 
     <!-- Risk Tab (placeholder) -->
     <div id="tab-risk" class="tab-content">
@@ -208,6 +371,7 @@
   <div id="toast-container" class="toast-container"></div>
 
   <script src="/v2/app.js"></script>
+  <script src="/v2/portfolio.js"></script>
 </body>
 
 </html>

@@ -1888,12 +1888,36 @@ async function checkAuth() {
 }
 
 // ============================================================
+// TAB SWITCHING (Scanner ↔ Portfolio ↔ Risk)
+// ============================================================
+function initTabSwitching() {
+  document.querySelectorAll('.app-tab[data-tab]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      // Deactivate all tabs + content
+      document.querySelectorAll('.app-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      // Activate clicked tab + content
+      tab.classList.add('active');
+      const panel = document.getElementById('tab-' + target);
+      if (panel) panel.classList.add('active');
+      // Notify portfolio module when its tab activates
+      if (target === 'portfolio') {
+        document.dispatchEvent(new CustomEvent('portfolio:activate'));
+      }
+    });
+  });
+}
+
+// ============================================================
 // BOOTSTRAP
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
   toast.init();
   // Auth check — redirect to /login on 401
   await checkAuth();
+  // Init tab switching
+  initTabSwitching();
   // Init scanner
   await scanner.init();
 });

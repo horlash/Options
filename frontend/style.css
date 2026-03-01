@@ -44,6 +44,17 @@
   --radius-sm: 4px;
   --radius-lg: 8px;
   --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Portfolio vars */
+  --input-bg: #ffffff;
+  --hover-bg: #f1f5f9;
+  --toggle-off: #cbd5e1;
+  --toggle-knob: #ffffff;
+  --gauge-track: #f1f5f9;
+  --chart-bg: #ffffff;
+  --annotation-bg: rgba(59, 130, 246, .06);
+  --annotation-border: rgba(59, 130, 246, .2);
+  --header-bg: #0f172a;
+  --header-text: #e2e8f0;
 }
 
 html {
@@ -85,6 +96,14 @@ body.dark {
   --gray-pill: #94a3b8;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+  /* Portfolio vars (dark) */
+  --input-bg: #0f172a;
+  --hover-bg: #334155;
+  --toggle-off: #475569;
+  --gauge-track: #334155;
+  --chart-bg: #1e293b;
+  --annotation-bg: rgba(59, 130, 246, .08);
+  --annotation-border: rgba(59, 130, 246, .3);
 }
 
 body.dark .app-header {
@@ -2361,4 +2380,1351 @@ body.dark .stepper-btn {
 
 body.dark .stepper-btn:hover {
   background: rgba(148, 163, 184, 0.25);
+}
+
+/* ============================================================
+   PORTFOLIO — Sub-Tabs
+   ============================================================ */
+.portfolio-sub-tabs {
+  display: flex;
+  gap: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  position: sticky;
+  top: 86px;
+  z-index: 98;
+}
+
+.sub-tab {
+  padding: 10px 16px;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all .15s;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  font-family: var(--font);
+}
+
+.sub-tab:hover {
+  color: var(--text);
+}
+
+.sub-tab.active {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+}
+
+/* Mobile sub-tab dropdown */
+.mobile-sub-select-wrapper {
+  display: none;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-sub-select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid var(--blue);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%233b82f6' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 8px;
+  padding-right: 36px;
+}
+
+/* ============================================================
+   PORTFOLIO — Mode Banner
+   ============================================================ */
+.mode-banner {
+  background: rgba(34, 197, 94, .06);
+  border-bottom: 1px solid rgba(34, 197, 94, .15);
+  padding: 8px 20px;
+  font-size: .78rem;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: .01em;
+  color: var(--green);
+}
+
+body.dark .mode-banner {
+  background: rgba(34, 197, 94, .06);
+  border-color: rgba(34, 197, 94, .2);
+  color: #4ade80;
+}
+
+/* ============================================================
+   PORTFOLIO — Sub-Panel
+   ============================================================ */
+.sub-panel {
+  display: none;
+}
+
+.sub-panel.active {
+  display: block;
+}
+
+.content-area {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* ============================================================
+   PORTFOLIO — Stat Cards
+   ============================================================ */
+.port-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.port-stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+  transition: background .2s, border-color .2s;
+}
+
+.port-stat-label {
+  font-size: .7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+
+.port-stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+/* ============================================================
+   PORTFOLIO — Data Table
+   ============================================================ */
+.port-table-wrapper {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: background .2s, border-color .2s;
+}
+
+.port-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .78rem;
+}
+
+.port-table thead {
+  background: var(--bg);
+}
+
+.port-table th {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: .7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  border-bottom: 1px solid var(--border);
+}
+
+.port-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.port-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.port-clickable-row {
+  cursor: pointer;
+  transition: background .1s;
+}
+
+.port-clickable-row:hover {
+  background: var(--hover-bg);
+}
+
+.port-table .green {
+  color: var(--green);
+  font-weight: 600;
+}
+
+.port-table .red {
+  color: var(--red);
+  font-weight: 600;
+}
+
+/* ============================================================
+   PORTFOLIO — Expanded Row
+   ============================================================ */
+.port-expanded-row {
+  background: var(--bg);
+  transition: background .2s;
+}
+
+.port-expanded-content {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 16px 12px;
+}
+
+.port-expanded-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  transition: background .2s, border-color .2s;
+}
+
+.port-expanded-section h4 {
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.port-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: .75rem;
+}
+
+.port-detail-row .label {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.port-detail-row .value {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.port-detail-row .value.green {
+  color: var(--green);
+}
+
+.port-detail-row .value.red {
+  color: var(--red);
+}
+
+.port-ai-note {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(99, 102, 241, .06);
+  border-radius: 4px;
+  font-size: .72rem;
+  color: var(--indigo);
+  font-style: italic;
+}
+
+body.dark .port-ai-note {
+  background: rgba(99, 102, 241, .12);
+  color: #a5b4fc;
+}
+
+/* ============================================================
+   PORTFOLIO — Risk Slider
+   ============================================================ */
+.port-risk-slider {
+  margin: 10px 0 6px;
+  position: relative;
+  height: 24px;
+  background: var(--gauge-track);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.port-risk-slider .sl-zone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: rgba(239, 68, 68, .2);
+  border-right: 2px dashed var(--red);
+}
+
+.port-risk-slider .tp-zone {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  background: rgba(34, 197, 94, .15);
+  border-left: 2px dashed var(--green);
+}
+
+.port-risk-slider .entry-marker {
+  position: absolute;
+  top: 2px;
+  width: 4px;
+  height: 20px;
+  background: var(--blue);
+  border-radius: 2px;
+  transform: translateX(-50%);
+}
+
+.port-risk-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: .68rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ============================================================
+   PORTFOLIO — Pills & Buttons
+   ============================================================ */
+.port-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.port-pill.green {
+  background: rgba(34, 197, 94, .1);
+  border-color: rgba(34, 197, 94, .3);
+  color: #15803d;
+}
+
+body.dark .port-pill.green {
+  background: rgba(34, 197, 94, .18);
+  color: #4ade80;
+}
+
+.port-pill.red {
+  background: rgba(239, 68, 68, .1);
+  border-color: rgba(239, 68, 68, .3);
+  color: #b91c1c;
+}
+
+body.dark .port-pill.red {
+  background: rgba(239, 68, 68, .18);
+  color: #fca5a5;
+}
+
+.port-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  font-size: .75rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all .15s;
+  font-family: var(--font);
+}
+
+.port-btn:hover {
+  border-color: var(--dark);
+  background: var(--hover-bg);
+}
+
+.port-btn-sm {
+  padding: 4px 10px;
+  font-size: .72rem;
+}
+
+.port-btn-danger {
+  border-color: rgba(239, 68, 68, .4);
+  color: var(--red);
+}
+
+.port-btn-danger:hover {
+  background: rgba(239, 68, 68, .08);
+  border-color: var(--red);
+}
+
+.port-btn-primary {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+  font-size: .85rem;
+  padding: 10px 24px;
+}
+
+.port-btn-primary:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.port-action-btns {
+  display: flex;
+  gap: 4px;
+}
+
+/* ============================================================
+   PORTFOLIO — Filter Pills
+   ============================================================ */
+.port-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.port-pill-filter {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all .15s;
+  font-family: var(--font);
+}
+
+.port-pill-filter:hover {
+  border-color: var(--dark);
+  color: var(--text);
+}
+
+.port-pill-filter.active {
+  background: var(--dark);
+  color: #fff;
+  border-color: var(--dark);
+}
+
+body.dark .port-pill-filter.active {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.port-filter-select {
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-family: var(--font);
+  font-size: .75rem;
+  color: var(--text);
+  background: var(--input-bg);
+  cursor: pointer;
+}
+
+/* ============================================================
+   PORTFOLIO — Summary Bar
+   ============================================================ */
+.port-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.port-summary-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  transition: background .2s, border-color .2s;
+}
+
+.port-sum-label {
+  font-size: .7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+
+.port-sum-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.port-sum-value.green {
+  color: var(--green);
+}
+
+/* ============================================================
+   PORTFOLIO — KPI Cards
+   ============================================================ */
+.port-kpi-cards {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.port-kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  transition: background .2s, border-color .2s;
+}
+
+.port-kpi-label {
+  font-size: .68rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+
+.port-kpi-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.port-kpi-value.green {
+  color: var(--green);
+}
+
+.port-kpi-value.red {
+  color: var(--red);
+}
+
+/* ============================================================
+   PORTFOLIO — Chart Placeholders
+   ============================================================ */
+.port-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.port-charts-grid .port-chart-placeholder:first-child {
+  grid-row: 1 / 3;
+  min-height: 300px;
+}
+
+.port-chart-placeholder {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--chart-bg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  transition: background .2s, border-color .2s;
+}
+
+.port-chart-label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.port-chart-placeholder svg {
+  width: 100%;
+  max-width: 300px;
+  height: 120px;
+}
+
+.port-chart-placeholder svg polyline,
+.port-chart-placeholder svg line {
+  stroke: var(--blue);
+  stroke-width: 2;
+  fill: none;
+  stroke-dasharray: 6 3;
+}
+
+.port-chart-placeholder svg rect.bar {
+  fill: var(--blue);
+  opacity: .3;
+  stroke: var(--blue);
+  stroke-width: 1;
+}
+
+.port-chart-placeholder svg rect.bar.loss {
+  fill: var(--red);
+  opacity: .3;
+  stroke: var(--red);
+}
+
+.port-chart-placeholder svg circle.dot {
+  fill: var(--blue);
+  opacity: .5;
+}
+
+body.dark .port-chart-placeholder svg polyline,
+body.dark .port-chart-placeholder svg line {
+  stroke: #60a5fa;
+}
+
+body.dark .port-chart-placeholder svg rect.bar {
+  fill: #60a5fa;
+  stroke: #60a5fa;
+}
+
+body.dark .port-chart-placeholder svg rect.bar.loss {
+  fill: var(--red);
+  stroke: var(--red);
+}
+
+body.dark .port-chart-placeholder svg circle.dot {
+  fill: #60a5fa;
+}
+
+body.dark .port-chart-placeholder .doughnut-track {
+  stroke: var(--border);
+}
+
+/* ============================================================
+   PORTFOLIO — Breakdown Tables
+   ============================================================ */
+.port-breakdown-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.port-breakdown-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: background .2s, border-color .2s;
+}
+
+.port-breakdown-header {
+  padding: 10px 14px;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* ============================================================
+   PORTFOLIO — Export Row
+   ============================================================ */
+.port-export-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ============================================================
+   PORTFOLIO — Settings
+   ============================================================ */
+.port-settings-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.port-settings-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: background .2s, border-color .2s;
+}
+
+.port-section-header {
+  padding: 12px 16px;
+  font-size: .85rem;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.port-section-body {
+  padding: 16px;
+}
+
+.port-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.port-settings-row:last-child {
+  border-bottom: none;
+}
+
+.port-setting-label {
+  font-size: .78rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.port-settings-input {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--font);
+  font-size: .78rem;
+  width: 160px;
+  text-align: right;
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+.port-settings-input.masked {
+  letter-spacing: .05em;
+  color: var(--text-muted);
+}
+
+/* Toggle Switch (legacy) */
+.port-toggle-switch {
+  position: relative;
+  display: inline-flex;
+  width: 40px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.port-toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* Mode Toggle (Sandbox/Live) */
+.port-mode-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.port-mode-opt {
+  padding: 6px 16px;
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  background: var(--surface);
+  color: var(--text-muted);
+  border: none;
+  font-family: var(--font);
+}
+
+.port-mode-opt.active-green {
+  background: var(--green);
+  color: #fff;
+}
+
+.port-mode-opt.inactive {
+  background: var(--bg);
+}
+
+/* Status Indicator */
+.port-status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .75rem;
+  font-weight: 600;
+}
+
+.port-status-dot::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+body.dark .port-status-dot {
+  color: var(--text);
+}
+
+/* Settings Annotation */
+.port-settings-annotation {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px dashed var(--annotation-border);
+  background: var(--annotation-bg);
+  border-radius: 4px;
+  font-size: .68rem;
+  color: var(--blue);
+  line-height: 1.5;
+}
+
+body.dark .port-settings-annotation {
+  background: rgba(59, 130, 246, .08);
+  border-color: rgba(59, 130, 246, .3);
+  color: #60a5fa;
+}
+
+.port-save-row {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+}
+
+/* ============================================================
+   PORTFOLIO — Stepper Inputs
+   ============================================================ */
+.port-stepper-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--input-bg);
+}
+
+.port-stepper-btn {
+  border: none;
+  background: var(--bg);
+  color: var(--text);
+  font-size: .9rem;
+  font-weight: 700;
+  width: 32px;
+  height: 34px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+  font-family: var(--font);
+  user-select: none;
+}
+
+.port-stepper-btn:hover {
+  background: var(--hover-bg);
+}
+
+.port-stepper-btn:active {
+  background: var(--border);
+}
+
+.port-stepper-input {
+  border: none !important;
+  border-left: 1px solid var(--border) !important;
+  border-right: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  width: 80px;
+  text-align: center;
+  font-weight: 600;
+  padding: 6px 4px !important;
+  background: var(--input-bg) !important;
+  box-shadow: none !important;
+}
+
+.port-stepper-input::-webkit-inner-spin-button,
+.port-stepper-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.port-stepper-input {
+  -moz-appearance: textfield;
+}
+
+/* ============================================================
+   PORTFOLIO — Date Filter Inputs
+   ============================================================ */
+.port-filter-date {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font);
+  font-size: .75rem;
+  color: var(--text);
+  background: var(--input-bg);
+}
+
+/* ============================================================
+   PORTFOLIO — Settings Cards (JS-rendered)
+   ============================================================ */
+.port-settings-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+  transition: background .2s, border-color .2s;
+}
+
+.port-settings-card-title {
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ============================================================
+   PORTFOLIO — Toggle Switches
+   ============================================================ */
+.port-toggle {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.port-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.port-toggle-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--toggle-off);
+  border-radius: 22px;
+  transition: background .2s;
+}
+
+.port-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 3px;
+  bottom: 3px;
+  background: var(--toggle-knob);
+  border-radius: 50%;
+  transition: transform .2s;
+}
+
+.port-toggle input:checked+.port-toggle-slider {
+  background: var(--blue);
+}
+
+.port-toggle input:checked+.port-toggle-slider::before {
+  transform: translateX(20px);
+}
+
+/* ============================================================
+   PORTFOLIO — Modal Overlays (Adjust / Close Confirmation)
+   ============================================================ */
+.port-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.port-modal {
+  background: var(--surface, #fff);
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 340px;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.port-modal h3 {
+  margin: 0 0 16px;
+  font-size: 1.1rem;
+}
+
+.port-status-dot.disconnected {
+  color: var(--red, #ef4444);
+}
+
+.port-status-dot.disconnected::before {
+  background: var(--red, #ef4444);
+}
+
+/* ============================================================
+   PORTFOLIO — Dark-mode input overrides
+   ============================================================ */
+body.dark input,
+body.dark select {
+  background: #0f172a;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/* ============================================================
+   PORTFOLIO — Smooth Transitions
+   ============================================================ */
+.port-stat-card,
+.port-kpi-card,
+.port-settings-section,
+.port-table-wrapper,
+.port-breakdown-card,
+.port-summary-box,
+.port-chart-placeholder,
+.port-btn,
+.port-pill-filter,
+.portfolio-sub-tabs,
+.mode-banner,
+.port-expanded-section {
+  transition: background .2s, color .2s, border-color .2s, box-shadow .2s;
+}
+
+/* ============================================================
+   PORTFOLIO — Responsive (Tablet)
+   ============================================================ */
+@media (max-width: 900px) {
+  .port-stat-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .port-kpi-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .port-charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .port-charts-grid .port-chart-placeholder:first-child {
+    grid-row: auto;
+    min-height: 200px;
+  }
+
+  .port-breakdown-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .port-expanded-content {
+    grid-template-columns: 1fr;
+  }
+
+  .port-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .port-table {
+    min-width: 680px;
+  }
+}
+
+/* ============================================================
+   PORTFOLIO — Responsive (Mobile)
+   ============================================================ */
+@media (max-width: 600px) {
+  .portfolio-sub-tabs {
+    display: none;
+  }
+
+  .mobile-sub-select-wrapper {
+    display: block;
+  }
+
+  .mode-banner {
+    font-size: .72rem;
+    padding: 6px 12px;
+  }
+
+  .port-stat-cards {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .port-stat-card {
+    padding: 10px 12px;
+  }
+
+  .port-stat-value {
+    font-size: 1.05rem;
+  }
+
+  .port-kpi-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .port-kpi-card {
+    padding: 10px;
+  }
+
+  .port-kpi-value {
+    font-size: .95rem;
+  }
+
+  .port-summary-bar {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .port-table thead {
+    display: none;
+  }
+
+  .port-table {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .port-table-wrapper {
+    overflow: hidden;
+    border-radius: var(--radius);
+  }
+
+  .port-table tbody tr.port-clickable-row {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 12px;
+    gap: 4px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .port-table tbody tr.port-clickable-row td {
+    display: block;
+    border-bottom: none;
+    padding: 3px 4px;
+    font-size: .75rem;
+  }
+
+  .port-table tbody tr.port-clickable-row td:first-child {
+    width: 100%;
+    font-size: .88rem;
+    font-weight: 700;
+    padding-bottom: 4px;
+    border-bottom: 1px dashed var(--border);
+    margin-bottom: 4px;
+  }
+
+  .port-table tbody tr.port-clickable-row td:not(:first-child) {
+    width: 50%;
+  }
+
+  .port-table tbody tr.port-clickable-row td.port-action-btns,
+  .port-table tbody tr.port-clickable-row td:last-child {
+    width: 100%;
+    padding-top: 6px;
+    margin-top: 4px;
+  }
+
+  .port-table tbody tr.port-clickable-row td.port-action-btns {
+    display: flex;
+    gap: 8px;
+  }
+
+  .port-table tbody tr.port-clickable-row td:not(:first-child)::before {
+    content: attr(data-label);
+    display: block;
+    font-size: .62rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: 1px;
+  }
+
+  .port-expanded-row {
+    display: block;
+  }
+
+  .port-expanded-row td {
+    display: block;
+    padding: 0;
+  }
+
+  .port-expanded-content {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 10px 8px;
+  }
+
+  .port-expanded-section {
+    padding: 10px;
+  }
+
+  .port-charts-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .port-charts-grid .port-chart-placeholder:first-child {
+    grid-row: auto;
+    min-height: 180px;
+  }
+
+  .port-chart-placeholder {
+    min-height: 160px;
+    padding: 14px;
+  }
+
+  .port-breakdown-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .port-breakdown-card .port-table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    gap: 2px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .port-breakdown-card .port-table tbody tr td {
+    display: block;
+    border-bottom: none;
+    padding: 2px 4px;
+    font-size: .75rem;
+  }
+
+  .port-breakdown-card .port-table tbody tr td:first-child {
+    width: 100%;
+    font-weight: 700;
+  }
+
+  .port-breakdown-card .port-table tbody tr td:not(:first-child) {
+    width: 50%;
+  }
+
+  .port-breakdown-card .port-table tbody tr td:not(:first-child)::before {
+    content: attr(data-label);
+    display: block;
+    font-size: .58rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  .port-settings-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 10px 0;
+  }
+
+  .port-settings-input {
+    width: 100%;
+    text-align: left;
+    font-size: .82rem;
+    padding: 8px 10px;
+  }
+
+  .port-mode-toggle {
+    width: 100%;
+    display: flex;
+  }
+
+  .port-mode-opt {
+    flex: 1;
+    text-align: center;
+    padding: 8px 12px;
+  }
+
+  .port-toggle-switch {
+    margin-left: auto;
+  }
+
+  .port-filter-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .port-filter-select {
+    width: 100%;
+    padding: 8px 10px;
+  }
+
+  .port-export-row {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .port-export-row .port-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .port-save-row .port-btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .port-btn {
+    padding: 8px 14px;
+    font-size: .75rem;
+  }
+
+  .port-btn-sm {
+    padding: 6px 10px;
+    font-size: .7rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .port-stat-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .port-kpi-cards {
+    grid-template-columns: 1fr;
+  }
 }
