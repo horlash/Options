@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Responsive Test — Portfolio Wireframe</title>
+  <style>
+    body { font-family: Inter, sans-serif; margin: 0; background: #f1f5f9; }
+    .test-header {
+      background: #1e293b; color: #fff; padding: 16px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .test-header h1 { font-size: 1rem; margin: 0; }
+    .test-header span { font-size: .75rem; color: #94a3b8; }
+    .frames {
+      display: flex; gap: 24px; padding: 24px; flex-wrap: wrap;
+      justify-content: center;
+    }
+    .frame-box { display: flex; flex-direction: column; align-items: center; }
+    .frame-label {
+      font-size: .78rem; font-weight: 700; margin-bottom: 8px; color: #334155;
+    }
+    iframe {
+      border: 2px solid #cbd5e1; border-radius: 8px; background: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div class="test-header">
+    <h1>Responsive QA — Portfolio & Risk Wireframe</h1>
+    <span>Mobile (375px) · Tablet (768px) · Desktop (1200px)</span>
+  </div>
+  <div class="frames">
+    <div class="frame-box">
+      <div class="frame-label">📱 Mobile — 375px</div>
+      <iframe src="./index.html" width="375" height="800" style="max-width: 375px;"></iframe>
+    </div>
+    <div class="frame-box">
+      <div class="frame-label">📱 Tablet — 768px</div>
+      <iframe src="./index.html" width="768" height="800" style="max-width: 768px;"></iframe>
+    </div>
+    <div class="frame-box">
+      <div class="frame-label">🖥️ Desktop — 1200px</div>
+      <iframe src="./index.html" width="1200" height="800"></iframe>
+    </div>
+  </div>
+</body>
+</html>

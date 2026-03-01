@@ -331,10 +331,11 @@ class ReasoningEngine:
             clean_analysis = re.sub(r'\n*```json\s*\{.*?\}\s*```\s*', '', clean_analysis, flags=re.DOTALL)
             # Remove bare JSON objects at end
             clean_analysis = re.sub(r'\n*\{\s*"score"\s*:[\s\S]*?\}\s*$', '', clean_analysis)
-            # Remove trailing "Verdict: X\n..." and "Conviction Score: N" lines
-            clean_analysis = re.sub(r'\n*(?:---\s*\n+)?Verdict:\s*\w+.*?(?:Conviction\s+Score:\s*\d+.*)?$', '', clean_analysis, flags=re.DOTALL | re.IGNORECASE)
-            # Remove trailing "## Verdict" heading sections
-            clean_analysis = re.sub(r'\n*#{1,3}\s*Verdict[\s\S]*$', '', clean_analysis, flags=re.IGNORECASE)
+            # Truncate at "Verdict:" line — this is always the second-to-last item in Perplexity output
+            # Handles: "Verdict: FAVORABLE", "**Verdict:** RISKY", "## Verdict", "5. Verdict:" etc.
+            verdict_match = re.search(r'\n+\**\s*(?:\d+\.\s*)?(?:#{1,3}\s*)?Verdict\s*[:*]', clean_analysis, re.IGNORECASE)
+            if verdict_match:
+                clean_analysis = clean_analysis[:verdict_match.start()]
             # Clean trailing whitespace and horizontal rules
             clean_analysis = re.sub(r'\n*-{3,}\s*$', '', clean_analysis).rstrip()
 

@@ -3,188 +3,874 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Options Scanner</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>Options Scanner — Portfolio & Risk Wireframe</title>
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
+<div class="scanner-shell">
 
-  <!-- APP SHELL -->
-  <div id="app-shell">
-
-    <!-- App Header -->
-    <header class="app-header">
-      <div class="app-header-left">📈 Options Scanner</div>
-      <div class="app-header-right">
-        <span class="hdr-stat">Watchlist: <b id="watchlist-count">0</b></span>
-        <span class="hdr-stat">Opportunities: <b id="opportunities-count">0</b></span>
-        <span class="hdr-stat">Open Trades: <b id="open-trades-count">0</b></span>
-        <span class="hdr-stat">Heat: <b id="heat-value">—</b></span>
-        <span class="hdr-stat hdr-logout" id="logout-btn">Logout</span>
-      </div>
-    </header>
-
-    <!-- App Tabs -->
-    <nav class="app-tabs">
-      <span class="app-tab active" data-tab="scanner">Scanner</span>
-      <span class="app-tab" data-tab="portfolio">Portfolio</span>
-      <span class="app-tab" data-tab="risk">Risk</span>
-    </nav>
-
-    <!-- Scanner Tab Content -->
-    <div id="tab-scanner" class="tab-content active">
-      <div class="scanner-body">
-
-        <!-- Left Sidebar / Control Panel -->
-        <aside class="control-panel">
-
-          <!-- Scan Control -->
-          <div class="ctrl-box">
-            <div class="ctrl-box-title">Scan Control</div>
-            <div class="ctrl-btn-row">
-              <button class="ctrl-btn mode-btn" id="mode-0dte" data-mode="0dte">⚡ 0DTE</button>
-              <button class="ctrl-btn mode-btn" id="mode-weekly-0" data-mode="weekly-0">This Week</button>
-              <button class="ctrl-btn mode-btn" id="mode-weekly-1" data-mode="weekly-1">Next Week</button>
-            </div>
-            <div class="ctrl-btn-row">
-              <button class="ctrl-btn mode-btn" id="mode-weekly-2" data-mode="weekly-2">Next 2 Weeks</button>
-              <button class="ctrl-btn mode-btn" id="mode-leaps" data-mode="leaps">Leaps</button>
-            </div>
-          </div>
-
-          <!-- Recent History -->
-          <div class="ctrl-box">
-            <div class="ctrl-box-title">Recent History</div>
-            <div id="recent-history-list">
-              <div class="ctrl-placeholder">No recent scans</div>
-            </div>
-          </div>
-
-          <!-- Smart Search -->
-          <div class="ctrl-box">
-            <div class="ctrl-box-title">Smart Search</div>
-            <div class="ctrl-input-stacked" style="position:relative;">
-              <input type="text" id="quick-scan-input" class="ctrl-input full-width" placeholder="Enter ticker symbol..." autocomplete="off" spellcheck="false">
-              <div id="autocomplete-list" class="autocomplete-dropdown" style="display:none;"></div>
-              <button class="ctrl-btn scan-btn full-width" id="btn-scan-ticker">🔍 Scan Ticker</button>
-            </div>
-          </div>
-
-          <!-- Sector Scan -->
-          <div class="ctrl-box">
-            <div class="ctrl-box-title">Sector Scan</div>
-            <select class="ctrl-select" id="sector-select">
-              <option value="">Select sector...</option>
-              <option value="Technology">Technology</option>
-              <option value="Financial Services">Financial Services</option>
-              <option value="Healthcare">Healthcare</option>
-              <option value="Consumer Cyclical">Consumer Cyclical</option>
-              <option value="Consumer Defensive">Consumer Defensive</option>
-              <option value="Energy">Energy</option>
-              <option value="Industrials">Industrials</option>
-              <option value="Communication Services">Communication Services</option>
-              <option value="Basic Materials">Basic Materials</option>
-              <option value="Real Estate">Real Estate</option>
-              <option value="Utilities">Utilities</option>
-            </select>
-            <!-- Progressive disclosure — shown after sector selection -->
-            <div id="sector-extra-filters" style="display:none; flex-direction:column; gap:6px; margin-top:6px;">
-              <select class="ctrl-select" id="industry-select">
-                <option value="">Any Subsector</option>
-              </select>
-              <select class="ctrl-select" id="vol-select">
-                <option value="">Any Volume</option>
-                <option value="500000">Volume: Medium (&gt;500K)</option>
-                <option value="1000000">Volume: High (&gt;1M)</option>
-                <option value="5000000">Volume: Very High (&gt;5M)</option>
-              </select>
-              <select class="ctrl-select" id="cap-select">
-                <option value="">Any Market Cap</option>
-                <option value="2000000000">Mid Cap (&gt;$2B)</option>
-                <option value="10000000000">Large Cap (&gt;$10B)</option>
-                <option value="100000000000">Mega Cap (&gt;$100B)</option>
-              </select>
-              <button class="ctrl-btn scan-btn full-width" id="btn-sector-scan">🔍 Scan Sector</button>
-            </div>
-          </div>
-
-        </aside>
-
-        <!-- Main Area -->
-        <main class="main-area">
-
-          <!-- Scan Progress Bar -->
-          <div id="scan-progress" class="scan-progress hidden">
-            <div class="scan-progress-bar"></div>
-            <span class="scan-progress-text">Scanning...</span>
-          </div>
-
-          <!-- Watchlist Row -->
-          <div class="watchlist-row">
-            <div class="watchlist-add" style="position:relative;">
-              <input type="text" id="watchlist-input" class="ctrl-input" placeholder="Add to Watchlist..." autocomplete="off" spellcheck="false">
-              <div id="watchlist-autocomplete" class="autocomplete-dropdown" style="display:none;"></div>
-            </div>
-            <div class="watchlist-label">My Watchlist</div>
-            <div class="watchlist-chips" id="watchlist-chips">
-              <!-- Chips rendered by JS -->
-            </div>
-          </div>
-
-          <!-- Opportunities Header -->
-          <div class="opportunities-header">
-            <div class="opp-title">
-              Opportunities <span class="opp-mode-label" id="opportunities-mode-label">This Week</span>
-            </div>
-            <div class="opp-filters">
-              <span class="filter-pill btn-filter active" data-value="15">&gt;15%</span>
-              <span class="filter-pill btn-filter" data-value="25">&gt;25%</span>
-              <span class="filter-pill btn-filter" data-value="35">&gt;35%</span>
-              <select class="ctrl-select sm" id="ticker-filter">
-                <option value="all">All Tickers</option>
-              </select>
-              <select class="ctrl-select sm" id="sort-select">
-                <option value="score">Sort: Score</option>
-                <option value="profit">Sort: Profit</option>
-                <option value="expiry">Sort: Expiry</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Opportunities Container -->
-          <div id="opportunities-container">
-            <div class="empty-state">
-              <div class="empty-icon">🔍</div>
-              <div class="empty-text">No active scan results. Run a scan to discover opportunities.</div>
-            </div>
-          </div>
-
-        </main>
-      </div>
+  <!-- ========== META BAR (Sticky) ========== -->
+  <div class="meta-bar">
+    <div class="meta-left">📐 Options Scanner — Portfolio &amp; Risk Wireframe</div>
+    <div class="meta-right">
+      <span>Lo-fi mockup · Portfolio Sub-tabs &amp; Risk Dashboard</span>
+      <span>v1.0 Draft</span>
+      <button class="theme-toggle" id="themeToggle">
+        <span class="theme-icon">🌙</span> Dark
+      </button>
     </div>
-
-    <!-- Portfolio Tab (placeholder) -->
-    <div id="tab-portfolio" class="tab-content">
-      <div class="coming-soon-state">
-        <div class="empty-icon">📊</div>
-        <div class="empty-text">Portfolio view — coming soon</div>
-      </div>
-    </div>
-
-    <!-- Risk Tab (placeholder) -->
-    <div id="tab-risk" class="tab-content">
-      <div class="coming-soon-state">
-        <div class="empty-icon">🛡️</div>
-        <div class="empty-text">Risk management — coming soon</div>
-      </div>
-    </div>
-
   </div>
 
-  <!-- Toast Container -->
-  <div id="toast-container" class="toast-container"></div>
+  <!-- ========== APP HEADER ========== -->
+  <div class="app-header">
+    <div class="app-name">📈 Options Scanner</div>
+    <div class="header-stats">
+      <span>Portfolio: <span class="stat-val">$24,850</span></span>
+      <span>Today: <span class="stat-val" style="color: #22c55e;">+$342</span></span>
+      <span>Open: <span class="stat-val">3</span></span>
+      <span>Heat: <span class="stat-val">34%</span></span>
+      <button class="logout-btn">Logout</button>
+    </div>
+  </div>
 
-  <script src="./app.js"></script>
+  <!-- ========== APP TABS (Scanner / Portfolio / Risk) ========== -->
+  <div class="app-tabs" id="appTabs">
+    <button class="app-tab disabled">Scanner</button>
+    <button class="app-tab active" data-app="portfolio">Portfolio</button>
+    <button class="app-tab" data-app="risk">Risk</button>
+  </div>
+
+  <!-- ========== SUB-TABS (Portfolio sub-views) ========== -->
+  <div class="sub-tabs" id="subTabs">
+    <button class="sub-tab active" data-sub="open-positions">Open Positions</button>
+    <button class="sub-tab" data-sub="trade-history">Trade History</button>
+    <button class="sub-tab" data-sub="performance">Performance</button>
+    <button class="sub-tab" data-sub="settings">Settings</button>
+  </div>
+
+  <!-- ========== MODE BANNER ========== -->
+  <div class="mode-banner">🟢 SANDBOX MODE — Paper trading active</div>
+
+  <!-- ========== VIEW TABS (1-6) — Desktop: tab bar / Mobile: dropdown ========== -->
+  <div class="view-tabs-wrapper">
+  <div class="view-tabs" id="viewTabs">
+    <button class="view-tab active" data-view="1"><span class="tab-num">1</span>Open Positions</button>
+    <button class="view-tab" data-view="2"><span class="tab-num">2</span>Trade History</button>
+    <button class="view-tab" data-view="3"><span class="tab-num">3</span>Performance</button>
+    <button class="view-tab" data-view="4"><span class="tab-num">4</span>Settings</button>
+    <button class="view-tab" data-view="5"><span class="tab-num">5</span>Risk Dashboard</button>
+  </div>
+  </div><!-- /view-tabs-wrapper -->
+
+  <!-- Mobile-only dropdown for view switching (replaces horizontal tab bar) -->
+  <div class="mobile-view-select-wrapper" id="mobileViewSelect">
+    <select class="mobile-view-select" id="mobileViewDropdown">
+      <option value="1" selected>1 — Open Positions</option>
+      <option value="2">2 — Trade History</option>
+      <option value="3">3 — Performance</option>
+      <option value="4">4 — Settings</option>
+      <option value="5">5 — Risk Dashboard</option>
+    </select>
+  </div>
+
+  <!-- ################################################################ -->
+  <!-- VIEW 1: OPEN POSITIONS                                          -->
+  <!-- ################################################################ -->
+  <div class="view-panel active" id="view-1">
+    <div class="content-area">
+
+      <!-- Stat Cards -->
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="stat-label">Portfolio Value</div>
+          <div class="stat-value">$24,850.00</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Today's P&amp;L</div>
+          <div class="stat-value green">+$342.18</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Open Positions</div>
+          <div class="stat-value">3</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Cash Available</div>
+          <div class="stat-value">$15,150.00</div>
+        </div>
+      </div>
+
+      <!-- Positions Table -->
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Type</th>
+              <th>Strike</th>
+              <th>Entry</th>
+              <th>Current</th>
+              <th>P&amp;L</th>
+              <th>SL / TP</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- NVDA Row (expandable, expanded by default) -->
+            <tr class="clickable-row expanded" data-expand="nvda-detail">
+              <td><strong>NVDA</strong></td>
+              <td data-label="Type">CALL</td>
+              <td data-label="Strike">$900</td>
+              <td data-label="Entry">$42.50</td>
+              <td data-label="Current">$48.20</td>
+              <td data-label="P&L" class="green">+$570.00</td>
+              <td data-label="SL / TP">SL: $35 / TP: $65</td>
+              <td data-label="Status"><span class="pill green" style="cursor:default;">Active ✓</span></td>
+              <td class="action-btns">
+                <button class="btn btn-sm">Adjust</button>
+                <button class="btn btn-sm btn-danger">Close</button>
+              </td>
+            </tr>
+            <!-- NVDA Expanded Detail -->
+            <tr class="expanded-row" id="nvda-detail">
+              <td colspan="9">
+                <div class="expanded-content">
+                  <!-- Col 1: Contract Details -->
+                  <div class="expanded-section">
+                    <h4>Contract Details</h4>
+                    <div class="detail-row"><span class="label">Strike</span><span class="value">$900</span></div>
+                    <div class="detail-row"><span class="label">Expiry</span><span class="value">Jun 20, 2026</span></div>
+                    <div class="detail-row"><span class="label">Days Left</span><span class="value">113</span></div>
+                    <div class="detail-row"><span class="label">Break Even</span><span class="value">$942.50</span></div>
+                    <div class="ai-note">AI Reasoning: "Strong momentum + sector leadership"</div>
+                  </div>
+                  <!-- Col 2: Greeks & Activity -->
+                  <div class="expanded-section">
+                    <h4>Greeks &amp; Activity</h4>
+                    <div class="detail-row"><span class="label">Delta</span><span class="value">0.62</span></div>
+                    <div class="detail-row"><span class="label">Gamma</span><span class="value">0.008</span></div>
+                    <div class="detail-row"><span class="label">Theta</span><span class="value">-0.15</span></div>
+                    <div class="detail-row"><span class="label">Vega</span><span class="value">0.82</span></div>
+                    <div class="detail-row"><span class="label">Volume</span><span class="value">1,247</span></div>
+                    <div class="detail-row"><span class="label">Open Interest</span><span class="value">8,432</span></div>
+                  </div>
+                  <!-- Col 3: Risk Management -->
+                  <div class="expanded-section">
+                    <h4>Risk Management</h4>
+                    <div class="risk-slider">
+                      <div class="sl-zone" style="width: 30%;"></div>
+                      <div class="tp-zone" style="width: 25%;"></div>
+                      <div class="entry-marker" style="left: 42%;"></div>
+                    </div>
+                    <div class="risk-slider-labels">
+                      <span>SL: $35</span>
+                      <span>Entry: $42.50</span>
+                      <span>TP: $65</span>
+                    </div>
+                    <div class="detail-row" style="margin-top:8px;"><span class="label">Max Loss</span><span class="value" style="color:var(--red);">$750</span></div>
+                    <div class="detail-row"><span class="label">Max Gain</span><span class="value" style="color:var(--green);">$2,250</span></div>
+                    <div class="detail-row"><span class="label">R:R</span><span class="value">3.0</span></div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+            <!-- AAPL Row -->
+            <tr class="clickable-row" data-expand="aapl-detail">
+              <td><strong>AAPL</strong></td>
+              <td data-label="Type">PUT</td>
+              <td data-label="Strike">$190</td>
+              <td data-label="Entry">$6.80</td>
+              <td data-label="Current">$5.40</td>
+              <td data-label="P&L" class="red">-$140.00</td>
+              <td data-label="SL / TP">SL: $4 / TP: $12</td>
+              <td data-label="Status"><span class="pill green" style="cursor:default;">Active ✓</span></td>
+              <td class="action-btns">
+                <button class="btn btn-sm">Adjust</button>
+                <button class="btn btn-sm btn-danger">Close</button>
+              </td>
+            </tr>
+            <tr class="expanded-row" id="aapl-detail" style="display:none;">
+              <td colspan="9">
+                <div class="expanded-content">
+                  <div class="expanded-section">
+                    <h4>Contract Details</h4>
+                    <div class="detail-row"><span class="label">Strike</span><span class="value">$190</span></div>
+                    <div class="detail-row"><span class="label">Expiry</span><span class="value">May 15, 2026</span></div>
+                    <div class="detail-row"><span class="label">Days Left</span><span class="value">77</span></div>
+                    <div class="detail-row"><span class="label">Break Even</span><span class="value">$183.20</span></div>
+                    <div class="ai-note">AI Reasoning: "Overextended rally, mean reversion expected"</div>
+                  </div>
+                  <div class="expanded-section">
+                    <h4>Greeks &amp; Activity</h4>
+                    <div class="detail-row"><span class="label">Delta</span><span class="value">-0.38</span></div>
+                    <div class="detail-row"><span class="label">Gamma</span><span class="value">0.012</span></div>
+                    <div class="detail-row"><span class="label">Theta</span><span class="value">-0.09</span></div>
+                    <div class="detail-row"><span class="label">Vega</span><span class="value">0.45</span></div>
+                    <div class="detail-row"><span class="label">Volume</span><span class="value">892</span></div>
+                    <div class="detail-row"><span class="label">Open Interest</span><span class="value">5,120</span></div>
+                  </div>
+                  <div class="expanded-section">
+                    <h4>Risk Management</h4>
+                    <div class="risk-slider">
+                      <div class="sl-zone" style="width: 35%;"></div>
+                      <div class="tp-zone" style="width: 20%;"></div>
+                      <div class="entry-marker" style="left: 48%;"></div>
+                    </div>
+                    <div class="risk-slider-labels">
+                      <span>SL: $4</span>
+                      <span>Entry: $6.80</span>
+                      <span>TP: $12</span>
+                    </div>
+                    <div class="detail-row" style="margin-top:8px;"><span class="label">Max Loss</span><span class="value" style="color:var(--red);">$280</span></div>
+                    <div class="detail-row"><span class="label">Max Gain</span><span class="value" style="color:var(--green);">$520</span></div>
+                    <div class="detail-row"><span class="label">R:R</span><span class="value">1.9</span></div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+            <!-- AMD Row -->
+            <tr class="clickable-row" data-expand="amd-detail">
+              <td><strong>AMD</strong></td>
+              <td data-label="Type">CALL</td>
+              <td data-label="Strike">$180</td>
+              <td data-label="Entry">$8.50</td>
+              <td data-label="Current">$9.10</td>
+              <td data-label="P&L" class="green">+$60.00</td>
+              <td data-label="SL / TP">SL: $6 / TP: $14</td>
+              <td data-label="Status"><span class="pill green" style="cursor:default;">Active ✓</span></td>
+              <td class="action-btns">
+                <button class="btn btn-sm">Adjust</button>
+                <button class="btn btn-sm btn-danger">Close</button>
+              </td>
+            </tr>
+            <tr class="expanded-row" id="amd-detail" style="display:none;">
+              <td colspan="9">
+                <div class="expanded-content">
+                  <div class="expanded-section">
+                    <h4>Contract Details</h4>
+                    <div class="detail-row"><span class="label">Strike</span><span class="value">$180</span></div>
+                    <div class="detail-row"><span class="label">Expiry</span><span class="value">Jul 17, 2026</span></div>
+                    <div class="detail-row"><span class="label">Days Left</span><span class="value">140</span></div>
+                    <div class="detail-row"><span class="label">Break Even</span><span class="value">$188.50</span></div>
+                    <div class="ai-note">AI Reasoning: "AI chip demand surge, data center growth"</div>
+                  </div>
+                  <div class="expanded-section">
+                    <h4>Greeks &amp; Activity</h4>
+                    <div class="detail-row"><span class="label">Delta</span><span class="value">0.48</span></div>
+                    <div class="detail-row"><span class="label">Gamma</span><span class="value">0.010</span></div>
+                    <div class="detail-row"><span class="label">Theta</span><span class="value">-0.07</span></div>
+                    <div class="detail-row"><span class="label">Vega</span><span class="value">0.55</span></div>
+                    <div class="detail-row"><span class="label">Volume</span><span class="value">634</span></div>
+                    <div class="detail-row"><span class="label">Open Interest</span><span class="value">3,780</span></div>
+                  </div>
+                  <div class="expanded-section">
+                    <h4>Risk Management</h4>
+                    <div class="risk-slider">
+                      <div class="sl-zone" style="width: 28%;"></div>
+                      <div class="tp-zone" style="width: 22%;"></div>
+                      <div class="entry-marker" style="left: 40%;"></div>
+                    </div>
+                    <div class="risk-slider-labels">
+                      <span>SL: $6</span>
+                      <span>Entry: $8.50</span>
+                      <span>TP: $14</span>
+                    </div>
+                    <div class="detail-row" style="margin-top:8px;"><span class="label">Max Loss</span><span class="value" style="color:var(--red);">$250</span></div>
+                    <div class="detail-row"><span class="label">Max Gain</span><span class="value" style="color:var(--green);">$550</span></div>
+                    <div class="detail-row"><span class="label">R:R</span><span class="value">2.2</span></div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Annotation -->
+      <div class="annotation-box">
+        Expandable row — click any position to show contract, Greeks, and risk details. Risk slider shows entry vs SL/TP range.
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ################################################################ -->
+  <!-- VIEW 2: TRADE HISTORY                                           -->
+  <!-- ################################################################ -->
+  <div class="view-panel" id="view-2">
+    <div class="content-area">
+
+      <!-- Summary Bar -->
+      <div class="summary-bar">
+        <div class="summary-box">
+          <div class="sum-label">Total Closed</div>
+          <div class="sum-value">12</div>
+        </div>
+        <div class="summary-box">
+          <div class="sum-label">Win Rate</div>
+          <div class="sum-value" style="color: var(--green);">67%</div>
+        </div>
+        <div class="summary-box">
+          <div class="sum-label">Realized P&amp;L</div>
+          <div class="sum-value" style="color: var(--green);">+$2,847.50</div>
+        </div>
+      </div>
+
+      <!-- Filter Row -->
+      <div class="filter-row">
+        <button class="pill active">All</button>
+        <button class="pill">Wins</button>
+        <button class="pill">Losses</button>
+        <button class="pill">Expired</button>
+        <button class="pill">SL Hit</button>
+        <button class="pill">TP Hit</button>
+        <select class="filter-select">
+          <option>All Tickers</option>
+          <option>NVDA</option>
+          <option>TSLA</option>
+          <option>MSFT</option>
+          <option>AMZN</option>
+          <option>META</option>
+        </select>
+        <input type="text" class="filter-select" placeholder="Date range..." style="width:140px;">
+      </div>
+
+      <!-- Trade History Table -->
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Type</th>
+              <th>Entry → Exit</th>
+              <th>P&amp;L</th>
+              <th>Held</th>
+              <th>Reason</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- NVDA - expanded -->
+            <tr class="clickable-row expanded" data-expand="hist-nvda">
+              <td><strong>NVDA</strong></td>
+              <td data-label="Type">CALL</td>
+              <td data-label="Entry → Exit">$38 → $52</td>
+              <td data-label="P&L" class="green">+$1,400</td>
+              <td data-label="Held">8d</td>
+              <td data-label="Reason"><span class="pill green" style="cursor:default;">TP Hit ✓</span></td>
+              <td data-label="Date">Feb 19</td>
+            </tr>
+            <tr class="expanded-row" id="hist-nvda">
+              <td colspan="7">
+                <div class="expanded-content">
+                  <div class="expanded-section">
+                    <h4>Execution Details</h4>
+                    <div class="detail-row"><span class="label">Entry Date</span><span class="value">Feb 11, 2026</span></div>
+                    <div class="detail-row"><span class="label">Exit Date</span><span class="value">Feb 19, 2026</span></div>
+                    <div class="detail-row"><span class="label">Entry Fill</span><span class="value">$38.00</span></div>
+                    <div class="detail-row"><span class="label">Exit Fill</span><span class="value">$52.00</span></div>
+                  </div>
+                  <div class="expanded-section">
+                    <h4>Exit Efficiency</h4>
+                    <div class="detail-row"><span class="label">Max Potential</span><span class="value">$17.00</span></div>
+                    <div class="detail-row"><span class="label">Captured</span><span class="value" style="color:var(--green);">$14.00</span></div>
+                    <div class="detail-row"><span class="label">Efficiency</span><span class="value" style="color:var(--green);">82%</span></div>
+                    <div class="ai-note">Captured 82% of max potential move</div>
+                  </div>
+                  <div class="expanded-section">
+                    <h4>Timestamps</h4>
+                    <div class="detail-row"><span class="label">Signal Time</span><span class="value">09:32 ET</span></div>
+                    <div class="detail-row"><span class="label">Entry Time</span><span class="value">09:45 ET</span></div>
+                    <div class="detail-row"><span class="label">Exit Time</span><span class="value">14:22 ET</span></div>
+                    <div class="detail-row"><span class="label">TP Trigger</span><span class="value">14:18 ET</span></div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+            <!-- TSLA -->
+            <tr class="clickable-row" data-expand="hist-tsla">
+              <td><strong>TSLA</strong></td>
+              <td data-label="Type">PUT</td>
+              <td data-label="Entry → Exit">$15 → $8</td>
+              <td data-label="P&L" class="red">-$700</td>
+              <td data-label="Held">3d</td>
+              <td data-label="Reason"><span class="pill red" style="cursor:default;">SL Hit ✗</span></td>
+              <td data-label="Date">Feb 15</td>
+            </tr>
+            <tr class="expanded-row" id="hist-tsla" style="display:none;">
+              <td colspan="7">
+                <div class="expanded-content">
+                  <div class="expanded-section">
+                    <h4>Execution Details</h4>
+                    <div class="detail-row"><span class="label">Entry Date</span><span class="value">Feb 12, 2026</span></div>
+                    <div class="detail-row"><span class="label">Exit Date</span><span class="value">Feb 15, 2026</span></div>
+                    <div class="detail-row"><span class="label">Entry Fill</span><span class="value">$15.00</span></div>
+                    <div class="detail-row"><span class="label">Exit Fill</span><span class="value">$8.00</span></div>
+                  </div>
+                  <div class="expanded-section">
+                    <h4>Exit Efficiency</h4>
+                    <div class="detail-row"><span class="label">Reason</span><span class="value" style="color:var(--red);">Stop Loss Hit</span></div>
+                    <div class="detail-row"><span class="label">Slippage</span><span class="value">$0.12</span></div>
+                  </div>
+                  <div class="expanded-section">
+                    <h4>Timestamps</h4>
+                    <div class="detail-row"><span class="label">Signal Time</span><span class="value">10:15 ET</span></div>
+                    <div class="detail-row"><span class="label">Entry Time</span><span class="value">10:22 ET</span></div>
+                    <div class="detail-row"><span class="label">SL Trigger</span><span class="value">11:45 ET</span></div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+            <!-- MSFT -->
+            <tr class="clickable-row" data-expand="hist-msft">
+              <td><strong>MSFT</strong></td>
+              <td data-label="Type">CALL</td>
+              <td data-label="Entry → Exit">$9 → $14</td>
+              <td data-label="P&L" class="green">+$500</td>
+              <td data-label="Held">12d</td>
+              <td data-label="Reason"><span class="pill" style="cursor:default;">Manual Close</span></td>
+              <td data-label="Date">Feb 10</td>
+            </tr>
+            <tr class="expanded-row" id="hist-msft" style="display:none;">
+              <td colspan="7"><div class="expanded-content"><div class="expanded-section"><h4>Execution Details</h4><div class="detail-row"><span class="label">Entry Date</span><span class="value">Jan 29, 2026</span></div><div class="detail-row"><span class="label">Exit Date</span><span class="value">Feb 10, 2026</span></div></div><div class="expanded-section"><h4>Exit Efficiency</h4><div class="detail-row"><span class="label">Efficiency</span><span class="value" style="color:var(--green);">71%</span></div></div><div class="expanded-section"><h4>Timestamps</h4><div class="detail-row"><span class="label">Manual close by user</span><span class="value">15:48 ET</span></div></div></div></td>
+            </tr>
+
+            <!-- AMZN -->
+            <tr class="clickable-row" data-expand="hist-amzn">
+              <td><strong>AMZN</strong></td>
+              <td data-label="Type">CALL</td>
+              <td data-label="Entry → Exit">$7 → $4</td>
+              <td data-label="P&L" class="red">-$300</td>
+              <td data-label="Held">5d</td>
+              <td data-label="Reason"><span class="pill" style="cursor:default;">Expired</span></td>
+              <td data-label="Date">Feb 5</td>
+            </tr>
+            <tr class="expanded-row" id="hist-amzn" style="display:none;">
+              <td colspan="7"><div class="expanded-content"><div class="expanded-section"><h4>Execution Details</h4><div class="detail-row"><span class="label">Entry Date</span><span class="value">Jan 31, 2026</span></div><div class="detail-row"><span class="label">Expiry</span><span class="value">Feb 5, 2026</span></div></div><div class="expanded-section"><h4>Exit Efficiency</h4><div class="detail-row"><span class="label">Reason</span><span class="value" style="color:var(--red);">Expired OTM</span></div></div><div class="expanded-section"><h4>Notes</h4><div class="ai-note">Weekly contract expired worthless. Consider longer DTE next time.</div></div></div></td>
+            </tr>
+
+            <!-- META -->
+            <tr class="clickable-row" data-expand="hist-meta">
+              <td><strong>META</strong></td>
+              <td data-label="Type">PUT</td>
+              <td data-label="Entry → Exit">$11 → $18</td>
+              <td data-label="P&L" class="green">+$700</td>
+              <td data-label="Held">6d</td>
+              <td data-label="Reason"><span class="pill green" style="cursor:default;">TP Hit ✓</span></td>
+              <td data-label="Date">Jan 28</td>
+            </tr>
+            <tr class="expanded-row" id="hist-meta" style="display:none;">
+              <td colspan="7"><div class="expanded-content"><div class="expanded-section"><h4>Execution Details</h4><div class="detail-row"><span class="label">Entry Date</span><span class="value">Jan 22, 2026</span></div><div class="detail-row"><span class="label">Exit Date</span><span class="value">Jan 28, 2026</span></div></div><div class="expanded-section"><h4>Exit Efficiency</h4><div class="detail-row"><span class="label">Efficiency</span><span class="value" style="color:var(--green);">88%</span></div></div><div class="expanded-section"><h4>Timestamps</h4><div class="detail-row"><span class="label">TP Trigger</span><span class="value">13:05 ET</span></div></div></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Export Buttons -->
+      <div class="export-row">
+        <button class="btn">📥 Export CSV</button>
+        <button class="btn">📥 Export JSON</button>
+      </div>
+
+      <!-- Annotation -->
+      <div class="annotation-box">
+        Filter pills highlight active filter. Expandable rows show execution details and exit efficiency scoring.
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ################################################################ -->
+  <!-- VIEW 3: PERFORMANCE                                             -->
+  <!-- ################################################################ -->
+  <div class="view-panel" id="view-3">
+    <div class="content-area">
+
+      <!-- Period Filter -->
+      <div class="period-filters">
+        <button class="pill active">30D</button>
+        <button class="pill">YTD</button>
+        <button class="pill">All</button>
+        <button class="pill">Custom</button>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="kpi-cards">
+        <div class="kpi-card">
+          <div class="kpi-label">Total P&amp;L</div>
+          <div class="kpi-value" style="color: var(--green);">+$2,847.50</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Win Rate</div>
+          <div class="kpi-value">67%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Profit Factor</div>
+          <div class="kpi-value">2.4</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Expectancy</div>
+          <div class="kpi-value" style="color: var(--green);">+$237/trade</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Max Drawdown</div>
+          <div class="kpi-value" style="color: var(--red);">-$1,200</div>
+        </div>
+      </div>
+
+      <!-- Charts Grid -->
+      <div class="charts-grid">
+        <!-- Equity Curve (spans 2 rows) -->
+        <div class="chart-placeholder">
+          <div class="chart-label">Equity Curve</div>
+          <svg viewBox="0 0 300 120" preserveAspectRatio="none" style="max-width:400px;height:160px;">
+            <polyline points="0,100 30,92 60,85 90,95 120,78 150,65 180,72 210,55 240,42 270,35 300,25" />
+            <circle class="dot" cx="0" cy="100" r="3"/>
+            <circle class="dot" cx="90" cy="95" r="3"/>
+            <circle class="dot" cx="180" cy="72" r="3"/>
+            <circle class="dot" cx="300" cy="25" r="3"/>
+          </svg>
+        </div>
+        <!-- Monthly P&L -->
+        <div class="chart-placeholder">
+          <div class="chart-label">Monthly P&amp;L</div>
+          <svg viewBox="0 0 300 120" preserveAspectRatio="none" style="max-width:260px;height:100px;">
+            <rect class="bar" x="20" y="40" width="35" height="80" rx="3"/>
+            <rect class="bar" x="75" y="60" width="35" height="60" rx="3" style="fill:var(--red);opacity:.3;stroke:var(--red);"/>
+            <rect class="bar" x="130" y="25" width="35" height="95" rx="3"/>
+            <rect class="bar" x="185" y="50" width="35" height="70" rx="3"/>
+            <rect class="bar" x="240" y="15" width="35" height="105" rx="3"/>
+          </svg>
+        </div>
+        <!-- Win/Loss Distribution -->
+        <div class="chart-placeholder">
+          <div class="chart-label">Win / Loss Distribution</div>
+          <svg viewBox="0 0 120 120" style="max-width:120px;height:120px;">
+            <!-- Simple doughnut approximation -->
+            <circle cx="60" cy="60" r="45" fill="none" stroke="#e2e8f0" stroke-width="18"/>
+            <circle cx="60" cy="60" r="45" fill="none" stroke="var(--green)" stroke-width="18"
+              stroke-dasharray="189 94" stroke-dashoffset="0" transform="rotate(-90 60 60)"/>
+            <circle cx="60" cy="60" r="45" fill="none" stroke="var(--red)" stroke-width="18"
+              stroke-dasharray="94 189" stroke-dashoffset="-189" transform="rotate(-90 60 60)"/>
+            <text x="60" y="56" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text)" font-family="Inter,sans-serif">67%</text>
+            <text x="60" y="72" text-anchor="middle" font-size="8" fill="var(--text-muted)" font-family="Inter,sans-serif">Win Rate</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Breakdown Tables -->
+      <div class="breakdown-grid">
+        <!-- By Strategy -->
+        <div class="breakdown-card">
+          <div class="breakdown-header">By Strategy</div>
+          <table class="data-table">
+            <thead>
+              <tr><th>Strategy</th><th>Trades</th><th>Win %</th><th>P&amp;L</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Momentum</td><td data-label="Trades">8</td><td data-label="Win %">75%</td><td data-label="P&L" class="green">+$2,100</td></tr>
+              <tr><td>Value</td><td data-label="Trades">3</td><td data-label="Win %">33%</td><td data-label="P&L" class="red">-$200</td></tr>
+              <tr><td>Tactical</td><td data-label="Trades">1</td><td data-label="Win %">100%</td><td data-label="P&L" class="green">+$947</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- By Ticker -->
+        <div class="breakdown-card">
+          <div class="breakdown-header">By Ticker</div>
+          <table class="data-table">
+            <thead>
+              <tr><th>Ticker</th><th>P&amp;L</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>NVDA</strong></td><td data-label="P&L" class="green">+$1,970</td></tr>
+              <tr><td><strong>META</strong></td><td data-label="P&L" class="green">+$700</td></tr>
+              <tr><td><strong>MSFT</strong></td><td data-label="P&L" class="green">+$500</td></tr>
+              <tr><td><strong>AMZN</strong></td><td data-label="P&L" class="red">-$323</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Export -->
+      <div class="export-row">
+        <button class="btn">📥 Export CSV</button>
+        <button class="btn">📥 Export JSON</button>
+      </div>
+
+      <!-- Annotation -->
+      <div class="annotation-box">
+        Charts render via Chart.js in the live app. Breakdown tables help identify which strategies and tickers are performing.
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ################################################################ -->
+  <!-- VIEW 4: SETTINGS                                                -->
+  <!-- ################################################################ -->
+  <div class="view-panel" id="view-4">
+    <div class="content-area">
+
+      <div class="settings-grid">
+
+        <!-- 1. Trading Mode -->
+        <div class="settings-section">
+          <div class="section-header">⚡ Trading Mode</div>
+          <div class="section-body">
+            <div class="settings-row">
+              <span class="setting-label">Active Mode</span>
+              <div class="mode-toggle">
+                <button class="mode-opt active-green">Sandbox</button>
+                <button class="mode-opt inactive">Live</button>
+              </div>
+            </div>
+            <div class="settings-annotation">Toggle between paper trading (Sandbox) and real money (Live). Live mode requires confirmation dialog.</div>
+          </div>
+        </div>
+
+        <!-- 2. Broker Credentials -->
+        <div class="settings-section">
+          <div class="section-header">🔑 Broker Credentials</div>
+          <div class="section-body">
+            <div class="settings-row">
+              <span class="setting-label">Tradier Account ID</span>
+              <input type="text" class="settings-input masked" value="****0223" readonly>
+            </div>
+            <div class="settings-row">
+              <span class="setting-label">API Key</span>
+              <input type="text" class="settings-input masked" value="****EapW" readonly>
+            </div>
+            <div class="settings-row">
+              <span class="setting-label">Status</span>
+              <span class="status-dot">Connected</span>
+            </div>
+            <div class="settings-annotation">Tradier brokerage connection. Credentials are encrypted at rest. Status shows real-time connection health.</div>
+          </div>
+        </div>
+
+        <!-- 3. Portfolio Settings -->
+        <div class="settings-section">
+          <div class="section-header">💼 Portfolio Settings</div>
+          <div class="section-body">
+            <div class="settings-row">
+              <span class="setting-label">Account Balance</span>
+              <input type="text" class="settings-input" value="$25,000">
+            </div>
+            <div class="settings-row">
+              <span class="setting-label">Starting Balance</span>
+              <input type="text" class="settings-input" value="$25,000">
+            </div>
+            <div class="settings-annotation">Account balance tracks current equity. Starting balance is used for performance calculations.</div>
+          </div>
+        </div>
+
+        <!-- 4. Risk Management -->
+        <div class="settings-section">
+          <div class="section-header">🛡️ Risk Management</div>
+          <div class="section-body">
+            <div class="settings-row">
+              <span class="setting-label">Max Simultaneous Positions</span>
+              <input type="text" class="settings-input" value="5">
+            </div>
+            <div class="settings-row">
+              <span class="setting-label">Daily Loss Limit</span>
+              <input type="text" class="settings-input" value="$500">
+            </div>
+            <div class="settings-row">
+              <span class="setting-label">Default SL %</span>
+              <input type="text" class="settings-input" value="15%">
+            </div>
+            <div class="settings-row">
+              <span class="setting-label">Default TP %</span>
+              <input type="text" class="settings-input" value="30%">
+            </div>
+            <div class="settings-row">
+              <span class="setting-label">Max Daily Trades</span>
+              <input type="text" class="settings-input" value="10">
+            </div>
+            <div class="settings-annotation">Risk parameters that govern position sizing and loss limits. These feed into the Risk Dashboard gauges.</div>
+          </div>
+        </div>
+
+        <!-- 5. Trade Behavior -->
+        <div class="settings-section">
+          <div class="section-header">🔄 Trade Behavior</div>
+          <div class="section-body">
+            <div class="settings-row">
+              <span class="setting-label">Auto-close at Expiry</span>
+              <label class="toggle-switch">
+                <input type="checkbox" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row">
+              <span class="setting-label">Require Confirmation</span>
+              <label class="toggle-switch">
+                <input type="checkbox" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-annotation">Auto-close prevents positions from expiring unmanaged. Confirmation adds a dialog before trade execution.</div>
+          </div>
+        </div>
+
+        <!-- 6. Preferences -->
+        <div class="settings-section">
+          <div class="section-header">🎨 Preferences</div>
+          <div class="section-body">
+            <div class="settings-row">
+              <span class="setting-label">Theme</span>
+              <div class="mode-toggle">
+                <button class="mode-opt inactive">Dark</button>
+                <button class="mode-opt active-green">Light</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span class="setting-label">Alert on SL/TP Hit</span>
+              <label class="toggle-switch">
+                <input type="checkbox" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-annotation">Visual theme and notification preferences. Alerts fire browser notifications when stop-loss or take-profit triggers.</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Save Button -->
+      <div class="save-row">
+        <button class="btn btn-primary" style="font-size:.85rem;padding:10px 24px;">💾 Save Settings</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ################################################################ -->
+  <!-- VIEW 5: RISK DASHBOARD                                         -->
+  <!-- ################################################################ -->
+  <div class="view-panel" id="view-5">
+    <div class="content-area">
+
+      <!-- 3 Risk Metric Cards -->
+      <div class="risk-cards-row">
+
+        <!-- Portfolio Heat -->
+        <div class="risk-card">
+          <div class="risk-card-title">Portfolio Heat</div>
+          <div class="risk-gauge">
+            <div class="risk-gauge-fill green" style="width: 34%;">34%</div>
+          </div>
+          <div class="risk-gauge-label">34% of 100% Max Heat</div>
+        </div>
+
+        <!-- Win Rate -->
+        <div class="risk-card">
+          <div class="risk-card-title">Win Rate</div>
+          <div class="winrate-bar">
+            <div class="win-part" style="width: 67%;">67%</div>
+            <div class="loss-part" style="width: 33%;">33%</div>
+          </div>
+          <div class="risk-gauge-label">8W / 4L — 67%</div>
+        </div>
+
+        <!-- Tilt Status -->
+        <div class="risk-card">
+          <div class="risk-card-title">Tilt Status</div>
+          <div class="tilt-status">
+            <div class="tilt-counter">0</div>
+            <div class="tilt-info">
+              <span class="tilt-label">✅ No Tilt</span>
+              <span class="tilt-note">Consecutive Losses: 0</span>
+              <span class="tilt-note">Tilt threshold: 3+</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Performance Summary Grid -->
+      <h3 class="section-title">Performance Summary</h3>
+      <div class="perf-grid">
+        <div class="perf-cell">
+          <div class="perf-label">Total Trades</div>
+          <div class="perf-value">12</div>
+        </div>
+        <div class="perf-cell">
+          <div class="perf-label">Win Rate</div>
+          <div class="perf-value" style="color:var(--green);">67%</div>
+        </div>
+        <div class="perf-cell">
+          <div class="perf-label">Avg Win</div>
+          <div class="perf-value" style="color:var(--green);">$725</div>
+        </div>
+        <div class="perf-cell">
+          <div class="perf-label">Avg Loss</div>
+          <div class="perf-value" style="color:var(--red);">-$340</div>
+        </div>
+        <div class="perf-cell">
+          <div class="perf-label">Profit Factor</div>
+          <div class="perf-value">2.4</div>
+        </div>
+        <div class="perf-cell">
+          <div class="perf-label">Total P&amp;L</div>
+          <div class="perf-value" style="color:var(--green);">+$2,848</div>
+        </div>
+        <div class="perf-cell">
+          <div class="perf-label">Realized</div>
+          <div class="perf-value" style="color:var(--green);">+$2,848</div>
+        </div>
+        <div class="perf-cell">
+          <div class="perf-label">Unrealized</div>
+          <div class="perf-value" style="color:var(--green);">+$490</div>
+        </div>
+      </div>
+
+      <!-- Risk Rules -->
+      <div class="risk-rules">
+        <div class="rules-header">Risk Rules — Current Status</div>
+        <div class="risk-rules-grid">
+          <div class="rule-cell">
+            <div class="rule-label">Max Positions</div>
+            <div class="rule-value"><span class="rule-status green"></span>3 / 5</div>
+          </div>
+          <div class="rule-cell">
+            <div class="rule-label">Daily Loss Used</div>
+            <div class="rule-value"><span class="rule-status green"></span>$0 / $500</div>
+          </div>
+          <div class="rule-cell">
+            <div class="rule-label">Daily Trades</div>
+            <div class="rule-value"><span class="rule-status green"></span>1 / 10</div>
+          </div>
+          <div class="rule-cell">
+            <div class="rule-label">Portfolio Concentration</div>
+            <div class="rule-value"><span class="rule-status amber"></span>40% NVDA — Highest</div>
+          </div>
+          <div class="rule-cell">
+            <div class="rule-label">Sector Exposure</div>
+            <div class="rule-value"><span class="rule-status amber"></span>80% Tech</div>
+          </div>
+          <div class="rule-cell">
+            <div class="rule-label">Last Updated</div>
+            <div class="rule-value" style="color:var(--text-muted);">Feb 27, 2026 10:12 AM</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Annotation -->
+      <div class="annotation-box">
+        Risk dashboard provides a real-time health check. Heat gauge, win rate, and tilt status are the primary "at a glance" indicators. Rules section shows which risk limits are approaching.
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /scanner-shell -->
+
+<script src="./app.js"></script>
 </body>
 </html>
