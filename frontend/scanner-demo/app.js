@@ -1514,18 +1514,19 @@ const scanner = {
   },
 
   parseAIAnalysisSections(text) {
-    // Strip JSON/Verdict blocks from AI output (already shown in verdict box)
+    // === PRE-PARSE: Strip JSON/Verdict blocks from raw text ===
     let cleaned = text;
-    // 1. Remove backtick-fenced json code blocks (```json ... ```)
+    // 1. Remove backtick-fenced json code blocks
     cleaned = cleaned.replace(/\n*`{3,}json[\s\S]*?`{3,}\s*/g, '');
+    cleaned = cleaned.replace(/\n*```json[\s\S]*?```\s*/g, '');
     // 2. Remove bare JSON objects starting with "score" or "verdict"
     cleaned = cleaned.replace(/\n*\{\s*"(?:score|verdict)"[\s\S]*?\}\s*$/gm, '');
-    // 3. Remove trailing "Verdict: X\nConviction Score: N" text blocks
+    // 3. Remove "Verdict: X\n...Conviction Score: N..." blocks
     cleaned = cleaned.replace(/\n*(?:---\s*\n+)?Verdict:\s*\w+[\s\S]*?Conviction\s+Score:\s*\d+[\s\S]*$/i, '');
-    // 4. Remove heading-style "## Verdict" sections and everything after
+    // 4. Remove heading-style "## Verdict" sections
     cleaned = cleaned.replace(/\n*-{3,}\s*\n+#{1,3}\s*Verdict[\s\S]*$/i, '');
     cleaned = cleaned.replace(/\n*#{1,3}\s*Verdict[\s\S]*$/i, '');
-    // 5. Clean up trailing whitespace and horizontal rules
+    // 5. Clean trailing whitespace and horizontal rules
     cleaned = cleaned.replace(/\n*-{3,}\s*$/, '').trimEnd();
 
     // Parse numbered sections from Perplexity markdown
@@ -1535,11 +1536,34 @@ const scanner = {
     while ((match = sectionRegex.exec(cleaned)) !== null) {
       const title = `${match[1]}. ${match[2].replace(/\*/g, '').trim()}`;
       let content = match[3].trim();
-      // Clean markdown
+
+      // === POST-PARSE: Truncate section content at verdict/JSON artifacts ===
+      // The last section often captures trailing Verdict/JSON that regex missed
+      // Truncate at "Verdict:" line (case-insensitive)
+      const verdictIdx = content.search(/\nVerdict:\s/i);
+      if (verdictIdx > 0) content = content.substring(0, verdictIdx).trim();
+      // Truncate at backtick-fenced JSON
+      const jsonFenceIdx = content.indexOf('```json');
+      if (jsonFenceIdx > 0) content = content.substring(0, jsonFenceIdx).trim();
+      const jsonFenceIdx2 = content.indexOf('\u0060\u0060\u0060json');
+      if (jsonFenceIdx2 > 0) content = content.substring(0, jsonFenceIdx2).trim();
+      // Truncate at bare JSON object {"score"... or {"verdict"...
+      const bareJsonIdx = content.search(/\n\{\s*"(?:score|verdict)"/);
+      if (bareJsonIdx > 0) content = content.substring(0, bareJsonIdx).trim();
+      // Truncate at "---" followed by Verdict
+      const hrVerdictIdx = content.search(/\n-{3,}\s*\n*Verdict/i);
+      if (hrVerdictIdx > 0) content = content.substring(0, hrVerdictIdx).trim();
+      // Remove trailing "---" horizontal rules
+      content = content.replace(/-{3,}\s*$/, '').trim();
+
+      // Skip sections whose title is "Verdict" (already shown in verdict box)
+      const titleLower = title.toLowerCase();
+      if (titleLower.includes('verdict')) continue;
+
+      // Clean markdown formatting
       content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       content = content.replace(/\n/g, '<br>');
       let colorClass = '';
-      const titleLower = title.toLowerCase();
       if (titleLower.includes('news') || titleLower.includes('bull')) colorClass = 'green';
       else if (titleLower.includes('risk') || titleLower.includes('bear')) colorClass = 'red';
       else if (titleLower.includes('viability') || titleLower.includes('trade')) colorClass = 'amber';
