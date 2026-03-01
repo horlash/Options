@@ -1145,8 +1145,8 @@ const scanner = {
         { label: 'MA Signal', value: rawInd.moving_averages?.signal || '—' },
         { label: 'BB Signal', value: rawInd.bollinger_bands?.signal || '—' },
         { label: 'Volume', value: rawInd.volume?.signal || '—' },
-        { label: 'SMA 50', value: a.current_price ? `$${Number(a.current_price * 0.98).toFixed(2)}` : (rawInd.moving_averages?.sma_50 ? `$${Number(rawInd.moving_averages.sma_50).toFixed(2)}` : '—') },
-        { label: 'SMA 200', value: rawInd.moving_averages?.sma_200 ? `$${Number(rawInd.moving_averages.sma_200).toFixed(2)}` : '—' },
+        { label: 'SMA 50', value: rawInd.moving_averages?.values?.sma_50 ? `$${Number(rawInd.moving_averages.values.sma_50).toFixed(2)}` : '—' },
+        { label: 'SMA 200', value: rawInd.moving_averages?.values?.sma_200 ? `$${Number(rawInd.moving_averages.values.sma_200).toFixed(2)}` : '—' },
         { label: 'VWAP', value: rawInd.vwap?.value ? `$${Number(rawInd.vwap.value).toFixed(2)}` : '—' },
         { label: 'Tech Score', value: techScore ? `${Number(techScore).toFixed(0)}/100` : '—' },
         { label: 'Price', value: a.current_price ? `$${Number(a.current_price).toFixed(2)}` : '—' },
@@ -1301,6 +1301,9 @@ const scanner = {
       const analysis = ai.analysis || '';
       const btnClass = isCall ? 'btn-primary' : 'btn-primary put';
 
+      // Cache the full AI result for the trade modal
+      this.currentAIResult = ai;
+
       // Parse analysis sections from markdown
       const sections = this.parseAIAnalysisSections(analysis);
 
@@ -1431,11 +1434,19 @@ const scanner = {
   },
 
   parseAIAnalysisSections(text) {
+    // Strip JSON blocks from the end of AI output before parsing
+    let cleaned = text;
+    // Remove trailing JSON block: {"score":..., "verdict":..., ...}
+    cleaned = cleaned.replace(/\n*```json[\s\S]*?```\n*/g, '');
+    cleaned = cleaned.replace(/\n*\{\s*"score"[\s\S]*\}\s*$/m, '');
+    // Also strip standalone json-like blocks
+    cleaned = cleaned.replace(/\n*\{\s*"verdict"[\s\S]*\}\s*$/m, '');
+
     // Parse numbered sections from Perplexity markdown
     const sections = [];
     const sectionRegex = /(?:^|\n)(?:#{1,3}\s*)?(\d+)\.\s*\*{0,2}(.+?)\*{0,2}\s*(?:\n|$)([\s\S]*?)(?=\n(?:#{1,3}\s*)?\d+\.\s*\*{0,2}|$)/g;
     let match;
-    while ((match = sectionRegex.exec(text)) !== null) {
+    while ((match = sectionRegex.exec(cleaned)) !== null) {
       const title = `${match[1]}. ${match[2].replace(/\*/g, '').trim()}`;
       let content = match[3].trim();
       // Clean markdown
@@ -1473,13 +1484,13 @@ const scanner = {
     const btnClass = isCall ? 'btn-confirm-call' : 'btn-confirm-put';
     const btnText = isCall ? '✅ Confirm Call Trade' : '✅ Confirm Put Trade';
 
-    // Build AI summary for trade modal (from cached analysis if available)
-    const aiSummary = this.currentAnalysis;
+    // Build AI summary for trade modal (from cached AI result or analysis)
+    const aiData = this.currentAIResult || this.currentAnalysis;
     let aiSummaryHtml = '';
-    if (aiSummary) {
-      const aiVerdict = aiSummary.verdict || aiSummary.ai_verdict || '';
-      const aiScore = aiSummary.score || aiSummary.ai_score || '';
-      const aiThesis = aiSummary.thesis || aiSummary.ai_thesis || '';
+    if (aiData) {
+      const aiVerdict = aiData.verdict || aiData.ai_verdict || '';
+      const aiScore = aiData.score || aiData.ai_score || '';
+      const aiThesis = aiData.thesis || aiData.ai_thesis || '';
       if (aiVerdict || aiThesis) {
         const vClass = String(aiVerdict).toUpperCase() === 'FAVORABLE' ? 'favorable' : String(aiVerdict).toUpperCase() === 'AVOID' ? 'avoid' : 'risky';
         aiSummaryHtml = `
@@ -1551,6 +1562,16 @@ const scanner = {
         const step = parseFloat(btn.dataset.step);
         const current = parseFloat(input.value) || 0;
         input.value = Math.max(0, current + step).toFixed(2);
+        // Recalculate % hints
+        const entry = parseFloat(document.getElementById('trade-entry')?.value || 0);
+        const sl = parseFloat(document.getElementById('trade-sl')?.value || 0);
+        const tp = parseFloat(document.getElementById('trade-tp')?.value || 0);
+        if (entry > 0) {
+          const slHint = document.querySelector('#trade-sl')?.closest('.trade-param')?.querySelector('.param-hint');
+          const tpHint = document.querySelector('#trade-tp')?.closest('.trade-param')?.querySelector('.param-hint');
+          if (slHint) slHint.textContent = `-${((1 - sl / entry) * 100).toFixed(0)}%`;
+          if (tpHint) tpHint.textContent = `+${((tp / entry - 1) * 100).toFixed(0)}%`;
+        }
       });
     });
 
