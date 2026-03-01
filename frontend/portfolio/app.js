@@ -276,7 +276,7 @@
                             <div class="port-detail-row"><span class="label">Gamma</span><span class="value">${greeks.gamma?.toFixed(4) || '—'}</span></div>
                             <div class="port-detail-row"><span class="label">Theta</span><span class="value">${greeks.theta?.toFixed(3) || '—'}</span></div>
                             <div class="port-detail-row"><span class="label">Vega</span><span class="value">${greeks.vega?.toFixed(3) || '—'}</span></div>
-                            <div class="port-detail-row"><span class="label">IV</span><span class="value">${greeks.iv ? (greeks.iv * 100).toFixed(1) + '%' : (t.iv_at_entry ? (t.iv_at_entry * 100).toFixed(1) + '%' : '—')}</span></div>
+                            <div class="port-detail-row"><span class="label">IV</span><span class="value">${greeks.iv ? ((greeks.iv > 1 ? greeks.iv : greeks.iv * 100).toFixed(1) + '%') : (t.iv_at_entry ? ((t.iv_at_entry > 1 ? t.iv_at_entry : t.iv_at_entry * 100).toFixed(1) + '%') : '—')}</span></div>
                             <div class="port-detail-row"><span class="label">Volume</span><span class="value">${typeof volume === 'number' ? volume.toLocaleString() : volume}</span></div>
                             <div class="port-detail-row"><span class="label">Open Interest</span><span class="value">${typeof oi === 'number' ? oi.toLocaleString() : oi}</span></div>
                         </div>
@@ -458,7 +458,7 @@
         const summaryContainer = $('#history-summary');
         if (!container) return;
 
-        container.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;">Loading trade history...</td></tr>';
+        container.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;">Loading trade history...</td></tr>';
 
         try {
             const data = await apiFetch('/trades?status=CLOSED&limit=100');
@@ -486,7 +486,7 @@
 
             renderFilteredHistory();
         } catch (e) {
-            container.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--red);">Failed to load history: ${e.message}</td></tr>`;
+            container.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--red);">Failed to load history: ${e.message}</td></tr>`;
         }
     }
 
@@ -511,15 +511,21 @@
         // Date range filter
         if (historyDateStart) {
             const start = new Date(historyDateStart);
-            filtered = filtered.filter(t => t.closed_at && new Date(t.closed_at) >= start);
+            filtered = filtered.filter(t => {
+                const d = t.closed_at || t.created_at;
+                return d && new Date(d) >= start;
+            });
         }
         if (historyDateEnd) {
             const end = new Date(historyDateEnd + 'T23:59:59');
-            filtered = filtered.filter(t => t.closed_at && new Date(t.closed_at) <= end);
+            filtered = filtered.filter(t => {
+                const d = t.closed_at || t.created_at;
+                return d && new Date(d) <= end;
+            });
         }
 
         if (filtered.length === 0) {
-            container.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">No trades match this filter.</td></tr>';
+            container.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">No trades match this filter.</td></tr>';
             return;
         }
 
@@ -527,19 +533,11 @@
         wireHistoryRows();
     }
 
-    function computeExitEfficiency(t) {
-        if (!t.tp_price || !t.exit_price || !t.entry_price) return '—';
-        if (t.tp_price === t.entry_price) return '—';
-        const maxPossibleGain = t.tp_price - t.entry_price;
-        const actualGain = t.exit_price - t.entry_price;
-        const efficiency = (actualGain / maxPossibleGain) * 100;
-        return efficiency.toFixed(0) + '%';
-    }
+
 
     function renderHistoryRow(t, idx) {
         const reasonMap = { 'TP_HIT': ['TP Hit ✓', 'green'], 'SL_HIT': ['SL Hit ✗', 'red'], 'MANUAL': ['Manual Close', ''], 'EXPIRED': ['Expired', ''] };
         const [reasonLabel, reasonClass] = reasonMap[t.close_reason] || [t.close_reason || '—', ''];
-        const exitEff = computeExitEfficiency(t);
 
         return `
             <tr class="port-clickable-row ${idx === 0 ? 'expanded' : ''}" data-expand="hist-${t.id}">
@@ -547,13 +545,12 @@
                 <td data-label="Type">${t.option_type}</td>
                 <td data-label="Entry → Exit">${fmt(t.entry_price)} → ${t.exit_price ? fmt(t.exit_price) : '—'}</td>
                 <td data-label="P&L" class="${pnlClass(t.realized_pnl)}">${fmtPnl(t.realized_pnl)}</td>
-                <td data-label="Exit Eff">${exitEff}</td>
                 <td data-label="Held">${daysBetween(t.created_at, t.closed_at)}</td>
                 <td data-label="Reason"><span class="port-pill ${reasonClass}">${reasonLabel}</span></td>
                 <td data-label="Date">${fmtDate(t.closed_at)}</td>
             </tr>
             <tr class="port-expanded-row" id="hist-${t.id}" ${idx === 0 ? '' : 'style="display:none;"'}>
-                <td colspan="8">
+                <td colspan="7">
                     <div class="port-expanded-content">
                         <div class="port-expanded-section">
                             <h4>Execution Details</h4>
@@ -568,7 +565,6 @@
                             <h4>Trade Metrics</h4>
                             <div class="port-detail-row"><span class="label">Strategy</span><span class="value">${t.strategy || '—'}</span></div>
                             <div class="port-detail-row"><span class="label">Qty</span><span class="value">${t.qty}</span></div>
-                            <div class="port-detail-row"><span class="label">Exit Efficiency</span><span class="value">${exitEff}</span></div>
                             <div class="port-detail-row"><span class="label">AI Score</span><span class="value">${t.ai_score || '—'}</span></div>
                             <div class="port-detail-row"><span class="label">AI Verdict</span><span class="value">${t.ai_verdict || '—'}</span></div>
                         </div>
@@ -618,6 +614,25 @@
             historyDateEnd = e.target.value;
             renderFilteredHistory();
         }
+    });
+
+    // Wire reset button
+    document.addEventListener('click', (e) => {
+        if (!e.target.matches('#history-reset-filters')) return;
+        historyFilter = 'ALL';
+        historyTickerFilter = 'ALL';
+        historyDateStart = '';
+        historyDateEnd = '';
+        $$('#history-filters .port-pill-filter').forEach(p => p.classList.remove('active'));
+        const allPill = $('#history-filters .port-pill-filter');
+        if (allPill) allPill.classList.add('active');
+        const tickerSel = $('#history-ticker-filter');
+        if (tickerSel) tickerSel.value = 'ALL';
+        const ds = $('#history-date-start');
+        const de = $('#history-date-end');
+        if (ds) ds.value = '';
+        if (de) de.value = '';
+        renderFilteredHistory();
     });
 
     // ============================================================
@@ -822,6 +837,8 @@
             <div class="port-settings-card">
                 <div class="port-settings-card-title">Broker Connection</div>
                 <div class="port-settings-row"><span class="port-setting-label">Tradier Account ID</span><input type="text" class="port-settings-input" id="set-tradier-id" value="${s.tradier_account_id || ''}" placeholder="Account ID"></div>
+                <div class="port-settings-row"><span class="port-setting-label">Sandbox API Token</span><input type="password" class="port-settings-input" id="set-sandbox-token" value="" placeholder="${s.has_sandbox_token ? '••••••••  (saved)' : 'Enter token'}"></div>
+                <div class="port-settings-row"><span class="port-setting-label">Live API Token</span><input type="password" class="port-settings-input" id="set-live-token" value="" placeholder="${s.has_live_token ? '••••••••  (saved)' : 'Enter token'}"></div>
                 <div class="port-settings-row">
                     <span class="port-setting-label">Status</span>
                     <span id="broker-status" class="port-status-dot ${(s.has_sandbox_token || s.has_live_token) ? '' : 'disconnected'}">${(s.has_sandbox_token || s.has_live_token) ? 'Connected' : 'Not Connected'}</span>
@@ -868,6 +885,12 @@
                 alert_on_bracket_hit: $('#set-alert-bracket')?.checked ?? true,
                 broker_mode: brokerMode,
             };
+
+            // Only include tokens if user typed a new value
+            const sandboxToken = $('#set-sandbox-token')?.value;
+            const liveToken = $('#set-live-token')?.value;
+            if (sandboxToken) payload.tradier_sandbox_token = sandboxToken;
+            if (liveToken) payload.tradier_live_token = liveToken;
 
             await apiFetch('/settings', {
                 method: 'PUT',

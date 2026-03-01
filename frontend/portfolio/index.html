@@ -151,6 +151,7 @@
             <input type="date" id="history-date-start" class="port-filter-date">
             <label style="font-size:0.72rem;color:var(--text-muted);font-weight:600;">To</label>
             <input type="date" id="history-date-end" class="port-filter-date">
+            <button class="port-btn port-btn-sm" id="history-reset-filters" style="margin-left:auto;">↺ Reset</button>
           </div>
 
           <!-- Trade History Table (dynamic) -->
@@ -162,7 +163,6 @@
                   <th>Type</th>
                   <th>Entry → Exit</th>
                   <th>P&L</th>
-                  <th>Exit Eff</th>
                   <th>Held</th>
                   <th>Reason</th>
                   <th>Date</th>
@@ -170,7 +170,7 @@
               </thead>
               <tbody id="history-table-body">
                 <tr>
-                  <td colspan="8" style="text-align:center;padding:32px;">Click the Trade History tab to load data.</td>
+                  <td colspan="7" style="text-align:center;padding:32px;">Click the Trade History tab to load data.</td>
                 </tr>
               </tbody>
             </table>
