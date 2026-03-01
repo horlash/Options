@@ -70,9 +70,11 @@ function formatTradingSystems(ts) {
     out['Minervini'] = { signal: m.stage, detail: `${label} (${m.score || 0}/${m.max_score || 8})` };
   }
   // VWAP
-  if (ts.vwap && ts.vwap.signal) {
+  if (ts.vwap && (ts.vwap.signal || ts.vwap.weekly_vwap)) {
     const w = ts.vwap;
-    out['VWAP'] = { signal: w.signal || 'N/A', detail: w.signal || '' };
+    const vwapVal = w.weekly_vwap ? `$${Number(w.weekly_vwap).toFixed(2)}` : '';
+    const sigLabel = (w.signal || '').replace(/_/g, ' ').replace('at weekly vwap', 'At Weekly VWAP').replace('at monthly vwap', 'At Monthly VWAP').replace('above vwap', 'Above').replace('below vwap', 'Below').replace('mixed', 'Mixed').replace('neutral', 'Neutral');
+    out['VWAP'] = { signal: w.signal || 'N/A', detail: vwapVal ? `${vwapVal} (${sigLabel})` : sigLabel };
   }
   // Pass through already-formatted entries (LEAPS format fallback)
   for (const [k, v] of Object.entries(ts)) {
@@ -976,11 +978,11 @@ const scanner = {
           <div class="ts-header">
             <span class="ts-chevron">▶</span>
             <span class="ts-label">Trading Systems</span>
-            <span class="ts-summary-inline">${tsCount} System${tsCount !== 1 ? 's' : ''} · Score: ${tsScore}/100</span>
+            <span class="ts-summary-inline">${tsCount} System${tsCount !== 1 ? 's' : ''} · Score: ${Number(tsScore).toFixed(2)}/100</span>
           </div>
           <div class="ts-body">
             <div class="ts-pills">${tsPillsHtml}</div>
-            <div class="ts-score-line ${scoreColorClass}">Score: ${tsScore}/100</div>
+            <div class="ts-score-line ${scoreColorClass}">Score: ${Number(tsScore).toFixed(2)}/100</div>
           </div>
         </div>`;
     }
@@ -1205,8 +1207,8 @@ const scanner = {
         { label: 'SMA 5', value: rawInd.moving_averages?.values?.sma_5 ? `$${Number(rawInd.moving_averages.values.sma_5).toFixed(2)}` : '—' },
         { label: 'SMA 50', value: rawInd.moving_averages?.values?.sma_50 ? `$${Number(rawInd.moving_averages.values.sma_50).toFixed(2)}` : '—' },
         { label: 'SMA 200', value: rawInd.moving_averages?.values?.sma_200 ? `$${Number(rawInd.moving_averages.values.sma_200).toFixed(2)}` : '—' },
-        { label: 'VWAP', value: rawInd.vwap?.value ? `$${Number(rawInd.vwap.value).toFixed(2)}` : '—' },
-        { label: 'Tech Score', value: techScore ? `${Number(techScore).toFixed(0)}/100` : '—' },
+        { label: 'VWAP', value: rawInd.vwap?.weekly_vwap ? `$${Number(rawInd.vwap.weekly_vwap).toFixed(2)}` : '—' },
+        { label: 'Tech Score', value: techScore ? `${Number(techScore).toFixed(2)}/100` : '—' },
         { label: 'Price', value: a.current_price ? `$${Number(a.current_price).toFixed(2)}` : '—' },
       ];
 
