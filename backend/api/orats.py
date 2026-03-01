@@ -98,11 +98,19 @@ class OratsAPI:
             return None
 
     @retry_api(max_retries=2, base_delay=1.0)
-    def get_history(self, ticker, days=365):
+    def get_history(self, ticker, days=400):
         """
         Fetch historical price data via /hist/dailies.
         ORATS only accepts 'ticker' and optional 'tradeDate' (single date).
         We fetch all data and filter client-side to last N days.
+        
+        FIX-MINERV-A: Default changed from 365 to 400 calendar days.
+        365 calendar days yields only ~250-251 trading days after removing
+        weekends/holidays, which falls short of the 252-bar minimum required
+        by calculate_minervini_criteria(). 400 calendar days yields ~275
+        trading days — comfortable margin above the threshold.
+        Zero API cost impact: ORATS returns all history; we filter client-side.
+        
         Returns dict: {'candles': [...], 'symbol': ticker, 'empty': bool}
         """
         ticker = self._clean_ticker(ticker)
