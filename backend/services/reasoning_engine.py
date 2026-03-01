@@ -324,6 +324,20 @@ class ReasoningEngine:
             content = data['choices'][0]['message']['content']
             parsed = self._extract_json_block(content)
             
+            # Strip the JSON block and trailing Verdict/Score from content before returning as 'analysis'
+            # The JSON was requested by the prompt for structured extraction, not for display
+            clean_analysis = content
+            # Remove ```json ... ``` blocks
+            clean_analysis = re.sub(r'\n*```json\s*\{.*?\}\s*```\s*', '', clean_analysis, flags=re.DOTALL)
+            # Remove bare JSON objects at end
+            clean_analysis = re.sub(r'\n*\{\s*"score"\s*:[\s\S]*?\}\s*$', '', clean_analysis)
+            # Remove trailing "Verdict: X\n..." and "Conviction Score: N" lines
+            clean_analysis = re.sub(r'\n*(?:---\s*\n+)?Verdict:\s*\w+.*?(?:Conviction\s+Score:\s*\d+.*)?$', '', clean_analysis, flags=re.DOTALL | re.IGNORECASE)
+            # Remove trailing "## Verdict" heading sections
+            clean_analysis = re.sub(r'\n*#{1,3}\s*Verdict[\s\S]*$', '', clean_analysis, flags=re.IGNORECASE)
+            # Clean trailing whitespace and horizontal rules
+            clean_analysis = re.sub(r'\n*-{3,}\s*$', '', clean_analysis).rstrip()
+
             if parsed:
                 try:
                     validated = AIAnalysisResult.model_validate(parsed)
@@ -337,7 +351,7 @@ class ReasoningEngine:
                 if score >= 66: verdict = 'FAVORABLE'
                 elif score >= 41: verdict = 'RISKY'
                 else: verdict = 'AVOID'
-                return {"ticker": ticker, "strategy": strategy, "analysis": content, "score": score, "verdict": verdict, "summary": validated_data.get('summary', ''), "risks": validated_data.get('risks', []), "thesis": validated_data.get('thesis', '')}
+                return {"ticker": ticker, "strategy": strategy, "analysis": clean_analysis, "score": score, "verdict": verdict, "summary": validated_data.get('summary', ''), "risks": validated_data.get('risks', []), "thesis": validated_data.get('thesis', '')}
             else:
                 score = self._extract_score(content)
                 try:
@@ -348,7 +362,7 @@ class ReasoningEngine:
                 if score >= 66: verdict = 'FAVORABLE'
                 elif score >= 41: verdict = 'RISKY'
                 else: verdict = 'AVOID'
-                return {"ticker": ticker, "strategy": strategy, "analysis": content, "score": score, "verdict": verdict, "summary": content[:300] if content else '', "risks": [], "thesis": ''}
+                return {"ticker": ticker, "strategy": strategy, "analysis": clean_analysis, "score": score, "verdict": verdict, "summary": content[:300] if content else '', "risks": [], "thesis": ''}
             
         except Exception as e:
             logger.error(f"Reasoning Engine Failed: {e}")
