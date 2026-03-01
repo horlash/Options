@@ -53,5 +53,12 @@ EXPOSE 5000
 ENV FLASK_APP=run.py
 ENV FLASK_ENV=production
 
-# Run app.py when the container launches
-CMD ["python", "run.py"]
+# Health check: verify the app responds (used by Docker and orchestrators)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/')" || exit 1
+
+# Production: Gunicorn WSGI server
+# 3 workers × 4 threads = 12 concurrent requests (sufficient for 10-15 users)
+# --preload shares app initialization across all workers (saves memory)
+# Fallback: python run.py still works for local development on Windows
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "3", "--threads", "4", "--timeout", "120", "--preload", "run:app"]

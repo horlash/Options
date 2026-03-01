@@ -14,11 +14,16 @@ Implementation:
 
 import logging
 import time
+from cachetools import TTLCache
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Tuple
 
 log = logging.getLogger(__name__)
+
+# Module-level TTL cache: shared across all SectorAnalysis instances
+# maxsize=1 because we only cache one result (all sectors ranked together)
+_sector_cache = TTLCache(maxsize=1, ttl=6 * 3600)  # 6-hour TTL
 
 
 @dataclass
@@ -90,8 +95,6 @@ class SectorAnalysis:
             orats_api: OratsAPI instance for fetching price data
         """
         self.orats_api = orats_api
-        self._cached_result: Optional[SectorMomentumResult] = None
-        self._last_fetch_time: float = 0
 
     # ─── Public API ──────────────────────────────────────────────────────────
 
@@ -99,19 +102,17 @@ class SectorAnalysis:
         """Get current sector momentum rankings.
         
         Returns cached result if within TTL unless force_refresh=True.
+        Uses module-level TTLCache (shared across Gunicorn workers in same process).
         """
-        now = time.time()
-        if (not force_refresh
-                and self._cached_result is not None
-                and (now - self._last_fetch_time) < self._CACHE_TTL_SECONDS):
-            result = self._cached_result
+        cache_key = 'sector_rankings'
+
+        if not force_refresh and cache_key in _sector_cache:
+            result = _sector_cache[cache_key]
             result.is_cached = True
-            result.cache_age_minutes = int((now - self._last_fetch_time) / 60)
             return result
 
         result = self._compute_rankings()
-        self._cached_result = result
-        self._last_fetch_time = now
+        _sector_cache[cache_key] = result
         return result
 
     def get_ticker_sector_modifier(self, ticker: str, force_refresh: bool = False) -> Dict:

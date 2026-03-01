@@ -12,6 +12,7 @@ Evidence: VIX %B 2-sigma strategy: 84.5% win rate, 64% annual return
 
 import logging
 from enum import Enum
+from cachetools import TTLCache
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Optional
@@ -108,6 +109,9 @@ class RegimeDetector:
     # Minimum time between VIX fetches (prevents hammering API during rapid scans)
     MIN_REFRESH_SECONDS = 120
 
+    # Module-level TTL cache for regime context (shared across instances)
+    _regime_cache = TTLCache(maxsize=1, ttl=MIN_REFRESH_SECONDS)
+
     # VIX thresholds (configurable via env in future)
     CALM_CEILING = 15.0
     NORMAL_CEILING = 20.0
@@ -121,25 +125,20 @@ class RegimeDetector:
         """Accept either ORATS or FMP for VIX data (ORATS preferred)."""
         self._orats = orats_api
         self._fmp = fmp_api
-        self._cached_context: Optional[RegimeContext] = None
-        self._last_fetch: Optional[datetime] = None
         self._last_regime: Optional[VIXRegime] = None
         # S1-FIX: Initialize to utcnow() so the first regime change also
         # respects the 48-hour anti-whipsaw stickiness window.
-        # Previously None caused the `_regime_changed_at is not None` guard
-        # to bypass the stickiness check on the very first detected change.
         self._regime_changed_at: datetime = datetime.utcnow()
 
     def detect(self, force_refresh: bool = False) -> RegimeContext:
         """Detect current VIX regime. Returns cached result if fresh enough."""
-        now = datetime.utcnow()
+        cache_key = 'vix_regime'
 
-        # Return cache if fresh
-        if (not force_refresh
-                and self._cached_context is not None
-                and self._last_fetch is not None
-                and (now - self._last_fetch).total_seconds() < self.MIN_REFRESH_SECONDS):
-            return self._cached_context
+        # Return cache if fresh (TTLCache handles expiry automatically)
+        if not force_refresh and cache_key in self._regime_cache:
+            return self._regime_cache[cache_key]
+
+        now = datetime.utcnow()
 
         # Fetch VIX level
         vix_level = self._fetch_vix_level()
@@ -152,8 +151,7 @@ class RegimeDetector:
                 is_fallback=True,
                 timestamp=now
             )
-            self._cached_context = ctx
-            self._last_fetch = now
+            self._regime_cache[cache_key] = ctx
             return ctx
 
         # Classify
@@ -182,8 +180,7 @@ class RegimeDetector:
             timestamp=now,
             is_fallback=False
         )
-        self._cached_context = ctx
-        self._last_fetch = now
+        self._regime_cache[cache_key] = ctx
 
         log.info("VIX Regime: %.1f → %s (size_mult=%.2f, score_penalty=%d)",
                  vix_level, regime.value, ctx.position_size_multiplier, ctx.score_penalty)
