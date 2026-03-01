@@ -141,6 +141,16 @@
             <button class="port-pill-filter">Expired</button>
             <button class="port-pill-filter">SL Hit</button>
             <button class="port-pill-filter">TP Hit</button>
+            <span style="margin-left:auto;"></span>
+            <select id="history-ticker-filter" class="port-filter-select">
+              <option value="ALL">All Tickers</option>
+            </select>
+          </div>
+          <div class="port-filter-row" style="gap:8px;margin-top:4px;">
+            <label style="font-size:0.72rem;color:var(--text-muted);font-weight:600;">From</label>
+            <input type="date" id="history-date-start" class="port-filter-date">
+            <label style="font-size:0.72rem;color:var(--text-muted);font-weight:600;">To</label>
+            <input type="date" id="history-date-end" class="port-filter-date">
           </div>
 
           <!-- Trade History Table (dynamic) -->
@@ -152,6 +162,7 @@
                   <th>Type</th>
                   <th>Entry → Exit</th>
                   <th>P&L</th>
+                  <th>Exit Eff</th>
                   <th>Held</th>
                   <th>Reason</th>
                   <th>Date</th>
@@ -159,7 +170,7 @@
               </thead>
               <tbody id="history-table-body">
                 <tr>
-                  <td colspan="7" style="text-align:center;padding:32px;">Click the Trade History tab to load data.</td>
+                  <td colspan="8" style="text-align:center;padding:32px;">Click the Trade History tab to load data.</td>
                 </tr>
               </tbody>
             </table>
@@ -179,6 +190,20 @@
       <!-- ============================================================ -->
       <div class="sub-panel" id="sub-performance">
         <div class="content-area">
+
+          <!-- Period Filters -->
+          <div class="port-filter-row" id="perf-period-filters" style="margin-bottom:12px;">
+            <button class="port-pill-filter">30D</button>
+            <button class="port-pill-filter">YTD</button>
+            <button class="port-pill-filter active">All</button>
+            <button class="port-pill-filter">Custom</button>
+          </div>
+          <div id="perf-custom-range" style="display:none;gap:8px;align-items:center;margin-bottom:12px;">
+            <label style="font-size:0.72rem;color:var(--text-muted);font-weight:600;">From</label>
+            <input type="date" id="perf-custom-start" class="port-filter-date">
+            <label style="font-size:0.72rem;color:var(--text-muted);font-weight:600;">To</label>
+            <input type="date" id="perf-custom-end" class="port-filter-date">
+          </div>
 
           <!-- KPI Cards (dynamic) -->
           <div class="port-kpi-cards" id="perf-kpi-cards">
@@ -206,123 +231,9 @@
       <div class="sub-panel" id="sub-settings">
         <div class="content-area">
 
+          <!-- Settings rendered dynamically by JS -->
           <div class="port-settings-grid" id="settings-grid">
-
-            <!-- 1. Trading Mode -->
-            <div class="port-settings-section">
-              <div class="port-section-header">⚡ Trading Mode</div>
-              <div class="port-section-body">
-                <div class="port-settings-row">
-                  <span class="port-setting-label">Active Mode</span>
-                  <div class="port-mode-toggle">
-                    <button class="port-mode-opt active-green" data-mode="TRADIER_SANDBOX">Sandbox</button>
-                    <button class="port-mode-opt inactive" data-mode="TRADIER_LIVE">Live</button>
-                  </div>
-                </div>
-                <div class="port-settings-annotation">Toggle between paper trading (Sandbox) and real money (Live).
-                </div>
-              </div>
-            </div>
-
-            <!-- 2. Broker Credentials -->
-            <div class="port-settings-section">
-              <div class="port-section-header">🔑 Broker Credentials</div>
-              <div class="port-section-body">
-                <div class="port-settings-row">
-                  <span class="port-setting-label">Tradier Account ID</span>
-                  <input type="text" class="port-settings-input" id="set-tradier-id" placeholder="Account ID">
-                </div>
-                <div class="port-settings-row">
-                  <span class="port-setting-label">Status</span>
-                  <span class="port-status-dot" id="broker-status">Checking...</span>
-                </div>
-                <div class="port-settings-annotation">Tradier brokerage connection. Credentials are encrypted at rest.
-                </div>
-              </div>
-            </div>
-
-            <!-- 3. Portfolio Settings -->
-            <div class="port-settings-section">
-              <div class="port-section-header">💼 Portfolio Settings</div>
-              <div class="port-section-body">
-                <div class="port-settings-row">
-                  <span class="port-setting-label">Account Balance</span>
-                  <input type="number" class="port-settings-input" id="set-account-balance" value="25000">
-                </div>
-                <div class="port-settings-annotation">Account balance tracks current equity.</div>
-              </div>
-            </div>
-
-            <!-- 4. Risk Management -->
-            <div class="port-settings-section">
-              <div class="port-section-header">🛡️ Risk Management</div>
-              <div class="port-section-body">
-                <div class="port-settings-row">
-                  <span class="port-setting-label">Max Simultaneous Positions</span>
-                  <input type="number" class="port-settings-input" id="set-max-positions" value="5">
-                </div>
-                <div class="port-settings-row">
-                  <span class="port-setting-label">Daily Loss Limit</span>
-                  <input type="number" class="port-settings-input" id="set-daily-loss" value="500">
-                </div>
-                <div class="port-settings-row">
-                  <span class="port-setting-label">Default SL %</span>
-                  <input type="number" class="port-settings-input" id="set-default-sl" value="20">
-                </div>
-                <div class="port-settings-row">
-                  <span class="port-setting-label">Default TP %</span>
-                  <input type="number" class="port-settings-input" id="set-default-tp" value="50">
-                </div>
-                <div class="port-settings-row">
-                  <span class="port-setting-label">Max Daily Trades</span>
-                  <input type="number" class="port-settings-input" id="set-max-daily" value="10">
-                </div>
-                <div class="port-settings-annotation">Risk parameters that govern position sizing and loss limits.</div>
-              </div>
-            </div>
-
-            <!-- 5. Trade Behavior -->
-            <div class="port-settings-section">
-              <div class="port-section-header">🔄 Trade Behavior</div>
-              <div class="port-section-body">
-                <div class="port-settings-row">
-                  <span class="port-setting-label">Auto-close at Expiry</span>
-                  <label class="port-toggle-switch">
-                    <input type="checkbox" id="set-auto-close" checked>
-                    <span class="port-toggle-slider"></span>
-                  </label>
-                </div>
-                <div class="port-settings-row">
-                  <span class="port-setting-label">Require Confirmation</span>
-                  <label class="port-toggle-switch">
-                    <input type="checkbox" id="set-require-confirm" checked>
-                    <span class="port-toggle-slider"></span>
-                  </label>
-                </div>
-                <div class="port-settings-annotation">Auto-close prevents positions from expiring unmanaged.</div>
-              </div>
-            </div>
-
-            <!-- 6. Preferences -->
-            <div class="port-settings-section">
-              <div class="port-section-header">🎨 Preferences</div>
-              <div class="port-section-body">
-                <div class="port-settings-row">
-                  <span class="port-setting-label">Alert on SL/TP Hit</span>
-                  <label class="port-toggle-switch">
-                    <input type="checkbox" id="set-alert-bracket" checked>
-                    <span class="port-toggle-slider"></span>
-                  </label>
-                </div>
-                <div class="port-settings-annotation">Alerts fire browser notifications when SL/TP triggers.</div>
-              </div>
-            </div>
-
-          </div>
-
-          <!-- Save Button -->
-          <div class="port-save-row">
-            <button class="port-btn port-btn-primary" id="btn-save-settings">💾 Save Settings</button>
+            <div style="text-align:center;padding:24px;">Loading settings...</div>
           </div>
 
         </div>

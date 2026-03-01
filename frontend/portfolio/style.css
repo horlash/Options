@@ -1211,3 +1211,123 @@ body.dark .port-pill-filter.active {
 .portfolio-sub-tabs, .mode-banner, .port-expanded-section {
   transition: background .2s, color .2s, border-color .2s, box-shadow .2s;
 }
+
+/* ============================================================
+   STEPPER INPUTS (replaces ugly browser spinners)
+   ============================================================ */
+.port-stepper-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--input-bg);
+}
+.port-stepper-btn {
+  border: none;
+  background: var(--bg);
+  color: var(--text);
+  font-size: .9rem;
+  font-weight: 700;
+  width: 32px;
+  height: 34px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+  font-family: var(--font);
+  user-select: none;
+}
+.port-stepper-btn:hover { background: var(--hover-bg); }
+.port-stepper-btn:active { background: var(--border); }
+.port-stepper-input {
+  border: none !important;
+  border-left: 1px solid var(--border) !important;
+  border-right: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  width: 80px;
+  text-align: center;
+  font-weight: 600;
+  padding: 6px 4px !important;
+  background: var(--input-bg) !important;
+  box-shadow: none !important;
+}
+/* Hide native number spinners */
+.port-stepper-input::-webkit-inner-spin-button,
+.port-stepper-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.port-stepper-input { -moz-appearance: textfield; }
+
+/* ============================================================
+   DATE FILTER INPUTS
+   ============================================================ */
+.port-filter-date {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font);
+  font-size: .75rem;
+  color: var(--text);
+  background: var(--input-bg);
+}
+
+/* ============================================================
+   SETTINGS CARDS (JS-rendered)
+   ============================================================ */
+.port-settings-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+  transition: background .2s, border-color .2s;
+}
+.port-settings-card-title {
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ============================================================
+   TOGGLE SWITCHES
+   ============================================================ */
+.port-toggle {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 22px;
+  cursor: pointer;
+}
+.port-toggle input { opacity: 0; width: 0; height: 0; }
+.port-toggle-slider {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--toggle-off);
+  border-radius: 22px;
+  transition: background .2s;
+}
+.port-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 16px; height: 16px;
+  left: 3px; bottom: 3px;
+  background: var(--toggle-knob);
+  border-radius: 50%;
+  transition: transform .2s;
+}
+.port-toggle input:checked + .port-toggle-slider {
+  background: var(--blue);
+}
+.port-toggle input:checked + .port-toggle-slider::before {
+  transform: translateX(20px);
+}

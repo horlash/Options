@@ -44,6 +44,33 @@
         return Math.ceil(Math.abs(new Date(b) - new Date(a)) / 86400000) + 'd';
     }
 
+    /** stepper HTML for number inputs */
+    function stepperInput(id, value, step = 0.01, placeholder = '') {
+        return `<div class="port-stepper-wrap">
+            <button type="button" class="port-stepper-btn" data-target="${id}" data-step="-${step}">−</button>
+            <input type="number" step="${step}" id="${id}" value="${value}" class="port-settings-input port-stepper-input" placeholder="${placeholder}">
+            <button type="button" class="port-stepper-btn" data-target="${id}" data-step="${step}">+</button>
+        </div>`;
+    }
+
+    /** Wire stepper buttons for a container */
+    function wireSteppers(container) {
+        (container || document).querySelectorAll('.port-stepper-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const input = document.getElementById(btn.dataset.target);
+                if (!input) return;
+                const step = parseFloat(btn.dataset.step);
+                const current = parseFloat(input.value) || 0;
+                input.value = Math.max(0, current + step).toFixed(
+                    step >= 1 ? 0 : 2
+                );
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        });
+    }
+
     async function apiFetch(path, opts = {}) {
         try {
             const res = await fetch(API_BASE + path, {
@@ -70,6 +97,11 @@
     let currentSettings = {};
     let openTrades = [];
     let closedTrades = [];
+    let historyFilter = 'ALL';
+    let historyTickerFilter = 'ALL';
+    let historyDateStart = '';
+    let historyDateEnd = '';
+    let perfPeriod = 'ALL';
 
     // ============================================================
     // THEME TOGGLE
@@ -185,6 +217,21 @@
         }
     }
 
+    function computeRisk(t, slOverride, tpOverride) {
+        const sl = slOverride !== undefined ? slOverride : t.sl_price;
+        const tp = tpOverride !== undefined ? tpOverride : t.tp_price;
+        const entry = t.entry_price;
+        const qty = t.qty;
+        const maxLossPerContract = sl ? Math.abs(entry - sl) : entry;
+        const maxLoss = (maxLossPerContract * qty * 100).toFixed(0);
+        const maxGainPerContract = tp ? Math.abs(tp - entry) : null;
+        const maxGain = maxGainPerContract ? (maxGainPerContract * qty * 100).toFixed(0) : '∞';
+        const rr = (maxGainPerContract && maxLossPerContract > 0)
+            ? (maxGainPerContract / maxLossPerContract).toFixed(1)
+            : '—';
+        return { maxLoss, maxGain, rr };
+    }
+
     function renderPositionRow(t, idx) {
         const greeks = (t.trade_context || {}).greeks || {};
         const volume = (t.trade_context || {}).volume || '—';
@@ -192,7 +239,7 @@
         const breakEven = t.option_type === 'CALL'
             ? (t.strike + t.entry_price).toFixed(2)
             : (t.strike - t.entry_price).toFixed(2);
-        const maxLoss = (t.entry_price * t.qty * 100).toFixed(0);
+        const risk = computeRisk(t);
         const slPrice = t.sl_price ? fmt(t.sl_price) : '—';
         const tpPrice = t.tp_price ? fmt(t.tp_price) : '—';
         const aiNote = t.ai_verdict ? `AI: "${t.ai_verdict}" (Score: ${t.ai_score || '—'})` : '';
@@ -233,11 +280,13 @@
                             <div class="port-detail-row"><span class="label">Volume</span><span class="value">${typeof volume === 'number' ? volume.toLocaleString() : volume}</span></div>
                             <div class="port-detail-row"><span class="label">Open Interest</span><span class="value">${typeof oi === 'number' ? oi.toLocaleString() : oi}</span></div>
                         </div>
-                        <div class="port-expanded-section">
+                        <div class="port-expanded-section" id="risk-section-${t.id}">
                             <h4>Risk Management</h4>
                             <div class="port-detail-row"><span class="label">SL Price</span><span class="value">${slPrice}</span></div>
                             <div class="port-detail-row"><span class="label">TP Price</span><span class="value">${tpPrice}</span></div>
-                            <div class="port-detail-row"><span class="label">Max Loss</span><span class="value red">$${maxLoss}</span></div>
+                            <div class="port-detail-row"><span class="label">Max Loss</span><span class="value red">$${risk.maxLoss}</span></div>
+                            <div class="port-detail-row"><span class="label">Max Gain</span><span class="value green">$${risk.maxGain}</span></div>
+                            <div class="port-detail-row"><span class="label">R:R</span><span class="value">${risk.rr}</span></div>
                             <div class="port-detail-row"><span class="label">Qty</span><span class="value">${t.qty}</span></div>
                             <div class="port-detail-row"><span class="label">Strategy</span><span class="value">${t.strategy || '—'}</span></div>
                         </div>
@@ -261,28 +310,16 @@
             });
         });
 
-        // Close buttons
+        // Close buttons — with confirmation popup
         $$('.btn-close').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const id = btn.dataset.id;
                 const trade = openTrades.find(t => t.id == id);
                 if (!trade) return;
-                if (!confirm(`Close ${trade.ticker} ${trade.option_type} ${fmt(trade.strike)} position?`)) return;
 
-                btn.disabled = true;
-                btn.textContent = 'Closing...';
-                try {
-                    await apiFetch(`/trades/${id}/close`, {
-                        method: 'POST',
-                        body: JSON.stringify({ close_reason: 'MANUAL' }),
-                    });
-                    loadOpenPositions();
-                } catch (e) {
-                    alert('Failed to close: ' + e.message);
-                    btn.disabled = false;
-                    btn.textContent = 'Close';
-                }
+                // Show confirmation modal
+                showCloseConfirmation(trade, btn);
             });
         });
 
@@ -298,6 +335,62 @@
         });
     }
 
+    function showCloseConfirmation(trade, triggerBtn) {
+        const existing = $('#close-confirm-modal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'close-confirm-modal';
+        modal.className = 'port-modal-overlay';
+        modal.innerHTML = `
+            <div class="port-modal">
+                <h3>⚠️ Close Position</h3>
+                <p style="margin:12px 0;color:var(--text-muted);font-size:0.85rem;">
+                    Are you sure you want to close <strong>${trade.ticker} ${trade.option_type} ${fmt(trade.strike)}</strong>?
+                </p>
+                <p style="font-size:0.78rem;color:var(--text-light);">
+                    This will submit a sell-to-close order to your broker at market price.
+                </p>
+                <div id="close-status" style="margin:8px 0;font-size:0.8rem;min-height:20px;"></div>
+                <div style="display:flex;gap:8px;margin-top:16px;">
+                    <button class="port-btn port-btn-danger" id="close-confirm-yes">🔴 Close Position</button>
+                    <button class="port-btn" id="close-confirm-no">Cancel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        $('#close-confirm-no').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+        $('#close-confirm-yes').onclick = async () => {
+            const yesBtn = $('#close-confirm-yes');
+            const statusEl = $('#close-status');
+            yesBtn.disabled = true;
+            yesBtn.textContent = '⏳ Closing...';
+            statusEl.textContent = 'Submitting close order...';
+            statusEl.style.color = 'var(--blue)';
+            try {
+                await apiFetch(`/trades/${trade.id}/close`, {
+                    method: 'POST',
+                    body: JSON.stringify({ close_reason: 'MANUAL' }),
+                });
+                statusEl.textContent = '✅ Position closed successfully!';
+                statusEl.style.color = 'var(--green)';
+                yesBtn.textContent = '✅ Closed';
+                setTimeout(() => {
+                    modal.remove();
+                    loadOpenPositions();
+                }, 1200);
+            } catch (e) {
+                statusEl.textContent = '❌ Failed: ' + e.message;
+                statusEl.style.color = 'var(--red)';
+                yesBtn.disabled = false;
+                yesBtn.textContent = '🔴 Close Position';
+            }
+        };
+    }
+
     function showAdjustModal(trade) {
         const existing = $('#adjust-modal');
         if (existing) existing.remove();
@@ -308,8 +401,9 @@
         modal.innerHTML = `
             <div class="port-modal">
                 <h3>Adjust ${trade.ticker} ${trade.option_type} ${fmt(trade.strike)}</h3>
-                <div class="port-settings-row"><span class="port-setting-label">Stop Loss</span><input type="number" step="0.01" id="adj-sl" value="${trade.sl_price || ''}" class="port-settings-input" placeholder="SL price"></div>
-                <div class="port-settings-row"><span class="port-setting-label">Take Profit</span><input type="number" step="0.01" id="adj-tp" value="${trade.tp_price || ''}" class="port-settings-input" placeholder="TP price"></div>
+                <div class="port-settings-row"><span class="port-setting-label">Stop Loss</span>${stepperInput('adj-sl', trade.sl_price || '', 0.05, 'SL price')}</div>
+                <div class="port-settings-row"><span class="port-setting-label">Take Profit</span>${stepperInput('adj-tp', trade.tp_price || '', 0.05, 'TP price')}</div>
+                <div id="adj-risk-preview" style="margin:10px 0;padding:8px;background:var(--bg);border-radius:var(--radius);font-size:0.78rem;"></div>
                 <div style="display:flex;gap:8px;margin-top:16px;">
                     <button class="port-btn port-btn-primary" id="adj-save">Save</button>
                     <button class="port-btn" id="adj-cancel">Cancel</button>
@@ -317,6 +411,25 @@
             </div>
         `;
         document.body.appendChild(modal);
+        wireSteppers(modal);
+
+        // Dynamic risk preview
+        function updateRiskPreview() {
+            const sl = parseFloat($('#adj-sl').value) || null;
+            const tp = parseFloat($('#adj-tp').value) || null;
+            const risk = computeRisk(trade, sl, tp);
+            const preview = $('#adj-risk-preview');
+            if (preview) {
+                preview.innerHTML = `
+                    <div class="port-detail-row"><span class="label">Max Loss</span><span class="value red">$${risk.maxLoss}</span></div>
+                    <div class="port-detail-row"><span class="label">Max Gain</span><span class="value green">$${risk.maxGain}</span></div>
+                    <div class="port-detail-row"><span class="label">R:R Ratio</span><span class="value">${risk.rr}</span></div>
+                `;
+            }
+        }
+        updateRiskPreview();
+        $('#adj-sl').addEventListener('input', updateRiskPreview);
+        $('#adj-tp').addEventListener('input', updateRiskPreview);
 
         $('#adj-cancel').onclick = () => modal.remove();
         modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
@@ -326,8 +439,8 @@
             const tp = parseFloat($('#adj-tp').value) || null;
             try {
                 await apiFetch(`/trades/${trade.id}/adjust`, {
-                    method: 'PUT',
-                    body: JSON.stringify({ sl_price: sl, tp_price: tp }),
+                    method: 'POST',
+                    body: JSON.stringify({ new_sl: sl, new_tp: tp }),
                 });
                 modal.remove();
                 loadOpenPositions();
@@ -340,14 +453,12 @@
     // ============================================================
     // 2. TRADE HISTORY
     // ============================================================
-    let historyFilter = 'ALL';
-
     async function loadTradeHistory() {
         const container = $('#history-table-body');
         const summaryContainer = $('#history-summary');
         if (!container) return;
 
-        container.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;">Loading trade history...</td></tr>';
+        container.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;">Loading trade history...</td></tr>';
 
         try {
             const data = await apiFetch('/trades?status=CLOSED&limit=100');
@@ -364,9 +475,18 @@
                 `;
             }
 
+            // Build ticker dropdown
+            const tickerDropdown = $('#history-ticker-filter');
+            if (tickerDropdown) {
+                const tickers = [...new Set(closedTrades.map(t => t.ticker))].sort();
+                tickerDropdown.innerHTML = '<option value="ALL">All Tickers</option>' +
+                    tickers.map(t => `<option value="${t}">${t}</option>`).join('');
+                tickerDropdown.value = historyTickerFilter;
+            }
+
             renderFilteredHistory();
         } catch (e) {
-            container.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--red);">Failed to load history: ${e.message}</td></tr>`;
+            container.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--red);">Failed to load history: ${e.message}</td></tr>`;
         }
     }
 
@@ -375,14 +495,31 @@
         if (!container) return;
 
         let filtered = closedTrades;
-        if (historyFilter === 'WINS') filtered = closedTrades.filter(t => (t.realized_pnl || 0) > 0);
-        else if (historyFilter === 'LOSSES') filtered = closedTrades.filter(t => (t.realized_pnl || 0) < 0);
-        else if (historyFilter === 'EXPIRED') filtered = closedTrades.filter(t => t.close_reason === 'EXPIRED');
-        else if (historyFilter === 'SL') filtered = closedTrades.filter(t => t.close_reason === 'SL_HIT');
-        else if (historyFilter === 'TP') filtered = closedTrades.filter(t => t.close_reason === 'TP_HIT');
+
+        // Status filter
+        if (historyFilter === 'WINS') filtered = filtered.filter(t => (t.realized_pnl || 0) > 0);
+        else if (historyFilter === 'LOSSES') filtered = filtered.filter(t => (t.realized_pnl || 0) < 0);
+        else if (historyFilter === 'EXPIRED') filtered = filtered.filter(t => t.close_reason === 'EXPIRED');
+        else if (historyFilter === 'SL') filtered = filtered.filter(t => t.close_reason === 'SL_HIT');
+        else if (historyFilter === 'TP') filtered = filtered.filter(t => t.close_reason === 'TP_HIT');
+
+        // Ticker filter
+        if (historyTickerFilter !== 'ALL') {
+            filtered = filtered.filter(t => t.ticker === historyTickerFilter);
+        }
+
+        // Date range filter
+        if (historyDateStart) {
+            const start = new Date(historyDateStart);
+            filtered = filtered.filter(t => t.closed_at && new Date(t.closed_at) >= start);
+        }
+        if (historyDateEnd) {
+            const end = new Date(historyDateEnd + 'T23:59:59');
+            filtered = filtered.filter(t => t.closed_at && new Date(t.closed_at) <= end);
+        }
 
         if (filtered.length === 0) {
-            container.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">No trades match this filter.</td></tr>';
+            container.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">No trades match this filter.</td></tr>';
             return;
         }
 
@@ -390,9 +527,19 @@
         wireHistoryRows();
     }
 
+    function computeExitEfficiency(t) {
+        if (!t.tp_price || !t.exit_price || !t.entry_price) return '—';
+        if (t.tp_price === t.entry_price) return '—';
+        const maxPossibleGain = t.tp_price - t.entry_price;
+        const actualGain = t.exit_price - t.entry_price;
+        const efficiency = (actualGain / maxPossibleGain) * 100;
+        return efficiency.toFixed(0) + '%';
+    }
+
     function renderHistoryRow(t, idx) {
         const reasonMap = { 'TP_HIT': ['TP Hit ✓', 'green'], 'SL_HIT': ['SL Hit ✗', 'red'], 'MANUAL': ['Manual Close', ''], 'EXPIRED': ['Expired', ''] };
         const [reasonLabel, reasonClass] = reasonMap[t.close_reason] || [t.close_reason || '—', ''];
+        const exitEff = computeExitEfficiency(t);
 
         return `
             <tr class="port-clickable-row ${idx === 0 ? 'expanded' : ''}" data-expand="hist-${t.id}">
@@ -400,12 +547,13 @@
                 <td data-label="Type">${t.option_type}</td>
                 <td data-label="Entry → Exit">${fmt(t.entry_price)} → ${t.exit_price ? fmt(t.exit_price) : '—'}</td>
                 <td data-label="P&L" class="${pnlClass(t.realized_pnl)}">${fmtPnl(t.realized_pnl)}</td>
+                <td data-label="Exit Eff">${exitEff}</td>
                 <td data-label="Held">${daysBetween(t.created_at, t.closed_at)}</td>
                 <td data-label="Reason"><span class="port-pill ${reasonClass}">${reasonLabel}</span></td>
                 <td data-label="Date">${fmtDate(t.closed_at)}</td>
             </tr>
             <tr class="port-expanded-row" id="hist-${t.id}" ${idx === 0 ? '' : 'style="display:none;"'}>
-                <td colspan="7">
+                <td colspan="8">
                     <div class="port-expanded-content">
                         <div class="port-expanded-section">
                             <h4>Execution Details</h4>
@@ -420,6 +568,7 @@
                             <h4>Trade Metrics</h4>
                             <div class="port-detail-row"><span class="label">Strategy</span><span class="value">${t.strategy || '—'}</span></div>
                             <div class="port-detail-row"><span class="label">Qty</span><span class="value">${t.qty}</span></div>
+                            <div class="port-detail-row"><span class="label">Exit Efficiency</span><span class="value">${exitEff}</span></div>
                             <div class="port-detail-row"><span class="label">AI Score</span><span class="value">${t.ai_score || '—'}</span></div>
                             <div class="port-detail-row"><span class="label">AI Verdict</span><span class="value">${t.ai_verdict || '—'}</span></div>
                         </div>
@@ -452,9 +601,50 @@
         renderFilteredHistory();
     });
 
+    // Wire ticker dropdown
+    document.addEventListener('change', (e) => {
+        if (!e.target.matches('#history-ticker-filter')) return;
+        historyTickerFilter = e.target.value;
+        renderFilteredHistory();
+    });
+
+    // Wire date range inputs
+    document.addEventListener('change', (e) => {
+        if (e.target.matches('#history-date-start')) {
+            historyDateStart = e.target.value;
+            renderFilteredHistory();
+        }
+        if (e.target.matches('#history-date-end')) {
+            historyDateEnd = e.target.value;
+            renderFilteredHistory();
+        }
+    });
+
     // ============================================================
     // 3. PERFORMANCE
     // ============================================================
+    function getPerfDateRange() {
+        const now = new Date();
+        let start = null;
+        if (perfPeriod === '30D') {
+            start = new Date(now);
+            start.setDate(start.getDate() - 30);
+        } else if (perfPeriod === 'YTD') {
+            start = new Date(now.getFullYear(), 0, 1);
+        } else if (perfPeriod === 'CUSTOM') {
+            const s = $('#perf-custom-start');
+            const e = $('#perf-custom-end');
+            return {
+                start: s?.value || null,
+                end: e?.value || null,
+            };
+        }
+        return {
+            start: start ? start.toISOString().split('T')[0] : null,
+            end: null,
+        };
+    }
+
     async function loadPerformance() {
         const kpiContainer = $('#perf-kpi-cards');
         const chartsGrid = $('#perf-charts-grid');
@@ -464,10 +654,16 @@
         kpiContainer.innerHTML = '<div style="text-align:center;padding:24px;">Loading analytics...</div>';
 
         try {
+            const dateRange = getPerfDateRange();
+            const qs = new URLSearchParams();
+            if (dateRange.start) qs.set('start', dateRange.start);
+            if (dateRange.end) qs.set('end', dateRange.end);
+            const qsStr = qs.toString() ? '?' + qs.toString() : '';
+
             const [statsData, byTickerData, byStratData] = await Promise.all([
                 apiFetch('/stats'),
-                apiFetch('/analytics/by-ticker').catch(() => ({ success: true, data: [] })),
-                apiFetch('/analytics/by-strategy').catch(() => ({ success: true, data: [] })),
+                apiFetch('/analytics/by-ticker' + qsStr).catch(() => ({ success: true, data: [] })),
+                apiFetch('/analytics/by-strategy' + qsStr).catch(() => ({ success: true, data: [] })),
             ]);
 
             const stats = statsData.stats || {};
@@ -558,6 +754,28 @@
         }
     }
 
+    // Wire performance period filters
+    document.addEventListener('click', (e) => {
+        if (!e.target.matches('#perf-period-filters .port-pill-filter')) return;
+        $$('#perf-period-filters .port-pill-filter').forEach(p => p.classList.remove('active'));
+        e.target.classList.add('active');
+        const map = { '30D': '30D', 'YTD': 'YTD', 'All': 'ALL', 'Custom': 'CUSTOM' };
+        perfPeriod = map[e.target.textContent] || 'ALL';
+
+        // Show/hide custom date range
+        const customWrap = $('#perf-custom-range');
+        if (customWrap) customWrap.style.display = perfPeriod === 'CUSTOM' ? 'flex' : 'none';
+
+        loadPerformance();
+    });
+
+    // Wire custom date inputs
+    document.addEventListener('change', (e) => {
+        if (e.target.matches('#perf-custom-start') || e.target.matches('#perf-custom-end')) {
+            if (perfPeriod === 'CUSTOM') loadPerformance();
+        }
+    });
+
     // ============================================================
     // 4. SETTINGS
     // ============================================================
@@ -575,49 +793,53 @@
     }
 
     function renderSettings(s) {
-        // Populate input values
-        const fields = {
-            'set-account-balance': s.account_balance,
-            'set-daily-loss': s.daily_loss_limit,
-            'set-max-positions': s.max_positions,
-            'set-default-sl': s.default_sl_pct,
-            'set-default-tp': s.default_tp_pct,
-            'set-max-daily': s.max_daily_trades,
-            'set-tradier-id': s.tradier_account_id || '',
-        };
-        Object.entries(fields).forEach(([id, val]) => {
-            const el = $('#' + id);
-            if (el) el.value = val;
-        });
+        const grid = $('#settings-grid');
+        if (!grid) return;
 
-        // Toggle switches
-        const toggles = {
-            'set-auto-close': s.auto_close_expiry,
-            'set-require-confirm': s.require_trade_confirm,
-            'set-alert-bracket': s.alert_on_bracket_hit,
-        };
-        Object.entries(toggles).forEach(([id, val]) => {
-            const el = $('#' + id);
-            if (el) el.checked = !!val;
-        });
+        grid.innerHTML = `
+            <div class="port-settings-card">
+                <div class="port-settings-card-title">Account</div>
+                <div class="port-settings-row"><span class="port-setting-label">Account Balance ($)</span>${stepperInput('set-account-balance', s.account_balance || 5000, 500, 'Balance')}</div>
+                <div class="port-settings-row"><span class="port-setting-label">Daily Loss Limit ($)</span>${stepperInput('set-daily-loss', s.daily_loss_limit || 500, 50, 'Limit')}</div>
+            </div>
+            <div class="port-settings-card">
+                <div class="port-settings-card-title">Position Limits</div>
+                <div class="port-settings-row"><span class="port-setting-label">Max Open Positions</span>${stepperInput('set-max-positions', s.max_positions || 5, 1, 'Max')}</div>
+                <div class="port-settings-row"><span class="port-setting-label">Max Daily Trades</span>${stepperInput('set-max-daily', s.max_daily_trades || 10, 1, 'Max')}</div>
+                <div class="port-settings-row"><span class="port-setting-label">Portfolio Heat Limit (%)</span>${stepperInput('set-heat-limit', s.heat_limit_pct ?? 6, 1, 'Heat %')}</div>
+            </div>
+            <div class="port-settings-card">
+                <div class="port-settings-card-title">Defaults</div>
+                <div class="port-settings-row"><span class="port-setting-label">Default SL (%)</span>${stepperInput('set-default-sl', s.default_sl_pct || 20, 5, 'SL %')}</div>
+                <div class="port-settings-row"><span class="port-setting-label">Default TP (%)</span>${stepperInput('set-default-tp', s.default_tp_pct || 50, 5, 'TP %')}</div>
+            </div>
+            <div class="port-settings-card">
+                <div class="port-settings-card-title">Automation</div>
+                <div class="port-settings-row"><span class="port-setting-label">Auto-Close on Expiry</span><label class="port-toggle"><input type="checkbox" id="set-auto-close" ${s.auto_close_expiry ? 'checked' : ''}><span class="port-toggle-slider"></span></label></div>
+                <div class="port-settings-row"><span class="port-setting-label">Require Trade Confirm</span><label class="port-toggle"><input type="checkbox" id="set-require-confirm" ${s.require_trade_confirm ? 'checked' : ''}><span class="port-toggle-slider"></span></label></div>
+                <div class="port-settings-row"><span class="port-setting-label">Alert on SL/TP Hit</span><label class="port-toggle"><input type="checkbox" id="set-alert-bracket" ${s.alert_on_bracket_hit ? 'checked' : ''}><span class="port-toggle-slider"></span></label></div>
+            </div>
+            <div class="port-settings-card">
+                <div class="port-settings-card-title">Broker Connection</div>
+                <div class="port-settings-row"><span class="port-setting-label">Tradier Account ID</span><input type="text" class="port-settings-input" id="set-tradier-id" value="${s.tradier_account_id || ''}" placeholder="Account ID"></div>
+                <div class="port-settings-row">
+                    <span class="port-setting-label">Status</span>
+                    <span id="broker-status" class="port-status-dot ${(s.has_sandbox_token || s.has_live_token) ? '' : 'disconnected'}">${(s.has_sandbox_token || s.has_live_token) ? 'Connected' : 'Not Connected'}</span>
+                </div>
+                <div class="port-settings-row">
+                    <span class="port-setting-label">Mode</span>
+                    <div class="port-mode-toggle">
+                        <button class="port-mode-opt ${s.broker_mode === 'TRADIER_SANDBOX' ? 'active-green' : 'inactive'}" data-mode="TRADIER_SANDBOX">Sandbox</button>
+                        <button class="port-mode-opt ${s.broker_mode === 'TRADIER_LIVE' ? 'active-green' : 'inactive'}" data-mode="TRADIER_LIVE">Live</button>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align:right; margin-top:8px;">
+                <button class="port-btn port-btn-primary" id="btn-save-settings">💾 Save Settings</button>
+            </div>
+        `;
 
-        // Broker mode
-        $$('.port-mode-opt[data-mode]').forEach(btn => {
-            btn.classList.remove('active-green');
-            btn.classList.add('inactive');
-            if (btn.dataset.mode === s.broker_mode) {
-                btn.classList.remove('inactive');
-                btn.classList.add('active-green');
-            }
-        });
-
-        // Connection status
-        const statusDot = $('#broker-status');
-        if (statusDot) {
-            const connected = s.broker_mode === 'TRADIER_SANDBOX' ? s.has_sandbox_token : s.has_live_token;
-            statusDot.textContent = connected ? 'Connected' : 'Not Connected';
-            statusDot.className = 'port-status-dot ' + (connected ? '' : 'disconnected');
-        }
+        wireSteppers(grid);
     }
 
     // Save settings handler
@@ -629,6 +851,10 @@
         btn.textContent = 'Saving...';
 
         try {
+            // Get active broker mode
+            const activeMode = $('.port-mode-opt.active-green');
+            const brokerMode = activeMode ? activeMode.dataset.mode : 'TRADIER_SANDBOX';
+
             const payload = {
                 account_balance: parseFloat($('#set-account-balance')?.value) || 5000,
                 daily_loss_limit: parseFloat($('#set-daily-loss')?.value) || 500,
@@ -636,9 +862,11 @@
                 default_sl_pct: parseFloat($('#set-default-sl')?.value) || 20,
                 default_tp_pct: parseFloat($('#set-default-tp')?.value) || 50,
                 max_daily_trades: parseInt($('#set-max-daily')?.value) || 10,
+                heat_limit_pct: parseFloat($('#set-heat-limit')?.value) || 6,
                 auto_close_expiry: $('#set-auto-close')?.checked ?? true,
                 require_trade_confirm: $('#set-require-confirm')?.checked ?? true,
                 alert_on_bracket_hit: $('#set-alert-bracket')?.checked ?? true,
+                broker_mode: brokerMode,
             };
 
             await apiFetch('/settings', {

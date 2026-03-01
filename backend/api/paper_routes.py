@@ -1020,8 +1020,8 @@ def settings_get():
     try:
         settings = db.query(UserSettings).filter_by(username=username).first()
         if not settings:
-            return jsonify({'success': True, 'settings': {'max_positions': 5,'daily_loss_limit': 500.0,'account_balance': 5000.0,'default_sl_pct': 20.0,'default_tp_pct': 50.0,'max_daily_trades': 10,'theme': 'dark','alert_on_bracket_hit': True,'auto_close_expiry': True,'require_trade_confirm': True,'broker_mode': 'TRADIER_SANDBOX','tradier_account_id': None,'has_sandbox_token': False,'has_live_token': False}})
-        return jsonify({'success': True, 'settings': {'max_positions': settings.max_positions,'daily_loss_limit': settings.daily_loss_limit,'account_balance': settings.account_balance,'default_sl_pct': settings.default_sl_pct,'default_tp_pct': settings.default_tp_pct,'max_daily_trades': settings.max_daily_trades,'theme': settings.theme,'alert_on_bracket_hit': settings.alert_on_bracket_hit,'auto_close_expiry': settings.auto_close_expiry,'require_trade_confirm': settings.require_trade_confirm,'broker_mode': settings.broker_mode,'tradier_account_id': settings.tradier_account_id,'has_sandbox_token': bool(settings.tradier_sandbox_token),'has_live_token': bool(settings.tradier_live_token)}})
+            return jsonify({'success': True, 'settings': {'max_positions': 5,'daily_loss_limit': 500.0,'account_balance': 5000.0,'default_sl_pct': 20.0,'default_tp_pct': 50.0,'max_daily_trades': 10,'heat_limit_pct': 6.0,'theme': 'dark','alert_on_bracket_hit': True,'auto_close_expiry': True,'require_trade_confirm': True,'broker_mode': 'TRADIER_SANDBOX','tradier_account_id': None,'has_sandbox_token': False,'has_live_token': False}})
+        return jsonify({'success': True, 'settings': {'max_positions': settings.max_positions,'daily_loss_limit': settings.daily_loss_limit,'account_balance': settings.account_balance,'default_sl_pct': settings.default_sl_pct,'default_tp_pct': settings.default_tp_pct,'max_daily_trades': settings.max_daily_trades,'heat_limit_pct': settings.heat_limit_pct,'theme': settings.theme,'alert_on_bracket_hit': settings.alert_on_bracket_hit,'auto_close_expiry': settings.auto_close_expiry,'require_trade_confirm': settings.require_trade_confirm,'broker_mode': settings.broker_mode,'tradier_account_id': settings.tradier_account_id,'has_sandbox_token': bool(settings.tradier_sandbox_token),'has_live_token': bool(settings.tradier_live_token)}})
     except Exception as e:
         logger.exception(f"settings_get failed: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1050,6 +1050,7 @@ def settings_update():
         if 'auto_close_expiry' in data: settings.auto_close_expiry = bool(data['auto_close_expiry'])
         if 'require_trade_confirm' in data: settings.require_trade_confirm = bool(data['require_trade_confirm'])
         if 'broker_mode' in data: settings.broker_mode = data['broker_mode']
+        if 'heat_limit_pct' in data: settings.heat_limit_pct = float(data['heat_limit_pct'])
         if data.get('tradier_account_id'): settings.tradier_account_id = data['tradier_account_id']
         if data.get('tradier_sandbox_token'):
             try:
