@@ -38,12 +38,22 @@ class ReasoningEngine:
             logger.error("ReasoningEngine Error: No API Key found.")
             return {"error": "AI Reasoning is disabled (No API Key)."}
 
-        days = 5 if strategy in ["WEEKLY", "0DTE"] else 30
-        strat_context = "Intraday Scalp/Gamma Flow"
-        if strategy == "WEEKLY":
+        # P0-DT-R2 FIX: Differentiate news lookback by strategy
+        # 0DTE needs only last 6 hours of news (intraday catalysts)
+        # WEEKLY needs 5 days (swing trade window)
+        # LEAP needs 30 days (macro/fundamental trends)
+        if strategy == '0DTE':
+            days = 1  # Will be filtered to ~6 hours of news in prompt
+            strat_context = "Intraday Scalp/Gamma Flow"
+        elif strategy == 'WEEKLY':
+            days = 5
             strat_context = "Short-Term Gamma/Momentum (5-10 days)"
-        elif strategy == "LEAP":
+        elif strategy == 'LEAP':
+            days = 30
             strat_context = "Long-Term Fundamental/Macro (1-2 years)"
+        else:
+            days = 5
+            strat_context = "Short-Term Analysis"
             
         expiry_str = str(expiry_date) if expiry_date else "General"
         days_to_expiry_str = ""
@@ -238,15 +248,19 @@ class ReasoningEngine:
             technicals=context.get('technicals', {}),
             sentiment=context.get('sentiment', {})
         )
-        score_low = max(0, base_score - 20)
-        score_high = min(100, base_score + 20)
+        # P0-MM-R1 FIX: Removed ±20 constraint — AI can now score full 0-100 range
+        # Previously the AI was clamped to base_score ±20, preventing it from overriding
+        # bad data or flagging major risks outside that narrow window.
+        # base_score is still shown as an "anchor" but is no longer a hard constraint.
+        score_low = 0
+        score_high = 100
         final_reminder = (
             f"\n\nFINAL REMINDER before you answer:\n"
             f"- The Stock Price is **${spot_price}**.\n"
             f"- Imagine it is **2026**.\n"
-            f"- BASE CONVICTION SCORE: {base_score} (Calculated from Hard Data).\n"
-            f"- You may adjust this score +/-20 points based on news, catalysts, and specific trade risks.\n"
-            f"- Your Final Conviction Score MUST be between {score_low} and {score_high}.\n"
+            f"- BASE CONVICTION SCORE: {base_score} (Calculated from Hard Data — use as anchor, not constraint).\n"
+            f"- You may freely adjust this score based on news, catalysts, and specific trade risks.\n"
+            f"- Your Final Conviction Score should be between 0 and 100. Base score {base_score} is a starting point, not a limit.\n"
             f"- JUST ANALYZE THE TRADE at ${spot_price}."
         )
 

@@ -2,6 +2,7 @@ import logging
 import math
 from datetime import datetime, timedelta
 from backend.config import Config
+from backend.services.scanner_utils import calculate_spread_pct
 from backend.database.models import Opportunity
 
 logger = logging.getLogger(__name__)
@@ -143,7 +144,7 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                             'published_date': datetime.fromtimestamp(n.get('datetime')).isoformat() if n.get('datetime') else ""
                         })
 
-                    sentiment_analysis = scanner.sentiment_analyzer.analyze_articles(news_articles)
+                    sentiment_analysis = scanner.sentiment_analyzer.analyze_articles(news_articles, ticker.replace('$',''))
                     sentiment_score = scanner.sentiment_analyzer.calculate_sentiment_score(sentiment_analysis)
                     logger.info(f"Finnhub Headline Analysis Score: {sentiment_score:.1f}")
                 else:
@@ -348,7 +349,17 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
             last = opt.get('last', 0)
             mark = opt.get('mark', 0)
 
-            start_price = (bid + ask) / 2 if (bid > 0 and ask > 0) else last
+            # P0-MM-W1 FIX: Use configurable fill assumption instead of mid-price fantasy
+            # Industry standard: assume you pay the ask on buys (conservative)
+            if bid > 0 and ask > 0:
+                if Config.FILL_ASSUMPTION == 'ask':
+                    start_price = ask  # Conservative: full ask (industry default)
+                elif Config.FILL_ASSUMPTION == 'natural':
+                    start_price = ask - 0.05  # Realistic: ask minus typical price improvement
+                else:  # 'mid'
+                    start_price = (bid + ask) / 2  # Optimistic: mid-price (paper trading)
+            else:
+                start_price = last
             if start_price == 0:
                 # Only log skips for near-the-money options (+-30%) - deep OTM bid=0 is expected
                 if current_price and current_price > 0:
@@ -406,9 +417,12 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
 
             if not is_tactical:
                 # Standard Trend Logic
-                if otype == 'Call' and not is_uptrend:
+                # BUG-SW-1 FIX: Changed from 'not is_uptrend' to 'is_downtrend'
+                # Previously blocked calls in sideways/neutral markets (not uptrend != downtrend)
+                # Now only blocks calls in confirmed downtrends
+                if otype == 'Call' and is_downtrend:
                     if current_price and abs(strike - current_price)/current_price < 0.15:
-                        logger.info(f"  FILTERED {ticker} {strike} {otype}: TREND (not uptrend, ma_signal={ma_signal})")
+                        logger.info(f"  FILTERED {ticker} {strike} {otype}: TREND (downtrend, ma_signal={ma_signal})")
                     continue
                 if otype == 'Put' and is_uptrend:
                     if current_price and abs(strike - current_price)/current_price < 0.15:
@@ -437,8 +451,9 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                     continue
 
             # 4. Bid/Ask Spread (Liquidity) - Keep for all
+            # P0-MM-W2 FIX: Use centralized spread formula (ask-bid)/mid instead of (ask-bid)/ask
             if ask > 0:
-                spread_pct = (ask - bid) / ask
+                spread_pct = calculate_spread_pct(bid, ask)
                 if spread_pct > 0.25 and not is_tactical:
                     if current_price and abs(strike - current_price)/current_price < 0.15:
                         logger.info(f"  FILTERED {ticker} {strike} {otype}: SPREAD too wide ({spread_pct:.0%}, bid={bid} ask={ask})")
@@ -614,6 +629,7 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
             logger.warning(f"   P/C ratio (weekly) failed: {e}")
 
         # S4: Sector momentum modifier
+        sector_info_w = None  # FIX #14: Initialize outside try block for trading_systems dict
         try:
             if scanner.sector_analysis and Config.ENABLE_SECTOR_MOMENTUM:
                 clean_ticker_w = ticker.replace('$', '')
@@ -732,7 +748,46 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                 'rs_score': rs_score,
                 'moving_averages': indicators['moving_averages'], # Expose for Tactical Verification
                 'volume': indicators['volume'], # Expose for Tactical Verification
-                'trend': 'Bullish' if is_uptrend else 'Bearish'
+                'trend': 'Bullish' if is_uptrend else ('Bearish' if is_downtrend else 'Neutral'),
+                # FIX #14: Include full indicator values from get_all_indicators
+                'bollinger_bands': indicators.get('bollinger_bands', {}),
+                'macd': indicators.get('macd', {}),
+                'volatility': indicators.get('volatility', {}),
+                'support_resistance': indicators.get('support_resistance', {}),
+                'rsi2': indicators.get('rsi2', {}),
+                'vwap': indicators.get('vwap', {}),
+                'minervini': indicators.get('minervini', {}),
+            },
+            # FIX #14: Add trading_systems dict (same structure as scanner_leaps.py L562-590)
+            # All data IS computed above (S1-S7A) but was never included in the result dict.
+            'trading_systems': {
+                'vix_regime': {
+                    'level': regime_context_weekly.vix_level if regime_context_weekly else None,
+                    'regime': vix_regime_weekly,
+                    'context': {
+                        'regime_5tier': regime_context_weekly.regime.value,
+                        'score_penalty': regime_context_weekly.score_penalty,
+                        'position_size_mult': regime_context_weekly.position_size_multiplier,
+                        'is_fallback': regime_context_weekly.is_fallback,
+                    } if regime_context_weekly else None,
+                },
+                'put_call': {
+                    'ratio': pc_signal_w.ratio if pc_signal_w else None,
+                    'z_score': pc_signal_w.z_score if pc_signal_w else None,
+                    'signal': pc_signal_w.signal if pc_signal_w else 'disabled',
+                    'contrarian_bias': pc_signal_w.contrarian_bias if pc_signal_w else None,
+                    'score_modifier': pc_score_mod_w,
+                },
+                'sector_momentum': sector_info_w if sector_info_w else {'tier': 'disabled'},
+                'rsi2': indicators.get('rsi2', {}),
+                'minervini': indicators.get('minervini', {}),
+                'vwap': indicators.get('vwap', {}),
+                'score_adjustments': {
+                    'technical_raw': technical_score,
+                    'technical_adjusted': adjusted_technical_w,
+                    'sentiment_raw': sentiment_score,
+                    'sentiment_adjusted': adjusted_sentiment_w,
+                },
             },
             'gex_data': gex_data,
             'opportunities': [
@@ -768,7 +823,7 @@ def scan_weekly(scanner, ticker, weeks_out=0, strategy_tag="WEEKLY", pre_fetched
                 for o in opportunities
             ],
             'timestamp': datetime.now().isoformat(),
-            'data_source': 'ORATS+Finnhub' if scanner.use_orats else 'Schwab+Finnhub',
+            'data_source': 'ORATS' if scanner.use_orats else 'Schwab',  # P0-MM-L2: Finnhub no longer a data source (sentiment only)
             'sentiment_analysis': sentiment_analysis,  # NB-1 FIX: Include sentiment_analysis for AI context
         }
         return scanner._sanitize_for_json(result)
